@@ -5,8 +5,75 @@
 body {
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;
+  background: #0d1117;
+  color: #e6edf3;
 }
 
 #root {
   min-height: 100vh;
+}
+
+/* ── Heatmap ─────────────────────────────────────────── */
+
+.heatmap-header {
+  margin-bottom: 1rem;
+}
+
+.heatmap-game-title {
+  font-size: 1.1rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.heatmap-section {
+  width: 100%;
+  max-width: 1100px;
+}
+
+.heatmap-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (min-width: 1100px) {
+  .heatmap-container {
+    overflow-x: visible;
+  }
+}
+
+.year-select {
+  background: #1c2128;
+  color: #e6edf3;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  outline: none;
+}
+
+.year-select:hover {
+  border-color: #58a6ff;
+}
+
+.tap-info {
+  font-size: 0.85rem;
+  color: #9da5b0;
+  min-height: 1.4em;
+  margin-bottom: 0.5rem;
+}
+
+.tap-info.active {
+  color: #e6edf3;
+}
+
+#ch-tooltip {
+  background: #1c2128;
+  color: #e6edf3;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  pointer-events: none;
+  white-space: pre-line;
 }

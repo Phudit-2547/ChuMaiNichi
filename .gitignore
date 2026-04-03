@@ -201,8 +201,19 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
+# macOS
+.DS_Store
+
+# Vercel
+.vercel/
+
+# pnpm
+pnpm-debug.log
+
 # Marimo
 marimo/_static/
 marimo/_lsp/
 __marimo__/
 node_modules
+.coddo/
+.claude/
