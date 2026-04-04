@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import CalHeatmap from "cal-heatmap";
 import Tooltip from "cal-heatmap/plugins/Tooltip";
 import "cal-heatmap/cal-heatmap.css";
+import * as d3 from "d3";
 import { queryDB } from "../lib/api";
 
 // ── types ──────────────────────────────────────────────
@@ -34,22 +35,87 @@ const RATING_KEY: Record<Game, keyof DailyRow> = {
 // ── data fetching ──────────────────────────────────────
 
 async function fetchYears(): Promise<number[]> {
-  const rows = await queryDB<{ y: number }>(
-    "SELECT DISTINCT EXTRACT(YEAR FROM play_date)::int AS y FROM daily_play ORDER BY y",
+  const rows = await queryDB<{ year: number }>(
+    "SELECT DISTINCT CAST(EXTRACT(YEAR FROM play_date) AS integer) AS year FROM daily_play ORDER BY year",
   );
-  return rows.map((r) => r.y);
+  return rows.map((r) => r.year);
 }
 
-async function fetchData(year: number): Promise<DailyRow[]> {
-  // Fetch the selected year + first week of next year (spillover)
-  return queryDB<DailyRow>(
-    `SELECT play_date::text, maimai_play_count, chunithm_play_count,
-            maimai_rating, chunithm_rating
-     FROM daily_play
-     WHERE play_date >= $1 AND play_date < ($2::date + interval '7 days')
-     ORDER BY play_date`,
-    [`${year}-01-01`, `${year + 1}-01-01`],
-  );
+async function fetchData(year: number, spillover = true): Promise<DailyRow[]> {
+  if (spillover) {
+    const jan1 = new Date(`${year}-01-01`);
+    const dayOfWeek = jan1.getDay();
+    const spillStart = new Date(jan1);
+    spillStart.setDate(jan1.getDate() - dayOfWeek);
+    const startStr = spillStart.toISOString().slice(0, 10);
+
+    return queryDB<DailyRow>(
+      `SELECT play_date::text, maimai_play_count, chunithm_play_count,
+              maimai_rating, chunithm_rating
+       FROM daily_play
+       WHERE play_date >= '${startStr}'::date
+         AND play_date <= '${year + 1}-01-07'::date
+       ORDER BY play_date`,
+    );
+  } else {
+    return queryDB<DailyRow>(
+      `SELECT play_date::text, maimai_play_count, chunithm_play_count,
+              maimai_rating, chunithm_rating
+       FROM daily_play
+       WHERE EXTRACT(YEAR FROM play_date) = ${year}
+       ORDER BY play_date`,
+    );
+  }
+}
+
+// ── trim overflow cells ───────────────────────────────
+
+function trimOverflow(container: HTMLElement, startYear: number) {
+  const svg = container.querySelector("svg");
+  if (!svg) return;
+
+  // Start boundary: Sunday of the week containing Jan 1 of startYear
+  const jan1Start = new Date(startYear, 0, 1);
+  const minTs = jan1Start.getTime() - jan1Start.getDay() * 86400000; // rewind to Sunday
+
+  // End boundary: first Saturday of January next year (end of spillover week)
+  const jan1End = new Date(startYear + 1, 0, 1);
+  const endDow = jan1End.getDay(); // 0=Sun
+  const spilloverEnd = new Date(jan1End);
+  spilloverEnd.setDate(jan1End.getDate() + (6 - endDow)); // next Saturday
+  const maxTs = spilloverEnd.getTime() + 86400000; // exclusive
+
+  // Remove entire domain groups that fall outside the year
+  // Cal-heatmap uses class "m_12" for December domains from the previous year
+  const sel = d3.select(container);
+  sel.selectAll(".ch-domain").each(function () {
+    const g = this as SVGGElement;
+    // Check first rect's timestamp to determine if this domain is out of range
+    const firstRect = g.querySelector("rect.ch-subdomain-bg");
+    if (!firstRect) return;
+    const datum = d3.select(firstRect).datum() as { t?: number } | null;
+    if (!datum?.t) return;
+    if (datum.t < minTs || datum.t >= maxTs) {
+      g.remove();
+      return;
+    }
+    // For partially-overlapping domains, remove individual out-of-range cells
+    d3.select(g).selectAll("rect").each(function () {
+      const d = d3.select(this).datum() as { t?: number } | null;
+      if (!d?.t) return;
+      if (d.t < minTs || d.t >= maxTs) {
+        (this as Element).remove();
+      }
+    });
+  });
+
+  // Resize SVG to tightly fit remaining visible content
+  const bbox = svg.getBBox();
+  const newWidth = Math.ceil(bbox.width + 4);
+  const newHeight = Math.ceil(bbox.height);
+  svg.setAttribute("width", String(newWidth));
+  svg.setAttribute("height", String(newHeight));
+  svg.setAttribute("viewBox", `${Math.floor(bbox.x)} ${Math.floor(bbox.y)} ${newWidth} ${newHeight}`);
 }
 
 // ── single game heatmap ────────────────────────────────
@@ -62,9 +128,11 @@ function GameHeatmap({ game, data, year }: { game: Game; data: DailyRow[]; year:
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Clean up previous instance
-    calRef.current?.destroy();
-    containerRef.current.innerHTML = "";
+    // Build new heatmap off-screen, swap in only after paint is done
+    const wrapper = document.createElement("div");
+    wrapper.style.position = "absolute";
+    wrapper.style.visibility = "hidden";
+    containerRef.current.appendChild(wrapper);
 
     const gameData = data.map((d) => ({
       date: d.play_date,
@@ -78,66 +146,85 @@ function GameHeatmap({ game, data, year }: { game: Game; data: DailyRow[]; year:
     }
 
     const cal = new CalHeatmap();
-    calRef.current = cal;
 
-    cal.paint(
-      {
-        itemSelector: containerRef.current,
-        range: 13,
-        domain: {
-          type: "month",
-          gutter: 4,
-          label: {
-            text: (ts: number) => {
-              const d = new Date(ts);
-              if (d.getFullYear() > year) return "";
-              return d.toLocaleDateString("en-US", { month: "short" });
+    let cancelled = false;
+
+    void (async () => {
+      await cal.paint(
+        {
+          itemSelector: wrapper,
+          range: 13,
+          domain: {
+            type: "month",
+            gutter: 4,
+            label: {
+              text: (ts: number) => {
+                const d = new Date(ts);
+                if (d.getFullYear() !== year) return "";
+                return d.toLocaleDateString("en-US", { month: "short" });
+              },
+              textAlign: "start" as const,
+              position: "top" as const,
             },
-            textAlign: "start" as const,
-            position: "top" as const,
           },
-        },
-        subDomain: {
-          type: "ghDay",
-          radius: 2,
-          width: 15,
-          height: 15,
-          gutter: 4,
-        },
-        date: { start: new Date(`${year}-01-01T00:00:00`) },
-        data: {
-          source: gameData,
-          type: "json",
-          x: "date",
-          y: "value",
-          groupY: "sum",
-        },
-        scale: {
-          color: {
-            type: "threshold",
-            range: COLORS[game],
-            domain: [1, 2, 3, 5],
+          subDomain: {
+            type: "ghDay",
+            radius: 2,
+            width: 15,
+            height: 15,
+            gutter: 4,
           },
+          date: { start: new Date(`${year}-01-01T00:00:00`) },
+          data: {
+            source: gameData,
+            type: "json",
+            x: "date",
+            y: "value",
+            groupY: "sum",
+          },
+          scale: {
+            color: {
+              type: "threshold",
+              range: COLORS[game],
+              domain: [1, 2, 3, 5],
+            },
+          },
+          theme: "dark",
         },
-        theme: "dark",
-      },
-      [
         [
-          Tooltip,
-          {
-            text: (_timestamp: number, value: number | null, dayjsDate: { format: (f: string) => string }) => {
-              const count = value ?? 0;
-              const label = count === 1 ? "play" : "plays";
-              const dateKey = dayjsDate.format("YYYY-MM-DD");
-              const rating = ratingLookup[dateKey];
-              let line = `${count} ${label} on ${dayjsDate.format("MMM D, YYYY")}`;
-              if (rating != null) line += `\nRating: ${rating.toFixed(2)}`;
-              return line;
+          [
+            Tooltip,
+            {
+              text: (_timestamp: number, value: number | null, dayjsDate: { format: (f: string) => string }) => {
+                const count = value ?? 0;
+                const label = count === 1 ? "play" : "plays";
+                const dateKey = dayjsDate.format("YYYY-MM-DD");
+                const rating = ratingLookup[dateKey];
+                let line = `${count} ${label} on ${dayjsDate.format("MMM D, YYYY")}`;
+                if (rating != null) line += `\nRating: ${rating.toFixed(2)}`;
+                return line;
+              },
             },
-          },
+          ],
         ],
-      ],
-    );
+      );
+      if (cancelled) return;
+      // Trim after paint resolves + one frame to ensure DOM is flushed
+      requestAnimationFrame(() => {
+        if (cancelled) return;
+        trimOverflow(wrapper, year);
+        // Swap: remove old content, reveal new
+        const container = containerRef.current;
+        if (!container) return;
+        Array.from(container.children).forEach((child) => {
+          if (child !== wrapper) child.remove();
+        });
+        calRef.current?.destroy();
+        calRef.current = cal;
+        wrapper.style.position = "";
+        wrapper.style.visibility = "";
+      });
+    })();
 
     // Mobile tap support
     const handleClick = (e: MouseEvent) => {
@@ -164,11 +251,11 @@ function GameHeatmap({ game, data, year }: { game: Game; data: DailyRow[]; year:
       setTapInfo(text);
     };
 
-    containerRef.current.addEventListener("click", handleClick);
-    const node = containerRef.current;
+    wrapper.addEventListener("click", handleClick);
 
     return () => {
-      node.removeEventListener("click", handleClick);
+      cancelled = true;
+      wrapper.removeEventListener("click", handleClick);
       cal.destroy();
     };
   }, [game, data, year]);
@@ -191,20 +278,27 @@ export default function Heatmap({ games }: { games: Game[] }) {
 
   // Fetch available years on mount
   useEffect(() => {
+    const currentYear = new Date().getFullYear();
     fetchYears()
       .then((yrs) => {
-        const list = yrs.length ? yrs : [new Date().getFullYear()];
+        const set = new Set<number>(yrs);
+        set.add(currentYear);
+        set.add(currentYear - 1); // ensure last year is available
+        const list = Array.from(set).sort((a, b) => a - b);
         setYears(list);
         setSelectedYear(list[list.length - 1]);
       })
-      .catch(() => setYears([new Date().getFullYear()]));
+      .catch(() => {
+        setYears([currentYear, currentYear - 1]);
+        setSelectedYear(currentYear);
+      });
   }, []);
 
   // Fetch data when year changes
-  const loadData = useCallback(async (year: number) => {
+  const loadData = useCallback(async (year: number, spillover: boolean) => {
     setLoading(true);
     try {
-      setData(await fetchData(year));
+      setData(await fetchData(year, spillover));
     } catch {
       setData([]);
     } finally {
@@ -213,7 +307,7 @@ export default function Heatmap({ games }: { games: Game[] }) {
   }, []);
 
   useEffect(() => {
-    loadData(selectedYear);
+    loadData(selectedYear, true);
   }, [selectedYear, loadData]);
 
   return (
