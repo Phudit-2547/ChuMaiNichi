@@ -313,10 +313,14 @@ The `suggest_songs` tool runs server-side in `api/chat.ts`. It is maimai-specifi
 | Variable | Description |
 |---|---|
 | `DATABASE_URL` | Neon PostgreSQL connection string |
-| `OPENAI_API_KEY` | OpenAI-compatible API key |
-| `OPENAI_BASE_URL` | OpenAI-compatible base URL |
+| `OPENAI_API_KEY` | OpenAI-compatible API key (used if `GEMINI_API_KEY` is not set) |
+| `OPENAI_BASE_URL` | OpenAI-compatible base URL (optional, defaults to OpenAI) |
+| `GEMINI_API_KEY` | Google Gemini API key (takes priority over `OPENAI_API_KEY`) |
+| `AI_MODEL` | Override default model name (default: `gemini-2.5-flash` for Gemini, `gpt-4o-mini` for OpenAI) |
 | `GITHUB_PAT` | Fine-grained PAT for triggering workflow_dispatch |
 | `GITHUB_REPO` | `Phudit-2547/ChuMaiNichi` |
+
+**AI provider detection:** `api/chat.ts` checks `GEMINI_API_KEY` first, then `OPENAI_API_KEY`. Gemini is accessed via its OpenAI-compatible endpoint using the same `openai` SDK — no additional dependencies. Set exactly one of the two API keys.
 
 ### GitHub repo secrets (for Actions)
 | Secret | Description |
@@ -333,7 +337,7 @@ The `suggest_songs` tool runs server-side in `api/chat.ts`. It is maimai-specifi
 3. Create Neon account (free, no credit card) → create project → copy `DATABASE_URL`
 4. Add GitHub repo secrets: `DATABASE_URL`, `SEGA_USERNAME`, `SEGA_PASSWORD`, `DISCORD_WEBHOOK_URL`
 5. Trigger first scrape manually (workflow runs `init.sql` automatically on first run)
-6. Import forked repo in Vercel (free Hobby plan) → add env vars: `DATABASE_URL`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `GITHUB_PAT`, `GITHUB_REPO`
+6. Import forked repo in Vercel (free Hobby plan) → add env vars: `DATABASE_URL`, `GITHUB_PAT`, `GITHUB_REPO`, and either `OPENAI_API_KEY` (+ optional `OPENAI_BASE_URL`) or `GEMINI_API_KEY`
 7. Visit `<username>.vercel.app`
 8. Total cost: 0 THB
 
