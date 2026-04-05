@@ -1,5 +1,5 @@
-import { useState, FormEvent } from "react";
-import { setPassword, authHeaders } from "../lib/auth";
+import { useState, type FormEvent } from "react";
+import { setPassword } from "../lib/auth";
 
 interface Props {
   onAuthenticated: () => void;
