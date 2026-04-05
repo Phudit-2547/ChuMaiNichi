@@ -7,6 +7,13 @@ MISSING_DATABASE_URL_MESSAGE = (
     "DATABASE_URL is not configured. Set it in environment variables or .env."
 )
 
+VALID_GAMES = {"maimai", "chunithm"}
+
+
+def _validate_game(game: str) -> None:
+    if game not in VALID_GAMES:
+        raise ValueError(f"Invalid game: {game!r}")
+
 
 async def connect_db():
     if not DATABASE_URL:
@@ -15,6 +22,7 @@ async def connect_db():
 
 
 async def get_cumulative(game: str, date_str: str) -> int:
+    _validate_game(game)
     conn = await connect_db()
     try:
         date_obj = datetime.strptime(date_str, "%Y-%m-%d")
@@ -29,6 +37,7 @@ async def get_cumulative(game: str, date_str: str) -> int:
 
 async def get_previous_cumulative(game: str, today_str: str) -> int:
     """Get the most recent cumulative before today. Used to correctly calculate new plays across runs."""
+    _validate_game(game)
     conn = await connect_db()
     try:
         date_obj = datetime.strptime(today_str, "%Y-%m-%d")
@@ -44,6 +53,7 @@ async def get_previous_cumulative(game: str, today_str: str) -> int:
 
 async def get_previous_rating(game: str, exclude_date: str) -> float | None:
     """Get the most recent rating before a given date, excluding failed scrapes."""
+    _validate_game(game)
     conn = await connect_db()
     try:
         date_obj = datetime.strptime(exclude_date, "%Y-%m-%d")

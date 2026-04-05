@@ -54,6 +54,7 @@ async def generate_monthly_report():
             MONTHREPORT_WEBHOOK,
             data=json.dumps(message),
             headers={"Content-Type": "application/json"},
+            timeout=10,
         )
 
         if response.status_code == 204:

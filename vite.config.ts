@@ -26,9 +26,16 @@ function devApiProxy(): Plugin {
         req.on('end', async () => {
           try {
             const { sql: query, params = [] } = JSON.parse(body || '{}')
-            if (typeof query !== 'string' || !query.trim().toUpperCase().startsWith('SELECT')) {
+            const trimmed = typeof query === 'string' ? query.trim() : ''
+            if (!trimmed || !trimmed.toUpperCase().startsWith('SELECT')) {
               res.statusCode = 403
               res.end(JSON.stringify({ error: 'Only SELECT statements allowed' }))
+              return
+            }
+            const forbidden = /;|--|\/\*|\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|EXEC|EXECUTE|COPY)\b/i
+            if (forbidden.test(trimmed)) {
+              res.statusCode = 403
+              res.end(JSON.stringify({ error: 'Forbidden SQL pattern detected' }))
               return
             }
             const sql = neon(dbUrl)
@@ -36,8 +43,9 @@ function devApiProxy(): Plugin {
             res.setHeader('Content-Type', 'application/json')
             res.end(JSON.stringify({ rows, rowCount: rows.length }))
           } catch (e: unknown) {
+            console.error('Dev API proxy error:', e)
             res.statusCode = 500
-            res.end(JSON.stringify({ error: (e as Error).message }))
+            res.end(JSON.stringify({ error: 'Query execution failed' }))
           }
         })
       })

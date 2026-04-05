@@ -61,7 +61,7 @@ def send_notification(
     success = False
     for attempt in range(max_retries):
         try:
-            res = requests.post(DISCORD_WEBHOOK_URL, json=payload)
+            res = requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=10)
             if res.status_code == 204:
                 print(f"✅ Notification sent for {game} after {attempt + 1} attempt(s)")
                 success = True

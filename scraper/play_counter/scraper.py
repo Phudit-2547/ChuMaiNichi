@@ -41,7 +41,7 @@ def send_discord_notification(game: str, failure_reason: str, trace_path: str = 
     }
 
     try:
-        response = requests.post(DISCORD_WEBHOOK_URL, json=payload)
+        response = requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=10)
         if response.status_code == 204:
             print("[OK] Discord notification sent successfully")
         else:

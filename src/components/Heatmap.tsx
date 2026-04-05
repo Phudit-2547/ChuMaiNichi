@@ -53,17 +53,19 @@ async function fetchData(year: number, spillover = true): Promise<DailyRow[]> {
       `SELECT play_date::text, maimai_play_count, chunithm_play_count,
               maimai_rating, chunithm_rating
        FROM daily_play
-       WHERE play_date >= '${startStr}'::date
-         AND play_date <= '${year + 1}-01-07'::date
+       WHERE play_date >= $1::date
+         AND play_date <= $2::date
        ORDER BY play_date`,
+      [startStr, `${year + 1}-01-07`],
     );
   } else {
     return queryDB<DailyRow>(
       `SELECT play_date::text, maimai_play_count, chunithm_play_count,
               maimai_rating, chunithm_rating
        FROM daily_play
-       WHERE EXTRACT(YEAR FROM play_date) = ${year}
+       WHERE EXTRACT(YEAR FROM play_date) = $1
        ORDER BY play_date`,
+      [year],
     );
   }
 }

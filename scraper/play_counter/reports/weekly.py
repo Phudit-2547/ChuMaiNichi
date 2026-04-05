@@ -70,6 +70,7 @@ async def generate_weekly_report():
             DISCORD_WEBHOOK_URL,
             data=json.dumps(message),
             headers={"Content-Type": "application/json"},
+            timeout=10,
         )
 
         if response.status_code == 204:
