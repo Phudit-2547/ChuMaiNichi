@@ -319,7 +319,7 @@ The `suggest_songs` tool runs server-side in `api/chat.ts`. It is maimai-specifi
 | `AI_MODEL` | Override default model name (default: `gemini-2.5-flash` for Gemini, `gpt-4o-mini` for OpenAI) |
 | `GITHUB_PAT` | Fine-grained PAT for triggering workflow_dispatch |
 | `GITHUB_REPO` | `Phudit-2547/ChuMaiNichi` |
-| `DASHBOARD_PASSWORD` | Optional. If set, all `/api/*` routes require `Authorization: Bearer <password>`. Frontend prompts for password on first visit and stores it in `localStorage`. If unset, no auth is required (backwards-compatible). |
+| `DASHBOARD_PASSWORD` | **Required.** All `/api/*` routes require `Authorization: Bearer <password>`. Frontend prompts for password on first visit and stores it in `localStorage`. Without this, anyone can use your AI proxy and query your database. |
 
 **AI provider detection:** `api/chat.ts` checks `GEMINI_API_KEY` first, then `OPENAI_API_KEY`. Gemini is accessed via its OpenAI-compatible endpoint using the same `openai` SDK — no additional dependencies. Set exactly one of the two API keys.
 
@@ -338,7 +338,7 @@ The `suggest_songs` tool runs server-side in `api/chat.ts`. It is maimai-specifi
 3. Create Neon account (free, no credit card) → create project → copy `DATABASE_URL`
 4. Add GitHub repo secrets: `DATABASE_URL`, `SEGA_USERNAME`, `SEGA_PASSWORD`, `DISCORD_WEBHOOK_URL`
 5. Trigger first scrape manually (workflow runs `init.sql` automatically on first run)
-6. Import forked repo in Vercel (free Hobby plan) → add env vars: `DATABASE_URL`, `GITHUB_PAT`, `GITHUB_REPO`, either `OPENAI_API_KEY` (+ optional `OPENAI_BASE_URL`) or `GEMINI_API_KEY`, and optionally `DASHBOARD_PASSWORD` (recommended — protects API routes from unauthorized access)
+6. Import forked repo in Vercel (free Hobby plan) → add env vars: `DATABASE_URL`, `DASHBOARD_PASSWORD`, `GITHUB_PAT`, `GITHUB_REPO`, and either `OPENAI_API_KEY` (+ optional `OPENAI_BASE_URL`) or `GEMINI_API_KEY`
 7. Visit `<username>.vercel.app`
 8. Total cost: 0 THB
 
