@@ -15,7 +15,6 @@ export default function PasswordGate({ onAuthenticated }: Props) {
     setError("");
     setLoading(true);
 
-    // Test the password against /api/query with a trivial query
     try {
       const res = await fetch("/api/query", {
         method: "POST",
@@ -39,49 +38,25 @@ export default function PasswordGate({ onAuthenticated }: Props) {
   }
 
   return (
-    <div style={{
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      minHeight: "100vh",
-    }}>
-      <form onSubmit={handleSubmit} style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: "0.75rem",
-        width: "300px",
-      }}>
-        <h2 style={{ margin: 0, fontSize: "1.25rem" }}>ChuMaiNichi</h2>
+    <div className="password-gate">
+      <form onSubmit={handleSubmit} className="password-gate-form">
+        <h2 className="password-gate-title">ChuMaiNichi</h2>
         <input
           type="password"
           placeholder="Dashboard password"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           autoFocus
-          style={{
-            padding: "0.5rem 0.75rem",
-            borderRadius: "6px",
-            border: "1px solid #30363d",
-            background: "#161b22",
-            color: "#e6edf3",
-            fontSize: "0.9rem",
-          }}
+          className="password-gate-input"
         />
-        {error && <span style={{ color: "#f85149", fontSize: "0.85rem" }}>{error}</span>}
+        {error && <span className="password-gate-error">{error}</span>}
         <button
           type="submit"
           disabled={loading || !value}
-          style={{
-            padding: "0.5rem",
-            borderRadius: "6px",
-            border: "none",
-            background: "#238636",
-            color: "#fff",
-            cursor: loading ? "wait" : "pointer",
-            fontSize: "0.9rem",
-          }}
+          className="password-gate-btn"
+          style={loading ? { cursor: "wait" } : undefined}
         >
-          {loading ? "Checking..." : "Enter"}
+          {loading ? "Checking\u2026" : "Enter"}
         </button>
       </form>
     </div>

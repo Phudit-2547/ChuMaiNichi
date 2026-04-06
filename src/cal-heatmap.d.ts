@@ -9,3 +9,8 @@ declare module "cal-heatmap/plugins/Tooltip" {
   const Tooltip: unknown;
   export default Tooltip;
 }
+
+declare module "cal-heatmap/plugins/CalendarLabel" {
+  const CalendarLabel: unknown;
+  export default CalendarLabel;
+}

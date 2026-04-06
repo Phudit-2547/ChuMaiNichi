@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import CalHeatmap from "cal-heatmap";
 import Tooltip from "cal-heatmap/plugins/Tooltip";
+import CalendarLabel from "cal-heatmap/plugins/CalendarLabel";
 import "cal-heatmap/cal-heatmap.css";
 import * as d3 from "d3";
 import { queryDB } from "../lib/api";
@@ -17,6 +18,13 @@ interface DailyRow {
 
 type Game = "maimai" | "chunithm";
 
+interface HeatmapStats {
+  total: number;
+  thisWeek: number;
+  currentStreak: number;
+  longestStreak: number;
+}
+
 const COLORS: Record<Game, string[]> = {
   maimai: ["#161b22", "#5a2040", "#8a3560", "#b84a80", "#ff69aa"],
   chunithm: ["#161b22", "#1a3066", "#254a99", "#2d59a3", "#3d67e3"],
@@ -31,6 +39,75 @@ const RATING_KEY: Record<Game, keyof DailyRow> = {
   maimai: "maimai_rating",
   chunithm: "chunithm_rating",
 };
+
+// ── stats computation ─────────────────────────────────
+
+function toDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function computeStats(data: DailyRow[], game: Game, year: number): HeatmapStats {
+  const key = PLAY_KEY[game];
+  const yearPrefix = String(year);
+  const yearData = data
+    .filter((d) => d.play_date.startsWith(yearPrefix))
+    .sort((a, b) => a.play_date.localeCompare(b.play_date));
+
+  const total = yearData.reduce((sum, d) => sum + (d[key] as number), 0);
+
+  // This week (Sunday start)
+  const now = new Date();
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - now.getDay());
+  const weekStartStr = toDateStr(weekStart);
+  const todayStr = toDateStr(now);
+  const thisWeek = yearData
+    .filter((d) => d.play_date >= weekStartStr && d.play_date <= todayStr)
+    .reduce((sum, d) => sum + (d[key] as number), 0);
+
+  // Build play-date set
+  const playDates = new Set(
+    yearData.filter((d) => (d[key] as number) > 0).map((d) => d.play_date),
+  );
+
+  // Longest streak
+  let longestStreak = 0;
+  let tempStreak = 0;
+  const endDate = new Date(Math.min(new Date(`${year + 1}-01-01`).getTime(), Date.now()));
+  for (let d = new Date(`${year}-01-01`); d < endDate; d.setDate(d.getDate() + 1)) {
+    if (playDates.has(toDateStr(d))) {
+      tempStreak++;
+      if (tempStreak > longestStreak) longestStreak = tempStreak;
+    } else {
+      tempStreak = 0;
+    }
+  }
+
+  // Current streak (backwards from today)
+  let currentStreak = 0;
+  for (let d = new Date(now); d >= new Date(`${year}-01-01`); d.setDate(d.getDate() - 1)) {
+    if (playDates.has(toDateStr(d))) {
+      currentStreak++;
+    } else {
+      break;
+    }
+  }
+
+  return { total, thisWeek, currentStreak, longestStreak };
+}
+
+// ── formatting helpers ─────────────────────────────────
+
+function formatLastUpdated(dateStr: string): string {
+  const date = new Date(dateStr + "T00:00:00");
+  const now = new Date();
+  const diffDays = Math.floor((now.getTime() - date.getTime()) / 86400000);
+  if (diffDays === 0) return "today";
+  if (diffDays === 1) return "yesterday";
+  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
+  if (date.getFullYear() !== now.getFullYear()) opts.year = "numeric";
+  return date.toLocaleDateString("en-US", opts);
+}
 
 // ── data fetching ──────────────────────────────────────
 
@@ -70,29 +147,24 @@ async function fetchData(year: number, spillover = true): Promise<DailyRow[]> {
   }
 }
 
-// ── trim overflow cells ───────────────────────────────
+// ── trim overflow cells + mark today ──────────────────
 
 function trimOverflow(container: HTMLElement, startYear: number) {
   const svg = container.querySelector("svg");
   if (!svg) return;
 
-  // Start boundary: Sunday of the week containing Jan 1 of startYear
   const jan1Start = new Date(startYear, 0, 1);
-  const minTs = jan1Start.getTime() - jan1Start.getDay() * 86400000; // rewind to Sunday
+  const minTs = jan1Start.getTime() - jan1Start.getDay() * 86400000;
 
-  // End boundary: first Saturday of January next year (end of spillover week)
   const jan1End = new Date(startYear + 1, 0, 1);
-  const endDow = jan1End.getDay(); // 0=Sun
+  const endDow = jan1End.getDay();
   const spilloverEnd = new Date(jan1End);
-  spilloverEnd.setDate(jan1End.getDate() + (6 - endDow)); // next Saturday
-  const maxTs = spilloverEnd.getTime() + 86400000; // exclusive
+  spilloverEnd.setDate(jan1End.getDate() + (6 - endDow));
+  const maxTs = spilloverEnd.getTime() + 86400000;
 
-  // Remove entire domain groups that fall outside the year
-  // Cal-heatmap uses class "m_12" for December domains from the previous year
   const sel = d3.select(container);
   sel.selectAll(".ch-domain").each(function () {
     const g = this as SVGGElement;
-    // Check first rect's timestamp to determine if this domain is out of range
     const firstRect = g.querySelector("rect.ch-subdomain-bg");
     if (!firstRect) return;
     const datum = d3.select(firstRect).datum() as { t?: number } | null;
@@ -101,36 +173,106 @@ function trimOverflow(container: HTMLElement, startYear: number) {
       g.remove();
       return;
     }
-    // For partially-overlapping domains, remove individual out-of-range cells
-    d3.select(g).selectAll("rect").each(function () {
-      const d = d3.select(this).datum() as { t?: number } | null;
-      if (!d?.t) return;
-      if (d.t < minTs || d.t >= maxTs) {
-        (this as Element).remove();
-      }
-    });
+    d3.select(g)
+      .selectAll("rect")
+      .each(function () {
+        const d = d3.select(this).datum() as { t?: number } | null;
+        if (!d?.t) return;
+        if (d.t < minTs || d.t >= maxTs) {
+          (this as Element).remove();
+        }
+      });
   });
 
-  // Resize SVG to tightly fit remaining visible content
+  // Mark today's cell
+  const now = new Date();
+  const todayY = now.getFullYear();
+  const todayM = now.getMonth();
+  const todayD = now.getDate();
+  sel.selectAll("rect.ch-subdomain-bg").each(function () {
+    const datum = d3.select(this).datum() as { t?: number } | null;
+    if (!datum?.t) return;
+    const cd = new Date(datum.t);
+    if (cd.getFullYear() === todayY && cd.getMonth() === todayM && cd.getDate() === todayD) {
+      d3.select(this as Element).classed("heatmap-today", true);
+    }
+  });
+
+  // Resize SVG to fit remaining content
   const bbox = svg.getBBox();
   const newWidth = Math.ceil(bbox.width + 4);
   const newHeight = Math.ceil(bbox.height);
   svg.setAttribute("width", String(newWidth));
   svg.setAttribute("height", String(newHeight));
-  svg.setAttribute("viewBox", `${Math.floor(bbox.x)} ${Math.floor(bbox.y)} ${newWidth} ${newHeight}`);
+  svg.setAttribute(
+    "viewBox",
+    `${Math.floor(bbox.x)} ${Math.floor(bbox.y)} ${newWidth} ${newHeight}`,
+  );
+}
+
+// ── sub-components ────────────────────────────────────
+
+function Legend({ game }: { game: Game }) {
+  const colors = COLORS[game];
+  return (
+    <div className="heatmap-legend" aria-hidden="true">
+      <span className="heatmap-legend-label">Less</span>
+      {colors.map((color, i) => (
+        <span key={i} className="heatmap-legend-cell" style={{ background: color }} />
+      ))}
+      <span className="heatmap-legend-label">More</span>
+    </div>
+  );
+}
+
+function StatsBar({ stats, year }: { stats: HeatmapStats; year: number }) {
+  return (
+    <div className="heatmap-stats">
+      <span>
+        <strong>{stats.total.toLocaleString()}</strong> plays in {year}
+      </span>
+      <span className="heatmap-stats-sep" aria-hidden="true">
+        &middot;
+      </span>
+      <span>
+        <strong>{stats.thisWeek}</strong> this week
+      </span>
+      <span className="heatmap-stats-sep" aria-hidden="true">
+        &middot;
+      </span>
+      <span>
+        streak <strong>{stats.currentStreak}</strong> days
+      </span>
+      <span className="heatmap-stats-sep" aria-hidden="true">
+        &middot;
+      </span>
+      <span>
+        longest <strong>{stats.longestStreak}</strong> days
+      </span>
+    </div>
+  );
 }
 
 // ── single game heatmap ────────────────────────────────
 
-function GameHeatmap({ game, data, year }: { game: Game; data: DailyRow[]; year: number }) {
+function GameHeatmap({
+  game,
+  data,
+  year,
+}: {
+  game: Game;
+  data: DailyRow[];
+  year: number;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const calRef = useRef<CalHeatmap | null>(null);
   const [tapInfo, setTapInfo] = useState("");
 
+  const stats = useMemo(() => computeStats(data, game, year), [data, game, year]);
+
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Build new heatmap off-screen, swap in only after paint is done
     const wrapper = document.createElement("div");
     wrapper.style.position = "absolute";
     wrapper.style.visibility = "hidden";
@@ -148,7 +290,6 @@ function GameHeatmap({ game, data, year }: { game: Game; data: DailyRow[]; year:
     }
 
     const cal = new CalHeatmap();
-
     let cancelled = false;
 
     void (async () => {
@@ -197,7 +338,11 @@ function GameHeatmap({ game, data, year }: { game: Game; data: DailyRow[]; year:
           [
             Tooltip,
             {
-              text: (_timestamp: number, value: number | null, dayjsDate: { format: (f: string) => string }) => {
+              text: (
+                _timestamp: number,
+                value: number | null,
+                dayjsDate: { format: (f: string) => string },
+              ) => {
                 const count = value ?? 0;
                 const label = count === 1 ? "play" : "plays";
                 const dateKey = dayjsDate.format("YYYY-MM-DD");
@@ -208,14 +353,23 @@ function GameHeatmap({ game, data, year }: { game: Game; data: DailyRow[]; year:
               },
             },
           ],
+          [
+            CalendarLabel,
+            {
+              position: "left",
+              key: "left",
+              text: () => ["", "Mon", "", "Wed", "", "Fri", ""],
+              textAlign: "end",
+              width: 30,
+              padding: [25, 10, 0, 0],
+            },
+          ],
         ],
       );
       if (cancelled) return;
-      // Trim after paint resolves + one frame to ensure DOM is flushed
       requestAnimationFrame(() => {
         if (cancelled) return;
         trimOverflow(wrapper, year);
-        // Swap: remove old content, reveal new
         const container = containerRef.current;
         if (!container) return;
         Array.from(container.children).forEach((child) => {
@@ -228,13 +382,12 @@ function GameHeatmap({ game, data, year }: { game: Game; data: DailyRow[]; year:
       });
     })();
 
-    // Mobile tap support
     const handleClick = (e: MouseEvent) => {
       const rect = (e.target as Element).closest?.("rect");
       if (!rect) return;
 
-      // cal-heatmap stores datum via d3 — access __data__
-      const datum = (rect as unknown as { __data__?: { t: number; v: number } }).__data__;
+      const datum = (rect as unknown as { __data__?: { t: number; v: number } })
+        .__data__;
       if (!datum?.t) return;
 
       const dateObj = new Date(datum.t);
@@ -262,10 +415,27 @@ function GameHeatmap({ game, data, year }: { game: Game; data: DailyRow[]; year:
     };
   }, [game, data, year]);
 
+  const gameName = game === "maimai" ? "maimai" : "CHUNITHM";
+
   return (
     <div className="heatmap-section">
-      <p className={`tap-info${tapInfo ? " active" : ""}`}>{tapInfo}</p>
-      <div className="heatmap-container" ref={containerRef} />
+      <StatsBar stats={stats} year={year} />
+      <div className="heatmap-scroll-wrapper">
+        <div
+          className="heatmap-container"
+          ref={containerRef}
+          role="img"
+          aria-label={`${gameName} play activity heatmap for ${year}`}
+        />
+      </div>
+      <span className="sr-only">
+        {stats.total} total plays in {year}. Current streak: {stats.currentStreak} days.
+        Longest streak: {stats.longestStreak} days.
+      </span>
+      <div className="heatmap-footer">
+        <p className={`tap-info${tapInfo ? " active" : ""}`}>{tapInfo || "\u00A0"}</p>
+        <Legend game={game} />
+      </div>
     </div>
   );
 }
@@ -277,15 +447,30 @@ export default function Heatmap({ games }: { games: Game[] }) {
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [data, setData] = useState<DailyRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
-  // Fetch available years on mount
+  useEffect(() => {
+    queryDB<{ last_date: string }>(
+      "SELECT MAX(play_date)::text AS last_date FROM daily_play",
+    )
+      .then((rows) => {
+        if (rows[0]?.last_date) setLastUpdated(rows[0].last_date);
+      })
+      .catch(() => {});
+  }, []);
+
+  const isStale =
+    lastUpdated != null &&
+    Date.now() - new Date(lastUpdated + "T00:00:00").getTime() > 2 * 86400000;
+
   useEffect(() => {
     const currentYear = new Date().getFullYear();
     fetchYears()
       .then((yrs) => {
         const set = new Set<number>(yrs);
         set.add(currentYear);
-        set.add(currentYear - 1); // ensure last year is available
+        set.add(currentYear - 1);
         const list = Array.from(set).sort((a, b) => a - b);
         setYears(list);
         setSelectedYear(list[list.length - 1]);
@@ -296,13 +481,14 @@ export default function Heatmap({ games }: { games: Game[] }) {
       });
   }, []);
 
-  // Fetch data when year changes
   const loadData = useCallback(async (year: number, spillover: boolean) => {
     setLoading(true);
+    setError(null);
     try {
       setData(await fetchData(year, spillover));
-    } catch {
+    } catch (err) {
       setData([]);
+      setError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
       setLoading(false);
     }
@@ -315,7 +501,11 @@ export default function Heatmap({ games }: { games: Game[] }) {
   return (
     <div>
       <div className="heatmap-header">
+        <label className="year-select-label" htmlFor="heatmap-year">
+          Year
+        </label>
         <select
+          id="heatmap-year"
           className="year-select"
           value={selectedYear}
           onChange={(e) => setSelectedYear(Number(e.target.value))}
@@ -326,17 +516,53 @@ export default function Heatmap({ games }: { games: Game[] }) {
             </option>
           ))}
         </select>
+        {lastUpdated && (
+          <span className={`heatmap-last-updated${isStale ? " stale" : ""}`}>
+            Updated {formatLastUpdated(lastUpdated)}
+          </span>
+        )}
       </div>
 
-      {loading && <p style={{ color: "#8b949e" }}>Loading…</p>}
+      {loading && (
+        <div className="heatmap-skeleton" aria-label="Loading heatmap data">
+          {games.map((game) => (
+            <div key={game} className="heatmap-skeleton-block">
+              <div className="heatmap-skeleton-title" />
+              <div className="heatmap-skeleton-grid" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!loading && error && (
+        <div className="heatmap-error" role="alert">
+          <p>{error}</p>
+          <button
+            className="heatmap-retry-btn"
+            onClick={() => loadData(selectedYear, true)}
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {!loading &&
+        !error &&
         games.map((game) => (
-          <div key={game} style={{ marginBottom: "2rem" }}>
-            <h2 className="heatmap-game-title">
+          <div key={game} className="heatmap-game-block">
+            <h2 className="heatmap-game-title" data-game={game}>
               {game === "maimai" ? "maimai" : "CHUNITHM"}
             </h2>
-            <GameHeatmap game={game} data={data} year={selectedYear} />
+            {data.length > 0 ? (
+              <GameHeatmap game={game} data={data} year={selectedYear} />
+            ) : (
+              <div className="heatmap-empty">
+                <p>No plays recorded in {selectedYear}</p>
+                <p className="heatmap-empty-hint">
+                  Plays will appear after the daily scraper runs.
+                </p>
+              </div>
+            )}
           </div>
         ))}
     </div>
