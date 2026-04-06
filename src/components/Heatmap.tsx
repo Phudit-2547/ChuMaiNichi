@@ -3,7 +3,7 @@ import CalHeatmap from "cal-heatmap";
 import Tooltip from "cal-heatmap/plugins/Tooltip";
 import CalendarLabel from "cal-heatmap/plugins/CalendarLabel";
 import "cal-heatmap/cal-heatmap.css";
-import { select } from "d3-selection";
+import { select } from "d3";
 import { queryDB } from "../lib/api";
 
 // ── types ──────────────────────────────────────────────
