@@ -519,9 +519,10 @@ export default function Heatmap({ games }: { games: Game[] }) {
   }, []);
 
   useEffect(() => {
+    if (!years.length) return;
     loadData(selectedYear, true);
     return () => { abortRef.current?.abort(); };
-  }, [selectedYear, loadData]);
+  }, [selectedYear, years, loadData]);
 
   return (
     <div>
