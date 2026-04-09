@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { neon } from "@neondatabase/serverless";
+import { createHash, timingSafeEqual } from "node:crypto";
 import OpenAI from "openai";
 import type {
   ChatCompletionMessageParam,
@@ -113,7 +114,7 @@ const QUERY_TOOL: ChatCompletionTool = {
 // --- Tool execution ---
 
 const FORBIDDEN_SQL =
-  /;|--|\/\*|\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|EXEC|EXECUTE|COPY)\b/i;
+  /;|--|\/\*|\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|EXEC|EXECUTE|COPY|INTO)\b/i;
 
 async function executeTool(
   name: string,
@@ -139,6 +140,16 @@ async function executeTool(
   return { error: `Unknown tool: ${name}` };
 }
 
+// --- Auth ---
+
+function checkAuth(header: string | undefined, password: string | undefined): boolean {
+  if (!password) return true;
+  const token = header?.replace("Bearer ", "") ?? "";
+  const a = createHash("sha256").update(token).digest();
+  const b = createHash("sha256").update(password).digest();
+  return timingSafeEqual(a, b);
+}
+
 // --- Handler ---
 
 export default async function handler(
@@ -149,15 +160,21 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const pwd = process.env.DASHBOARD_PASSWORD;
-  const auth = req.headers.authorization?.replace("Bearer ", "");
-  if (pwd && auth !== pwd) {
+  if (!checkAuth(req.headers.authorization, process.env.DASHBOARD_PASSWORD)) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
   const { messages: userMessages, model: requestModel } = req.body ?? {};
-  if (!Array.isArray(userMessages)) {
+  if (!Array.isArray(userMessages) || userMessages.length === 0) {
     return res.status(400).json({ error: "messages array is required" });
+  }
+  if (userMessages.length > 50) {
+    return res.status(400).json({ error: "Too many messages (max 50)" });
+  }
+  for (const msg of userMessages) {
+    if (!msg || typeof msg.role !== "string") {
+      return res.status(400).json({ error: "Each message must have a role" });
+    }
   }
 
   let client: OpenAI;

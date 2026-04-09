@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, useRef, type FormEvent } from "react";
 import { setPassword } from "../lib/auth";
 
 interface Props {
@@ -9,6 +9,7 @@ export default function PasswordGate({ onAuthenticated }: Props) {
   const [value, setValue] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -27,6 +28,7 @@ export default function PasswordGate({ onAuthenticated }: Props) {
       if (res.status === 401) {
         setError("Wrong password");
         setLoading(false);
+        inputRef.current?.focus();
         return;
       }
       setPassword(value);
@@ -34,6 +36,7 @@ export default function PasswordGate({ onAuthenticated }: Props) {
     } catch {
       setError("Connection failed");
       setLoading(false);
+      inputRef.current?.focus();
     }
   }
 
@@ -42,6 +45,7 @@ export default function PasswordGate({ onAuthenticated }: Props) {
       <form onSubmit={handleSubmit} className="password-gate-form">
         <h2 className="password-gate-title">ChuMaiNichi</h2>
         <input
+          ref={inputRef}
           type="password"
           placeholder="Dashboard password"
           value={value}
@@ -49,7 +53,7 @@ export default function PasswordGate({ onAuthenticated }: Props) {
           autoFocus
           className="password-gate-input"
         />
-        {error && <span className="password-gate-error">{error}</span>}
+        {error && <span className="password-gate-error" role="alert">{error}</span>}
         <button
           type="submit"
           disabled={loading || !value}

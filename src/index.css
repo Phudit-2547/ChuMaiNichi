@@ -86,7 +86,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  width: 300px;
+  width: min(300px, calc(100vw - 2rem));
 }
 
 .password-gate-title {
@@ -389,6 +389,12 @@ rect.heatmap-today {
   border-color: var(--color-accent);
 }
 
+.heatmap-retry-btn:focus-visible {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px rgba(134, 59, 255, 0.3);
+  outline: none;
+}
+
 /* ── Heatmap: empty state ──────────────────────────── */
 
 .heatmap-empty {
@@ -406,4 +412,18 @@ rect.heatmap-today {
 .heatmap-empty-hint {
   margin: 0.5rem 0 0;
   font-size: 0.8rem;
+}
+
+/* ── Accessibility: reduced motion ────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .app-loading-text,
+  .heatmap-skeleton-title,
+  .heatmap-skeleton-grid {
+    animation: none;
+  }
+  .password-gate-btn,
+  .heatmap-retry-btn {
+    transition: none;
+  }
 }

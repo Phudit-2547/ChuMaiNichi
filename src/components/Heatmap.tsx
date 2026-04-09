@@ -118,7 +118,7 @@ async function fetchYears(): Promise<number[]> {
   return rows.map((r) => r.year);
 }
 
-async function fetchData(year: number, spillover = true): Promise<DailyRow[]> {
+async function fetchData(year: number, spillover = true, signal?: AbortSignal): Promise<DailyRow[]> {
   if (spillover) {
     const jan1 = new Date(`${year}-01-01`);
     const dayOfWeek = jan1.getDay();
@@ -134,6 +134,7 @@ async function fetchData(year: number, spillover = true): Promise<DailyRow[]> {
          AND play_date <= $2::date
        ORDER BY play_date`,
       [startStr, `${year + 1}-01-07`],
+      signal,
     );
   } else {
     return queryDB<DailyRow>(
@@ -143,6 +144,7 @@ async function fetchData(year: number, spillover = true): Promise<DailyRow[]> {
        WHERE EXTRACT(YEAR FROM play_date) = $1
        ORDER BY play_date`,
       [year],
+      signal,
     );
   }
 }
@@ -490,12 +492,18 @@ export default function Heatmap({ games }: { games: Game[] }) {
     lastUpdated != null &&
     Date.now() - new Date(lastUpdated + "T00:00:00").getTime() > 2 * 86400000;
 
+  const abortRef = useRef<AbortController | null>(null);
+
   const loadData = useCallback(async (year: number, spillover: boolean) => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setLoading(true);
     setError(null);
     try {
-      setData(await fetchData(year, spillover));
+      setData(await fetchData(year, spillover, controller.signal));
     } catch (err) {
+      if (controller.signal.aborted) return;
       setData([]);
       const raw = err instanceof Error ? err.message : "";
       if (raw.includes("unauthorized")) {
@@ -506,12 +514,13 @@ export default function Heatmap({ games }: { games: Game[] }) {
         setError("Something went wrong loading play data.");
       }
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     loadData(selectedYear, true);
+    return () => { abortRef.current?.abort(); };
   }, [selectedYear, loadData]);
 
   return (

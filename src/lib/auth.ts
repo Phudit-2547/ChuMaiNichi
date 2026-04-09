@@ -1,15 +1,15 @@
 const STORAGE_KEY = "dashboard_password";
 
 export function getPassword(): string | null {
-  return localStorage.getItem(STORAGE_KEY);
+  try { return localStorage.getItem(STORAGE_KEY); } catch { return null; }
 }
 
 export function setPassword(password: string): void {
-  localStorage.setItem(STORAGE_KEY, password);
+  try { localStorage.setItem(STORAGE_KEY, password); } catch { /* storage unavailable */ }
 }
 
 export function clearPassword(): void {
-  localStorage.removeItem(STORAGE_KEY);
+  try { localStorage.removeItem(STORAGE_KEY); } catch { /* storage unavailable */ }
 }
 
 export function authHeaders(): Record<string, string> {
