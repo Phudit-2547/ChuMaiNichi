@@ -227,5 +227,9 @@ dist/
 # Vite local env overrides
 .env*.local
 
+# Scraper outputs and player data (private)
+scripts/outputs/
+scripts/player.json
+
 # Claude Code
 skills-lock.json
