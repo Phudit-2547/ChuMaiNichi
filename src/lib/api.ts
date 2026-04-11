@@ -1,3 +1,4 @@
+import axios from "axios";
 import useAuthStore from "../stores/auth-store";
 
 export async function queryDB<T = Record<string, unknown>>(
@@ -7,17 +8,19 @@ export async function queryDB<T = Record<string, unknown>>(
 ): Promise<T[]> {
   const { getAuthHeaders } = useAuthStore.getState();
 
-  const res = await fetch("/api/query", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
+  const res = await axios.post(
+    "/api/query",
+    { sql, params },
+    {
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+      },
+      signal,
     },
-    body: JSON.stringify({ sql, params }),
-    signal,
-  });
+  );
+
   if (res.status === 401) throw new Error("unauthorized");
-  if (!res.ok) throw new Error(`query failed: ${res.status}`);
-  const json = await res.json();
-  return json.rows;
+  if (!res.data) throw new Error(`query failed: ${res.status}`);
+  return res.data.rows;
 }
