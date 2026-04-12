@@ -86,7 +86,10 @@ export default function Heatmap({ games }: { games: Game[] }) {
   return (
     <div>
       <div className="flex items-center gap-2 mb-4">
-        <label className="text-sm text-secondary" htmlFor="heatmap-year">
+        <label
+          className="text-sm text-secondary-foreground"
+          htmlFor="heatmap-year"
+        >
           Year
         </label>
         <select
@@ -105,7 +108,7 @@ export default function Heatmap({ games }: { games: Game[] }) {
         </select>
         {lastUpdated && (
           <span
-            className={`ml-auto text-xs ${isStale ? "text-destructive" : "text-muted"}`}
+            className={`ml-auto text-xs ${isStale ? "text-destructive" : "text-muted-foreground"}`}
           >
             Updated {formatLastUpdated(lastUpdated)}
           </span>
@@ -122,7 +125,7 @@ export default function Heatmap({ games }: { games: Game[] }) {
 
       {!loading && error && (
         <div
-          className="p-6 border border-border rounded-lg text-center text-secondary"
+          className="p-6 border border-border rounded-lg text-center text-secondary-foreground"
           role="alert"
         >
           <p className="m-0 mb-3">{error}</p>
@@ -150,7 +153,7 @@ export default function Heatmap({ games }: { games: Game[] }) {
             {data.length > 0 ? (
               <GameHeatmap game={game} data={data} year={selectedYear} />
             ) : (
-              <div className="p-8 text-center text-muted border border-border rounded-lg">
+              <div className="p-8 text-center text-muted-foreground border border-border rounded-lg">
                 <p className="m-0">No plays recorded in {selectedYear}</p>
                 <p className="mt-2 text-xs m-0">
                   Plays appear automatically after each arcade session is

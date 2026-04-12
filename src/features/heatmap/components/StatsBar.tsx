@@ -8,14 +8,14 @@ export function StatsBar({
   year: number;
 }) {
   return (
-    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-secondary mb-2">
+    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-secondary-foreground mb-2">
       <span title="Total credited plays this year">
         <strong className="text-foreground font-semibold">
           {stats.total.toLocaleString()}
         </strong>{" "}
         plays in {year}
       </span>
-      <span className="mx-1 text-muted" aria-hidden="true">
+      <span className="mx-1 text-muted-foreground" aria-hidden="true">
         &middot;
       </span>
       <span title="Plays since Sunday">
@@ -24,7 +24,7 @@ export function StatsBar({
         </strong>{" "}
         this week
       </span>
-      <span className="mx-1 text-muted" aria-hidden="true">
+      <span className="mx-1 text-muted-foreground" aria-hidden="true">
         &middot;
       </span>
       <span title="Consecutive days with at least one play, ending today">
@@ -34,7 +34,7 @@ export function StatsBar({
         </strong>{" "}
         days
       </span>
-      <span className="mx-1 text-muted" aria-hidden="true">
+      <span className="mx-1 text-muted-foreground" aria-hidden="true">
         &middot;
       </span>
       <span title="Longest consecutive play streak this year">
