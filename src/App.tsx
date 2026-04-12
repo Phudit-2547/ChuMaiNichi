@@ -1,6 +1,8 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import PasswordGate from "./features/auth/components/PasswordGate";
 import useAuthStore from "./features/auth/stores/auth-store";
+import HeatmapSkeleton from "./features/heatmap/components/HeatmapSkeleton";
+import AuthLoading from "./features/auth/components/AuthLoading";
 
 const Heatmap = lazy(() => import("./features/heatmap/components/Heatmap"));
 
@@ -32,36 +34,13 @@ function App() {
       .catch(() => setAuthed(false));
   }, [password, getAuthHeaders]);
 
-  if (authed === null)
-    return (
-      <div
-        className="flex items-center justify-center min-h-screen"
-        aria-label="Checking authentication"
-      >
-        <span className="text-xl text-muted animate-skeleton-pulse">
-          ChuMaiNichi
-        </span>
-      </div>
-    );
+  if (authed === null) return <AuthLoading />;
   if (!authed) return <PasswordGate onAuthenticated={() => setAuthed(true)} />;
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
       <h1>ChuMaiNichi</h1>
-      <Suspense
-        fallback={
-          <div className="flex flex-col gap-8" aria-label="Loading">
-            <div className="flex flex-col gap-2">
-              <div className="w-20 h-[1.1rem] bg-surface rounded animate-skeleton-pulse" />
-              <div className="w-full max-w-235 h-30 bg-surface rounded animate-skeleton-pulse" />
-            </div>
-            <div className="flex flex-col gap-2">
-              <div className="w-20 h-[1.1rem] bg-surface rounded animate-skeleton-pulse" />
-              <div className="w-full max-w-235 h-30 bg-surface rounded animate-skeleton-pulse" />
-            </div>
-          </div>
-        }
-      >
+      <Suspense fallback={<HeatmapSkeleton />}>
         <Heatmap games={["maimai", "chunithm"]} />
       </Suspense>
     </div>
