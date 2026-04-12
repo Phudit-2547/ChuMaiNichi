@@ -4,6 +4,11 @@ import useAuthStore from "./features/auth/stores/auth-store";
 import HeatmapSkeleton from "./features/heatmap/components/heatmap-skeleton/HeatmapSkeleton";
 import AuthLoading from "./features/auth/components/AuthLoading";
 import { authenticate } from "./global/lib/auth";
+import {
+  ResizablePanel,
+  ResizablePanelGroup,
+  ResizableHandle,
+} from "./global/components/ui/resizable";
 
 const Heatmap = lazy(() => import("./features/heatmap/components/Heatmap"));
 
@@ -21,12 +26,16 @@ function App() {
   if (!authed) return <PasswordGate onAuthenticated={() => setAuthed(true)} />;
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
-      <h1>ChuMaiNichi</h1>
-      <Suspense fallback={<HeatmapSkeleton />}>
-        <Heatmap games={["maimai", "chunithm"]} />
-      </Suspense>
-    </div>
+    <ResizablePanelGroup orientation="horizontal" className="max-w-5xl">
+      <ResizablePanel defaultSize="75%" className="p-8 mx-auto">
+        <h1>ChuMaiNichi</h1>
+        <Suspense fallback={<HeatmapSkeleton />}>
+          <Heatmap games={["maimai", "chunithm"]} />
+        </Suspense>
+      </ResizablePanel>
+      <ResizableHandle withHandle />
+      <ResizablePanel>Chat</ResizablePanel>
+    </ResizablePanelGroup>
   );
 }
 
