@@ -4,7 +4,7 @@ import Tooltip from "cal-heatmap/plugins/Tooltip";
 import CalendarLabel from "cal-heatmap/plugins/CalendarLabel";
 import "cal-heatmap/cal-heatmap.css";
 import { select } from "d3";
-import { queryDB } from "../lib/api";
+import { queryDB } from "../../../global/lib/api";
 
 // ── types ──────────────────────────────────────────────
 
@@ -46,7 +46,11 @@ function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function computeStats(data: DailyRow[], game: Game, year: number): HeatmapStats {
+function computeStats(
+  data: DailyRow[],
+  game: Game,
+  year: number,
+): HeatmapStats {
   const key = PLAY_KEY[game];
   const yearPrefix = String(year);
   const yearData = data
@@ -73,8 +77,14 @@ function computeStats(data: DailyRow[], game: Game, year: number): HeatmapStats 
   // Longest streak
   let longestStreak = 0;
   let tempStreak = 0;
-  const endDate = new Date(Math.min(new Date(`${year + 1}-01-01`).getTime(), Date.now()));
-  for (let d = new Date(`${year}-01-01`); d < endDate; d.setDate(d.getDate() + 1)) {
+  const endDate = new Date(
+    Math.min(new Date(`${year + 1}-01-01`).getTime(), Date.now()),
+  );
+  for (
+    let d = new Date(`${year}-01-01`);
+    d < endDate;
+    d.setDate(d.getDate() + 1)
+  ) {
     if (playDates.has(toDateStr(d))) {
       tempStreak++;
       if (tempStreak > longestStreak) longestStreak = tempStreak;
@@ -85,7 +95,11 @@ function computeStats(data: DailyRow[], game: Game, year: number): HeatmapStats 
 
   // Current streak (backwards from today)
   let currentStreak = 0;
-  for (let d = new Date(now); d >= new Date(`${year}-01-01`); d.setDate(d.getDate() - 1)) {
+  for (
+    let d = new Date(now);
+    d >= new Date(`${year}-01-01`);
+    d.setDate(d.getDate() - 1)
+  ) {
     if (playDates.has(toDateStr(d))) {
       currentStreak++;
     } else {
@@ -118,7 +132,11 @@ async function fetchYears(): Promise<number[]> {
   return rows.map((r) => r.year);
 }
 
-async function fetchData(year: number, spillover = true, signal?: AbortSignal): Promise<DailyRow[]> {
+async function fetchData(
+  year: number,
+  spillover = true,
+  signal?: AbortSignal,
+): Promise<DailyRow[]> {
   if (spillover) {
     const jan1 = new Date(`${year}-01-01`);
     const dayOfWeek = jan1.getDay();
@@ -166,7 +184,11 @@ function trimOverflow(container: HTMLElement, startYear: number) {
 
   const sel = select(container);
   const now = new Date();
-  const todayTs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const todayTs = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  ).getTime();
 
   sel.selectAll(".ch-domain").each(function () {
     const g = this as SVGGElement;
@@ -230,7 +252,11 @@ function Legend({ game }: { game: Game }) {
     <div className="heatmap-legend" aria-hidden="true">
       <span className="heatmap-legend-label">Less</span>
       {colors.map((color, i) => (
-        <span key={i} className="heatmap-legend-cell" style={{ background: color }} />
+        <span
+          key={i}
+          className="heatmap-legend-cell"
+          style={{ background: color }}
+        />
       ))}
       <span className="heatmap-legend-label">More</span>
     </div>
@@ -280,7 +306,10 @@ function GameHeatmap({
   const calRef = useRef<CalHeatmap | null>(null);
   const [tapInfo, setTapInfo] = useState("");
 
-  const stats = useMemo(() => computeStats(data, game, year), [data, game, year]);
+  const stats = useMemo(
+    () => computeStats(data, game, year),
+    [data, game, year],
+  );
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -442,8 +471,8 @@ function GameHeatmap({
         />
       </div>
       <span className="sr-only">
-        {stats.total} total plays in {year}. Current streak: {stats.currentStreak} days.
-        Longest streak: {stats.longestStreak} days.
+        {stats.total} total plays in {year}. Current streak:{" "}
+        {stats.currentStreak} days. Longest streak: {stats.longestStreak} days.
       </span>
       <div className="heatmap-footer">
         <p className={`tap-info${tapInfo ? " active" : ""}`}>
@@ -459,7 +488,9 @@ function GameHeatmap({
 
 export default function Heatmap({ games }: { games: Game[] }) {
   const [years, setYears] = useState<number[]>([]);
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedYear, setSelectedYear] = useState<number>(
+    new Date().getFullYear(),
+  );
   const [data, setData] = useState<DailyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -508,7 +539,11 @@ export default function Heatmap({ games }: { games: Game[] }) {
       const raw = err instanceof Error ? err.message : "";
       if (raw.includes("unauthorized")) {
         setError("Session expired. Reload the page to sign in again.");
-      } else if (raw.includes("fetch") || raw.includes("network") || raw.includes("Failed to fetch")) {
+      } else if (
+        raw.includes("fetch") ||
+        raw.includes("network") ||
+        raw.includes("Failed to fetch")
+      ) {
         setError("Couldn't connect. Check your internet and try again.");
       } else {
         setError("Something went wrong loading play data.");
@@ -521,7 +556,9 @@ export default function Heatmap({ games }: { games: Game[] }) {
   useEffect(() => {
     if (!years.length) return;
     loadData(selectedYear, true);
-    return () => { abortRef.current?.abort(); };
+    return () => {
+      abortRef.current?.abort();
+    };
   }, [selectedYear, years, loadData]);
 
   return (
@@ -585,7 +622,8 @@ export default function Heatmap({ games }: { games: Game[] }) {
               <div className="heatmap-empty">
                 <p>No plays recorded in {selectedYear}</p>
                 <p className="heatmap-empty-hint">
-                  Plays appear automatically after each arcade session is recorded.
+                  Plays appear automatically after each arcade session is
+                  recorded.
                 </p>
               </div>
             )}
