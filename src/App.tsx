@@ -1,7 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import PasswordGate from "./features/auth/components/PasswordGate";
 import useAuthStore from "./features/auth/stores/auth-store";
-import HeatmapSkeleton from "./features/heatmap/components/HeatmapSkeleton";
+import HeatmapSkeleton from "./features/heatmap/components/heatmap-skeleton/HeatmapSkeleton";
 import AuthLoading from "./features/auth/components/AuthLoading";
 
 const Heatmap = lazy(() => import("./features/heatmap/components/Heatmap"));
