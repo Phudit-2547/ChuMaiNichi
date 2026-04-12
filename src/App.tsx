@@ -3,7 +3,7 @@ import PasswordGate from "./features/auth/components/PasswordGate";
 import useAuthStore from "./features/auth/stores/auth-store";
 import HeatmapSkeleton from "./features/heatmap/components/heatmap-skeleton/HeatmapSkeleton";
 import AuthLoading from "./features/auth/components/AuthLoading";
-import { queryDB } from "./global/lib/api";
+import { authenticate } from "./global/lib/auth";
 
 const Heatmap = lazy(() => import("./features/heatmap/components/Heatmap"));
 
@@ -12,7 +12,7 @@ function App() {
   const { password, getAuthHeaders } = useAuthStore();
 
   useEffect(() => {
-    queryDB("SELECT 1")
+    authenticate()
       .then(() => setAuthed(true))
       .catch(() => setAuthed(false));
   }, [password, getAuthHeaders]);

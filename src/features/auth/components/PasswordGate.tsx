@@ -1,6 +1,7 @@
 import { useState, useRef, type FormEvent } from "react";
 import useAuthStore from "../stores/auth-store";
-import { queryDB } from "../../../global/lib/api";
+import { authenticate } from "../../../global/lib/auth";
+import { SharedErrorHandler } from "../../../global/lib/error-handling";
 
 interface Props {
   onAuthenticated: () => void;
@@ -19,17 +20,32 @@ export default function PasswordGate({ onAuthenticated }: Props) {
     setError("");
     setLoading(true);
 
-    queryDB("SELECT 1")
+    authenticate()
       .then(() => {
         setPassword(value);
         onAuthenticated();
       })
       .catch((err) => {
-        // TODO: This is hacky
-        if (err.message === "unauthorized") {
-          setError("Wrong password");
-        } else {
-          setError("Connection failed");
+        const errorCode = SharedErrorHandler.getErrorCode(err);
+        switch (errorCode) {
+          case "INVALID_CREDENTIALS": {
+            setError("Wrong password");
+            break;
+          }
+          case "INTERNAL_ERROR": {
+            setError(
+              "Connection failed. Please check your database connection.",
+            );
+            break;
+          }
+          case "NETWORK_ERROR": {
+            setError("Connection failed. Please check your network.");
+            break;
+          }
+          case "UNKNOWN_ERROR": {
+            setError("Unknown error occured.");
+            break;
+          }
         }
         setLoading(false);
         inputRef.current?.focus();
