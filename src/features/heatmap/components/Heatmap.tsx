@@ -30,6 +30,11 @@ const COLORS: Record<Game, string[]> = {
   chunithm: ["#161b22", "#1a3066", "#254a99", "#2d59a3", "#3d67e3"],
 };
 
+const GAME_ACCENT: Record<Game, string> = {
+  maimai: "#ff69aa",
+  chunithm: "#3d67e3",
+};
+
 const PLAY_KEY: Record<Game, keyof DailyRow> = {
   maimai: "maimai_play_count",
   chunithm: "chunithm_play_count",
@@ -249,43 +254,60 @@ function trimOverflow(container: HTMLElement, startYear: number) {
 function Legend({ game }: { game: Game }) {
   const colors = COLORS[game];
   return (
-    <div className="heatmap-legend" aria-hidden="true">
-      <span className="heatmap-legend-label">Less</span>
+    <div
+      className="flex items-center gap-[3px] text-xs text-secondary ml-auto"
+      aria-hidden="true"
+    >
+      <span className="mx-1">Less</span>
       {colors.map((color, i) => (
         <span
           key={i}
-          className="heatmap-legend-cell"
+          className="inline-block w-3 h-3 rounded-[2px]"
           style={{ background: color }}
         />
       ))}
-      <span className="heatmap-legend-label">More</span>
+      <span className="mx-1">More</span>
     </div>
   );
 }
 
 function StatsBar({ stats, year }: { stats: HeatmapStats; year: number }) {
   return (
-    <div className="heatmap-stats">
+    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-secondary mb-2">
       <span title="Total credited plays this year">
-        <strong>{stats.total.toLocaleString()}</strong> plays in {year}
+        <strong className="text-foreground font-semibold">
+          {stats.total.toLocaleString()}
+        </strong>{" "}
+        plays in {year}
       </span>
-      <span className="heatmap-stats-sep" aria-hidden="true">
+      <span className="mx-1 text-muted" aria-hidden="true">
         &middot;
       </span>
       <span title="Plays since Sunday">
-        <strong>{stats.thisWeek}</strong> this week
+        <strong className="text-foreground font-semibold">
+          {stats.thisWeek}
+        </strong>{" "}
+        this week
       </span>
-      <span className="heatmap-stats-sep" aria-hidden="true">
+      <span className="mx-1 text-muted" aria-hidden="true">
         &middot;
       </span>
       <span title="Consecutive days with at least one play, ending today">
-        streak <strong>{stats.currentStreak}</strong> days
+        streak{" "}
+        <strong className="text-foreground font-semibold">
+          {stats.currentStreak}
+        </strong>{" "}
+        days
       </span>
-      <span className="heatmap-stats-sep" aria-hidden="true">
+      <span className="mx-1 text-muted" aria-hidden="true">
         &middot;
       </span>
       <span title="Longest consecutive play streak this year">
-        longest <strong>{stats.longestStreak}</strong> days
+        longest{" "}
+        <strong className="text-foreground font-semibold">
+          {stats.longestStreak}
+        </strong>{" "}
+        days
       </span>
     </div>
   );
@@ -459,11 +481,10 @@ function GameHeatmap({
   const gameName = game === "maimai" ? "maimai" : "CHUNITHM";
 
   return (
-    <div className="heatmap-section">
+    <div className="w-full max-w-[1100px]">
       <StatsBar stats={stats} year={year} />
-      <div className="heatmap-scroll-wrapper">
+      <div className="relative overflow-x-auto scrollbar-thin">
         <div
-          className="heatmap-container"
           ref={containerRef}
           role="figure"
           aria-label={`${gameName} play activity heatmap for ${year}`}
@@ -474,8 +495,10 @@ function GameHeatmap({
         {stats.total} total plays in {year}. Current streak:{" "}
         {stats.currentStreak} days. Longest streak: {stats.longestStreak} days.
       </span>
-      <div className="heatmap-footer">
-        <p className={`tap-info${tapInfo ? " active" : ""}`}>
+      <div className="flex items-center justify-between mt-2 min-h-[1.6em]">
+        <p
+          className={`text-xs text-muted m-0 transition-colors duration-150 ${tapInfo ? "text-foreground" : ""}`}
+        >
           {tapInfo || "Click a cell for details"}
         </p>
         <Legend game={game} />
@@ -563,13 +586,15 @@ export default function Heatmap({ games }: { games: Game[] }) {
 
   return (
     <div>
-      <div className="heatmap-header">
-        <label className="year-select-label" htmlFor="heatmap-year">
+      <div className="flex items-center gap-2 mb-4">
+        <label className="text-sm text-secondary" htmlFor="heatmap-year">
           Year
         </label>
         <select
           id="heatmap-year"
-          className="year-select"
+          className="bg-elevated text-foreground border border-border rounded px-2 py-1 text-sm cursor-pointer
+                     hover:border-accent focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30
+                     transition-colors duration-150"
           value={selectedYear}
           onChange={(e) => setSelectedYear(Number(e.target.value))}
         >
@@ -580,28 +605,35 @@ export default function Heatmap({ games }: { games: Game[] }) {
           ))}
         </select>
         {lastUpdated && (
-          <span className={`heatmap-last-updated${isStale ? " stale" : ""}`}>
+          <span
+            className={`ml-auto text-xs ${isStale ? "text-destructive" : "text-muted"}`}
+          >
             Updated {formatLastUpdated(lastUpdated)}
           </span>
         )}
       </div>
 
       {loading && (
-        <div className="heatmap-skeleton" aria-label="Loading heatmap data">
+        <div className="flex flex-col gap-8" aria-label="Loading heatmap data">
           {games.map((game) => (
-            <div key={game} className="heatmap-skeleton-block">
-              <div className="heatmap-skeleton-title" />
-              <div className="heatmap-skeleton-grid" />
+            <div key={game} className="flex flex-col gap-2">
+              <div className="w-20 h-[1.1rem] bg-surface rounded animate-skeleton-pulse" />
+              <div className="w-full max-w-235 h-30 bg-surface rounded animate-skeleton-pulse" />
             </div>
           ))}
         </div>
       )}
 
       {!loading && error && (
-        <div className="heatmap-error" role="alert">
-          <p>{error}</p>
+        <div
+          className="p-6 border border-border rounded-lg text-center text-secondary"
+          role="alert"
+        >
+          <p className="m-0 mb-3">{error}</p>
           <button
-            className="heatmap-retry-btn"
+            className="bg-elevated text-foreground border border-border rounded px-4 py-1.5 text-sm cursor-pointer
+                       hover:border-accent focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30
+                       active:bg-surface transition-colors duration-150"
             onClick={() => loadData(selectedYear, true)}
           >
             Retry
@@ -612,16 +644,19 @@ export default function Heatmap({ games }: { games: Game[] }) {
       {!loading &&
         !error &&
         games.map((game) => (
-          <div key={game} className="heatmap-game-block">
-            <h2 className="heatmap-game-title" data-game={game}>
+          <div key={game} className="mb-8">
+            <h2
+              className="text-lg font-semibold m-0 mb-2 pl-2 border-l-[3px]"
+              style={{ borderLeftColor: GAME_ACCENT[game] }}
+            >
               {game === "maimai" ? "maimai" : "CHUNITHM"}
             </h2>
             {data.length > 0 ? (
               <GameHeatmap game={game} data={data} year={selectedYear} />
             ) : (
-              <div className="heatmap-empty">
-                <p>No plays recorded in {selectedYear}</p>
-                <p className="heatmap-empty-hint">
+              <div className="p-8 text-center text-muted border border-border rounded-lg">
+                <p className="m-0">No plays recorded in {selectedYear}</p>
+                <p className="mt-2 text-xs m-0">
                   Plays appear automatically after each arcade session is
                   recorded.
                 </p>

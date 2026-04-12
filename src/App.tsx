@@ -34,25 +34,30 @@ function App() {
 
   if (authed === null)
     return (
-      <div className="app-loading" aria-label="Checking authentication">
-        <span className="app-loading-text">ChuMaiNichi</span>
+      <div
+        className="flex items-center justify-center min-h-screen"
+        aria-label="Checking authentication"
+      >
+        <span className="text-xl text-muted animate-skeleton-pulse">
+          ChuMaiNichi
+        </span>
       </div>
     );
   if (!authed) return <PasswordGate onAuthenticated={() => setAuthed(true)} />;
 
   return (
-    <div className="app-container">
-      <h1 className="app-title">ChuMaiNichi</h1>
+    <div className="p-8 max-w-5xl mx-auto">
+      <h1>ChuMaiNichi</h1>
       <Suspense
         fallback={
-          <div className="heatmap-skeleton" aria-label="Loading">
-            <div className="heatmap-skeleton-block">
-              <div className="heatmap-skeleton-title" />
-              <div className="heatmap-skeleton-grid" />
+          <div className="flex flex-col gap-8" aria-label="Loading">
+            <div className="flex flex-col gap-2">
+              <div className="w-20 h-[1.1rem] bg-surface rounded animate-skeleton-pulse" />
+              <div className="w-full max-w-235 h-30 bg-surface rounded animate-skeleton-pulse" />
             </div>
-            <div className="heatmap-skeleton-block">
-              <div className="heatmap-skeleton-title" />
-              <div className="heatmap-skeleton-grid" />
+            <div className="flex flex-col gap-2">
+              <div className="w-20 h-[1.1rem] bg-surface rounded animate-skeleton-pulse" />
+              <div className="w-full max-w-235 h-30 bg-surface rounded animate-skeleton-pulse" />
             </div>
           </div>
         }
