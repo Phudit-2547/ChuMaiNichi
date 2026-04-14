@@ -1,52 +1,72 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { neon } from "@neondatabase/serverless";
-import { createHash, timingSafeEqual } from "node:crypto";
+import type { Connect } from "vite";
+import { IncomingMessage, ServerResponse } from "node:http";
+import { checkAuth } from "./_lib/auth";
+import { runQuery, getStatusCode } from "./_lib/query";
+import { QueryErrorHandler, QueryException } from "./_lib/query/errors";
+import { handleViteError, handleVercelError } from "./_lib/error-handling";
 
-function checkAuth(header: string | undefined, password: string | undefined): boolean {
-  if (!password) return true;
-  const token = header?.replace("Bearer ", "") ?? "";
-  const a = createHash("sha256").update(token).digest();
-  const b = createHash("sha256").update(password).digest();
-  return timingSafeEqual(a, b);
+export async function viteHandler(
+  req: Connect.IncomingMessage,
+  res: ServerResponse<IncomingMessage>,
+) {
+  try {
+    if (req.method !== "POST")
+      throw new QueryException("METHOD_NOT_ALLOWED", "Method not allowed");
+
+    // // Dev: No auth
+    // if (!checkAuth(req.headers.authorization, process.env.DASHBOARD_PASSWORD))
+    //   throw new QueryException(
+    //     "INVALID_CREDENTIALS",
+    //     "Incorrect dashboard password",
+    //   );
+
+    const dbUrl = process.env.DATABASE_URL;
+    if (!dbUrl)
+      throw new QueryException("DATABASE_URL_NOT_SET", "DATABASE_URL not set");
+
+    let body = "";
+    req.on("data", (chunk: Buffer) => (body += chunk.toString()));
+    req.on("end", async () => {
+      try {
+        const { sql: query, params = [] } = JSON.parse(body || "{}");
+        const result = await runQuery(query, params, dbUrl);
+        res.setHeader("Content-Type", "application/json");
+        res.statusCode = 200;
+        res.end(JSON.stringify(result));
+      } catch (e) {
+        const wrappedError = QueryErrorHandler.wrapError(e);
+        handleViteError(getStatusCode(wrappedError), wrappedError, res);
+        return;
+      }
+    });
+  } catch (e) {
+    const wrappedError = QueryErrorHandler.wrapError(e);
+    return handleViteError(getStatusCode(wrappedError), wrappedError, res);
+  }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
-  if (!checkAuth(req.headers.authorization, process.env.DASHBOARD_PASSWORD)) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
-  const { sql: query, params = [] } = req.body ?? {};
-
-  if (typeof query !== "string") {
-    return res.status(400).json({ error: "sql is required" });
-  }
-
-  if (!Array.isArray(params)) {
-    return res.status(400).json({ error: "params must be an array" });
-  }
-
-  // Read-only guard: only allow SELECT statements
-  const trimmed = query.trim();
-  if (!trimmed.toUpperCase().startsWith("SELECT")) {
-    return res.status(403).json({ error: "Only SELECT statements are allowed" });
-  }
-
-  // Block multi-statement attacks and dangerous keywords (INTO prevents SELECT INTO table creation)
-  const forbidden = /;|--|\/\*|\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|EXEC|EXECUTE|COPY|INTO)\b/i;
-  if (forbidden.test(trimmed)) {
-    return res.status(403).json({ error: "Forbidden SQL pattern detected" });
-  }
-
   try {
-    const sql = neon(process.env.DATABASE_URL!);
-    const rows = await sql.query(query, params);
-    return res.status(200).json({ rows, rowCount: rows.length });
-  } catch (err) {
-    console.error("Query execution error:", err);
-    return res.status(500).json({ error: "Query execution failed" });
+    if (req.method !== "POST")
+      throw new QueryException("METHOD_NOT_ALLOWED", "Method not allowed");
+
+    if (!checkAuth(req.headers.authorization, process.env.DASHBOARD_PASSWORD))
+      throw new QueryException(
+        "INVALID_CREDENTIALS",
+        "Incorrect dashboard password",
+      );
+
+    const dbUrl = process.env.DATABASE_URL;
+    if (!dbUrl)
+      throw new QueryException("DATABASE_URL_NOT_SET", "DATABASE_URL not set");
+
+    const { sql: query, params = [] } = req.body ?? {};
+
+    const result = await runQuery(query, params, dbUrl);
+    return res.status(200).json(result);
+  } catch (e) {
+    const wrappedError = QueryErrorHandler.wrapError(e);
+    return handleVercelError(getStatusCode(wrappedError), wrappedError, res);
   }
 }
