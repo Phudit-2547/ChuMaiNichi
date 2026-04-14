@@ -19,10 +19,10 @@ export default function PasswordGate({ onAuthenticated }: Props) {
     e.preventDefault();
     setError("");
     setLoading(true);
+    setPassword(value);
 
     authenticate()
       .then(() => {
-        setPassword(value);
         onAuthenticated();
       })
       .catch((err) => {
