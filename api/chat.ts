@@ -8,8 +8,8 @@ import type {
 } from "openai/resources/chat/completions";
 import { readFileSync } from "fs";
 import { join } from "path";
-import { suggestSongs } from "../src/lib/suggest-songs";
-import type { PlayerData, SongData } from "../src/lib/rating";
+import { suggestSongs } from "../src/global/lib/suggest-songs";
+import type { PlayerData, SongData } from "../src/global/lib/rating";
 
 // --- Provider auto-detection ---
 
@@ -131,7 +131,8 @@ const SUGGEST_SONGS_TOOL: ChatCompletionTool = {
       properties: {
         target_rating: {
           type: "integer",
-          description: "Target rating to reach (optional, triggers target mode)",
+          description:
+            "Target rating to reach (optional, triggers target mode)",
         },
         mode: {
           type: "string",
@@ -197,12 +198,17 @@ async function executeTool(
         `SELECT data FROM user_scores WHERE game = 'maimai' ORDER BY scraped_at DESC LIMIT 1`,
       );
       if (rows.length === 0) {
-        return { error: "No maimai player data found. Run the user data scraper first." };
+        return {
+          error:
+            "No maimai player data found. Run the user data scraper first.",
+        };
       }
       const playerData = rows[0].data as PlayerData;
       const allSongs = loadSongs();
       if (allSongs.length === 0) {
-        return { error: "No songs data available. songs.json is missing or empty." };
+        return {
+          error: "No songs data available. songs.json is missing or empty.",
+        };
       }
       return suggestSongs(playerData, allSongs, {
         targetRating: (args.target_rating as number) || null,
@@ -219,7 +225,10 @@ async function executeTool(
 
 // --- Auth ---
 
-function checkAuth(header: string | undefined, password: string | undefined): boolean {
+function checkAuth(
+  header: string | undefined,
+  password: string | undefined,
+): boolean {
   if (!password) return true;
   const token = header?.replace("Bearer ", "") ?? "";
   const a = createHash("sha256").update(token).digest();
@@ -229,10 +238,7 @@ function checkAuth(header: string | undefined, password: string | undefined): bo
 
 // --- Handler ---
 
-export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse,
-) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
