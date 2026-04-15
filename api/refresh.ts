@@ -1,13 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { createHash, timingSafeEqual } from "node:crypto";
-
-function checkAuth(header: string | undefined, password: string | undefined): boolean {
-  if (!password) return true;
-  const token = header?.replace("Bearer ", "") ?? "";
-  const a = createHash("sha256").update(token).digest();
-  const b = createHash("sha256").update(password).digest();
-  return timingSafeEqual(a, b);
-}
+import { checkAuth } from "../src/api/auth";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
