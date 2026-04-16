@@ -92,16 +92,10 @@ async def main():
         if data.get("failed", False)
     )
 
-    # Initialize new_plays dict before failure handling
-    new_plays = {game: 0 for game in cumulative}
-
-    # Carry forward previous values on failure
-    if scrape_failed:
-        for game in cumulative:
-            last_known_cumulative = await get_previous_cumulative(game, today_str)
-            cumulative[game] = last_known_cumulative
-            new_plays[game] = 0
-        for game in ratings:
+    # Carry forward previous values only for games that individually failed
+    for game, data in player_data.items():
+        if data.get("failed", False):
+            cumulative[game] = await get_previous_cumulative(game, today_str)
             if ratings[game] is None or ratings[game] == 0:
                 ratings[game] = await get_previous_rating(game, today_str)
 

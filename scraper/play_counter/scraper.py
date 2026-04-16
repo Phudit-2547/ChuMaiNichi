@@ -231,6 +231,19 @@ async def fetch_player_data(game: str) -> dict:
                 except Exception:
                     failure_reason = await capture_failure_details(page)
                     print(f"[ERROR] Failed to load {game} home page: {failure_reason}")
+                    # Aime not registered — retrying won't help
+                    if "100106" in failure_reason:
+                        total_time = time.perf_counter() - start_time
+                        msg = f"New {game} version detected — go play {game} at the arcade to register your Aime card!"
+                        print(f"[SKIP] {msg}")
+                        send_discord_notification(game, msg)
+                        await browser.close()
+                        return {
+                            "rating": 0 if game == "maimai" else 0.0,
+                            "cumulative": 0,
+                            "failed": True,
+                            "failure_reason": msg,
+                        }
                     if cookies_loaded:
                         print("[RETRY] Cached session failed, retrying with fresh login...")
                         cookies_path = get_cookies_path(game)

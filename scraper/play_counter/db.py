@@ -80,10 +80,10 @@ async def upsert_daily_play(
     chunithm_new: int,
     maimai_cumulative: int,
     chunithm_cumulative: int,
-    maimai_rating: int,
-    chunithm_rating: float,
+    maimai_rating: float | None,
+    chunithm_rating: float | None,
     scrape_failed: bool = False,
-    failure_reason: str = None,
+    failure_reason: str | None = None,
 ):
     upsert_query = """
         INSERT INTO public.daily_play
