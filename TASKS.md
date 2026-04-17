@@ -30,16 +30,14 @@ Do this BEFORE assigning anyone else:
 9. Copy `.github/workflows/schedule.yml` → `.github/workflows/scrape-daily.yml`
    - Update `working-directory: scraper`
 10. Deploy to Vercel, verify stubs work at `<your>.vercel.app`
-11. Push to `main`, create branches for each person
-12. Add `CLAUDE.md` to repo root
+11. Add `CLAUDE.md` to repo root
 
-After this: tell teammates "pull main, read CLAUDE.md, start your branch."
+After this: tell teammates "pull main, read CLAUDE.md, start on your section."
 
 ---
 
 ## Person B — Frontend
 
-**Branch:** `feat/frontend`
 **Read first:** CLAUDE.md (UI layout section, config.json section)
 **Depends on:** Big's scaffold (API stubs return mock data)
 
@@ -91,13 +89,12 @@ After this: tell teammates "pull main, read CLAUDE.md, start your branch."
 
 ## Person C — AI Agent
 
-**Branch:** `feat/ai-agent`
 **Read first:** CLAUDE.md (rating system section, song suggestion algorithm section)
 **Depends on:** Nothing — pure functions, testable standalone
 
 ### Deliverables
 
-1. **src/lib/rating.ts** — Port from Python `rating.py`
+1. **src/lib/maimai-rating.ts** — Port from Python `rating.py`
    - `RANK_FACTORS`: array of `{ minScore, multiplier, rankName }`
      ```
      SSS+ = 1005000, 22.4
@@ -113,13 +110,13 @@ After this: tell teammates "pull main, read CLAUDE.md, start your branch."
    - New version songs: `releasedVersion` is `CiRCLE` or `PRiSM+`
    - Write unit tests with known values to validate against the formula
 
-2. **src/lib/suggest-songs.ts** — Port from Python `suggest_songs.py`
+2. **src/lib/maimai-suggest.ts** — Port from Python `suggest_songs.py`
    - Two modes: `best_effort` and `target`
    - `best_effort`: return top N improvements + new songs sorted by rating gain
    - `target`: greedy algorithm picking songs until remaining_rating ≤ 0
      - Improvements: replace song's own rating in top-50 (no push-out)
      - New songs: enter top-50, push out lowest
-   - Reads `songs.json` for chart constants
+   - Reads `maimai-songs.json` for chart constants
    - maimai only (CHUNITHM song suggestion is out of scope)
    - The full Python code is in the repo's CLAUDE.md project context — ask Big if needed
 
@@ -134,12 +131,12 @@ After this: tell teammates "pull main, read CLAUDE.md, start your branch."
      - `query_database`: LLM generates SQL → execute via Neon → return results
        - Read-only guard: reject non-SELECT statements
        - `pnpm add @neondatabase/serverless`
-     - `suggest_songs`: call suggest-songs.ts with parameters from LLM
+     - `suggest_songs`: call maimai-suggest.ts with parameters from LLM
    - Stream response back using ReadableStream
    - 60-second Vercel Hobby timeout — keep streaming to stay alive
 
 ### Notes
-- `rating.ts` and `suggest-songs.ts` are pure functions. Test them with `vitest` without Vercel or Neon.
+- `maimai-rating.ts` and `maimai-suggest.ts` are pure functions. Test them with `vitest` without Vercel or Neon.
 - For `api/chat.ts`, test locally with `npx vercel dev`.
 - The system prompt is critical for demo quality — invest time in good examples.
 - Read the suggest_songs.py code Big will provide. Don't reinvent the algorithm.
@@ -148,7 +145,6 @@ After this: tell teammates "pull main, read CLAUDE.md, start your branch."
 
 ## Person D — Data Pipeline + Presentation
 
-**Branch:** `feat/pipeline` (for code), no branch needed for slides
 **Read first:** CLAUDE.md (GitHub Actions workflows section, user deployment flow)
 **Depends on:** Big's scaffold (for workflow file locations)
 
@@ -174,7 +170,7 @@ After this: tell teammates "pull main, read CLAUDE.md, start your branch."
 3. **.github/workflows/refresh-songs.yml**
    - Trigger: weekly cron + `workflow_dispatch`
    - Fetch `maimai.wonderhoy.me/api/musicData`
-   - Write to `public/songs.json`
+   - Write to `public/maimai-songs.json`
    - Commit and push (this is public data, OK to commit)
 
 4. **api/refresh.ts** — Replace Big's stub
@@ -217,11 +213,11 @@ After this: tell teammates "pull main, read CLAUDE.md, start your branch."
 
 ## Integration checklist (week 2)
 
-After all 4 branches are done, merge in this order:
+Work lands directly on `main` via PR (no long-lived feature branches). Suggested order to minimise conflicts:
 
-1. `feat/pipeline` first (init.sql + workflows, no frontend conflicts)
-2. `feat/ai-agent` second (api/chat.ts + lib/, no frontend conflicts)
-3. `feat/frontend` last (consumes the APIs above)
+1. Pipeline first (init.sql + workflows, no frontend conflicts)
+2. AI agent second (api/chat.ts + lib/, no frontend conflicts)
+3. Frontend last (consumes the APIs above)
 4. Big: end-to-end test on Vercel, fix integration bugs
 
 ---

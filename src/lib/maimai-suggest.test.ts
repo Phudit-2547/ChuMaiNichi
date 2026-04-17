@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { suggestSongs } from "./suggest-songs";
-import { calculateSongRating, type PlayerData, type SongData } from "./rating";
+import { suggestSongs } from "./maimai-suggest";
+import { calculateSongRating, type PlayerData, type SongData } from "./maimai-rating";
 
 // ── Test fixtures ────────────────────────────────────
 

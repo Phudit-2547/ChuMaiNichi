@@ -25,7 +25,7 @@ import {
   type PlayerData,
   type PlayerSong,
   type SongData,
-} from "./rating";
+} from "./maimai-rating";
 
 // --- Types ---
 
@@ -101,7 +101,7 @@ interface SongInfo {
   version: string;
 }
 
-/** Look up song info from songs.json. */
+/** Look up song info from maimai-songs.json. */
 function findSongInfo(
   title: string,
   chartType: string,

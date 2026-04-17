@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Scrape maimai player data locally via Docker.
-# Outputs: scripts/player.json
+# Outputs: scripts/maimai-player.json
 #
 # Usage:
 #   bash scripts/scrape-maimai.sh
@@ -46,15 +46,15 @@ echo ""
 echo "After cleanup (full*.json only):"
 ls -la "$OUT_DIR"
 
-# Copy the first full*.json to scripts/player.json
+# Copy the first full*.json to scripts/maimai-player.json
 FULL_FILE=$(find "$OUT_DIR" -name 'full*.json' -type f | head -1)
 if [[ -z "$FULL_FILE" ]]; then
   echo "Error: no full*.json found in output"
   exit 1
 fi
 
-cp "$FULL_FILE" scripts/player.json
+cp "$FULL_FILE" scripts/maimai-player.json
 rm -rf "$OUT_DIR"
 
 echo ""
-echo "Saved to scripts/player.json"
+echo "Saved to scripts/maimai-player.json"

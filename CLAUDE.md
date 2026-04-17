@@ -55,7 +55,7 @@ ChuMaiNichi/
 ├── .github/workflows/
 │   ├── scrape-daily.yml          # Cron: daily at 22:00 Asia/Bangkok
 │   ├── scrape-user-data.yml      # Manual: workflow_dispatch for user.json
-│   └── refresh-songs.yml         # Weekly: cache songs.json from wonderhoy API
+│   └── refresh-songs.yml         # Weekly: cache maimai-songs.json from wonderhoy API
 ├── scraper/                      # Python — migrated from Chunimai-tracker
 │   ├── play_counter/
 │   │   ├── config.py             # Env var loading, notification config
@@ -88,7 +88,7 @@ ChuMaiNichi/
 │   ├── App.tsx                   # Single page: main view + sidebar + modal
 │   └── main.tsx
 ├── public/
-│   └── songs.json                # Cached from maimai.wonderhoy.me/api/musicData (weekly refresh)
+│   └── maimai-songs.json         # Cached from maimai.wonderhoy.me/api/musicData (weekly refresh)
 ├── config.json                   # USER EDITS THIS: games, currency (see "Config" section)
 ├── package.json
 ├── tsconfig.json
@@ -216,7 +216,7 @@ Rank multipliers (RANK_FACTORS):
 Achievement is score / 10000 (e.g., 1005000 = 100.5%).
 
 ### Chart constants source
-- Cached in `public/songs.json` from `maimai.wonderhoy.me/api/musicData`
+- Cached in `public/maimai-songs.json` from `maimai.wonderhoy.me/api/musicData`
 - Refreshed weekly by GitHub Actions (constants change on version updates)
 - Do NOT call the API at runtime — read the cached file instead (avoids 60s timeout risk)
 - `maimai.wonderhoy.me/api/calcRating` is usable as a data source BUT has a known discrepancy: if a player hasn't unlocked a song (e.g., "7 wonders"), it won't appear in their play_data scrape but CAN appear in the API's top-50 calculation, causing the API to overestimate rating for that player
@@ -268,7 +268,7 @@ Achievement is score / 10000 (e.g., 1005000 = 100.5%).
 ### refresh-songs.yml
 - Cron: weekly (or `workflow_dispatch`)
 - Only runs if `"maimai"` is in `config.json` games array
-- Fetches `maimai.wonderhoy.me/api/musicData` → writes to `public/songs.json` → commits
+- Fetches `maimai.wonderhoy.me/api/musicData` → writes to `public/maimai-songs.json` → commits
 - Chart constants change on version updates (~weekly), so this keeps the cache fresh
 - No secrets needed (public API)
 
@@ -280,7 +280,7 @@ The `suggest_songs` tool runs server-side in `api/chat.ts`. It is maimai-specifi
 
 ### Data inputs
 - **player_data**: From `user_scores` table (JSONB). Contains `profile`, `best` (top 35 old), `current` (top 15 new), and `allRecords` (full play history from play_data page)
-- **songs.json**: Cached song catalog with chart constants per difficulty
+- **maimai-songs.json**: Cached song catalog with chart constants per difficulty
 
 ### Two modes
 

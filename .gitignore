@@ -229,7 +229,7 @@ dist/
 
 # Scraper outputs and player data (private)
 scripts/outputs/
-scripts/player.json
+scripts/maimai-player.json
 
 # Claude Code
 skills-lock.json

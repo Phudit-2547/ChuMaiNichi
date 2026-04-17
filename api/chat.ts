@@ -8,8 +8,8 @@ import type {
 } from "openai/resources/chat/completions";
 import { readFileSync } from "fs";
 import { join } from "path";
-import { suggestSongs } from "../src/lib/suggest-songs";
-import type { PlayerData, SongData } from "../src/lib/rating";
+import { suggestSongs } from "../src/lib/maimai-suggest";
+import type { PlayerData, SongData } from "../src/lib/maimai-rating";
 
 // --- Provider auto-detection ---
 
@@ -156,7 +156,7 @@ function loadSongs(): SongData[] {
   if (_songsCache) return _songsCache;
   try {
     _songsCache = JSON.parse(
-      readFileSync(join(process.cwd(), "public", "songs.json"), "utf-8"),
+      readFileSync(join(process.cwd(), "public", "maimai-songs.json"), "utf-8"),
     );
     return _songsCache!;
   } catch {
@@ -202,7 +202,7 @@ async function executeTool(
       const playerData = rows[0].data as PlayerData;
       const allSongs = loadSongs();
       if (allSongs.length === 0) {
-        return { error: "No songs data available. songs.json is missing or empty." };
+        return { error: "No songs data available. maimai-songs.json is missing or empty." };
       }
       return suggestSongs(playerData, allSongs, {
         targetRating: (args.target_rating as number) || null,

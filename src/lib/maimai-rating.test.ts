@@ -8,7 +8,7 @@ import {
   getCoverUrl,
   type SongData,
   type PlayerData,
-} from "./rating";
+} from "./maimai-rating";
 
 // ── calculateSongRating ──────────────────────────────
 
