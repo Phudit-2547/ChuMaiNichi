@@ -1,0 +1,22 @@
+{
+  "featureId": "github-actions-workflows",
+  "status": "pass",
+  "reviewSummary": "Both workflows match specification. scrape-user-data.yml correctly uses config.json with jq parsing, runs chuumai-tools Docker containers with proper VERSION env vars, mounts outputs/ volume, and runs import_user_data.py via uv. refresh-songs.yml correctly runs weekly cron + workflow_dispatch, conditionally fetches songs.json from wonderhoy API when maimai is in config, and auto-commits.",
+  "blockingIssues": [],
+  "nonBlockingIssues": [
+    {
+      "description": "refresh-songs.yml uses 'grep -q' instead of jq to parse config — inconsistent with scrape-user-data.yml which uses jq",
+      "severity": "non-blocking"
+    }
+  ],
+  "sharedStateObservations": [
+    {
+      "observation": "backend-worker skill file is missing from .factory/skills/ — worker followed mission guidance directly without needing skill invocation",
+      "suggestedAction": "Consider documenting the expected backend-worker skill or ensuring skill files are present"
+    },
+    {
+      "observation": "services.yaml could document 'uv' as the project-standard Python package manager for scraper workflows",
+      "suggestedAction": "Add uv to services.yaml commands or library documentation"
+    }
+  ]
+}
