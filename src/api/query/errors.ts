@@ -2,7 +2,7 @@ import {
   ApplicationException,
   ErrorHandler,
   type GeneralErrorCode,
-} from "../../../src/global/lib/error-handling";
+} from "../../global/lib/error-handling";
 
 type QueryErrorCode =
   | "DATABASE_URL_NOT_SET"

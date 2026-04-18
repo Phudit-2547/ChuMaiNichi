@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { checkAuth } from "./auth";
 import { QueryException } from "./query/errors";
 
 const FORBIDDEN =
@@ -55,4 +56,27 @@ export function getStatusCode(e: QueryException) {
       return 500;
     }
   }
+}
+
+export async function handleRequest(
+  method: string | undefined,
+  authHeader: string | undefined,
+  dbUrl: string | undefined,
+  getBody: () => Promise<{ sql: unknown; params?: unknown[] }>,
+  skipAuth = false,
+): Promise<unknown> {
+  if (method !== "POST")
+    throw new QueryException("METHOD_NOT_ALLOWED", "Method not allowed");
+
+  if (!skipAuth && !checkAuth(authHeader, process.env.DASHBOARD_PASSWORD))
+    throw new QueryException(
+      "INVALID_CREDENTIALS",
+      "Incorrect dashboard password",
+    );
+
+  if (!dbUrl)
+    throw new QueryException("DATABASE_URL_NOT_SET", "DATABASE_URL not set");
+
+  const { sql: query, params = [] } = await getBody();
+  return runQuery(query, params, dbUrl);
 }
