@@ -4,7 +4,7 @@ from datetime import datetime, timezone, timedelta
 
 from play_counter.config import CONFIG
 from play_counter.daily_play_notifier import send_notification
-from play_counter.db import get_previous_cumulative, get_previous_rating, test_db_connection, upsert_daily_play
+from play_counter.db import get_previous_cumulative, get_previous_rating, init_schema, test_db_connection, upsert_daily_play
 from play_counter.reports.monthly import generate_monthly_report
 from play_counter.reports.weekly import generate_weekly_report
 from play_counter.scraper import fetch_player_data
@@ -15,6 +15,8 @@ async def main():
     if "--backfill" in sys.argv:
         idx = sys.argv.index("--backfill")
         target_date = sys.argv[idx + 1]
+
+        await init_schema()
 
         maimai_cumulative = await get_previous_cumulative("maimai", target_date)
         chunithm_cumulative = await get_previous_cumulative("chunithm", target_date)
@@ -67,6 +69,8 @@ async def main():
     if not await test_db_connection():
         print("Exiting: Database is unreachable.")
         sys.exit(1)
+
+    await init_schema()
 
     BKK = timezone(timedelta(hours=7))
     today = datetime.now(BKK)

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import asyncpg
 from datetime import datetime
 
@@ -9,6 +11,8 @@ MISSING_DATABASE_URL_MESSAGE = (
 
 VALID_GAMES = {"maimai", "chunithm"}
 
+INIT_SQL_PATH = Path(__file__).resolve().parent.parent / "init.sql"
+
 
 def _validate_game(game: str) -> None:
     if game not in VALID_GAMES:
@@ -19,6 +23,16 @@ async def connect_db():
     if not DATABASE_URL:
         raise RuntimeError(MISSING_DATABASE_URL_MESSAGE)
     return await asyncpg.connect(DATABASE_URL)
+
+
+async def init_schema() -> None:
+    """Execute init.sql to ensure tables exist. Idempotent."""
+    sql = INIT_SQL_PATH.read_text()
+    conn = await connect_db()
+    try:
+        await conn.execute(sql)
+    finally:
+        await conn.close()
 
 
 async def get_cumulative(game: str, date_str: str) -> int:

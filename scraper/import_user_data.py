@@ -23,6 +23,8 @@ from typing import Any
 import asyncpg
 from pydantic import BaseModel, ValidationError
 
+from play_counter.db import init_schema
+
 # ---- Configuration ----
 MAX_SNAPSHOTS_PER_GAME = 5
 
@@ -276,13 +278,15 @@ async def main(outputs_dir: Path | None = None):
     """
     if outputs_dir is None:
         outputs_dir = Path(__file__).parent / "outputs"
-    
+
     print(f"Scanning {outputs_dir} for JSON files...")
     json_files = list(scan_outputs_directory(outputs_dir))
-    
+
     if not json_files:
         print("[WARN] No JSON files found in outputs directory")
         return
+
+    await init_schema()
     
     print(f"Found {len(json_files)} JSON file(s)")
     
