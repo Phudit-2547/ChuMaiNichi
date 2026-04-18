@@ -247,6 +247,9 @@ def scan_outputs_directory(outputs_dir: Path) -> list[Path]:
     """
     Scan outputs directory for JSON files.
     
+    Only imports "full" export files (prefixed with "full-") to avoid
+    duplicate snapshots from scrapers that produce both standard and full exports.
+    
     Args:
         outputs_dir: Path to outputs directory
         
@@ -259,7 +262,8 @@ def scan_outputs_directory(outputs_dir: Path) -> list[Path]:
     if not outputs_dir.exists():
         raise FileNotFoundError(f"Directory not found: {outputs_dir}")
     
-    return sorted(outputs_dir.glob("*.json"))
+    # Filter to only "full-*.json" files to avoid duplicates
+    return sorted(outputs_dir.glob("full-*.json"))
 
 
 # ---- Main entry point ----

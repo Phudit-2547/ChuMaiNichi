@@ -45,8 +45,8 @@ jobs:
             --rm \
             -v ${{ github.workspace }}/outputs:/app/outputs \
             -e VERSION=CiRCLE \
-            -e SEGA_USERNAME=${{ secrets.SEGA_USERNAME }} \
-            -e SEGA_PASSWORD=${{ secrets.SEGA_PASSWORD }} \
+            -e USERNAME=${{ secrets.SEGA_USERNAME }} \
+            -e PASSWORD=${{ secrets.SEGA_PASSWORD }} \
             ghcr.io/leomotors/maimai-scraper:v1
 
       - name: Scrape chunithm
@@ -56,8 +56,8 @@ jobs:
             --rm \
             -v ${{ github.workspace }}/outputs:/app/outputs \
             -e VERSION=XVRS \
-            -e SEGA_USERNAME=${{ secrets.SEGA_USERNAME }} \
-            -e SEGA_PASSWORD=${{ secrets.SEGA_PASSWORD }} \
+            -e USERNAME=${{ secrets.SEGA_USERNAME }} \
+            -e PASSWORD=${{ secrets.SEGA_PASSWORD }} \
             ghcr.io/leomotors/chunithm-scraper:v6
 
       - name: Install uv and dependencies
