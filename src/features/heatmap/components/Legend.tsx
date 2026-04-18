@@ -5,7 +5,7 @@ export function Legend({ game }: { game: Game }) {
   const colors = COLORS[game];
   return (
     <div
-      className="flex items-center gap-[3px] text-xs text-secondary ml-auto"
+      className="flex items-center gap-[3px] text-xs text-secondary-foreground ml-auto"
       aria-hidden="true"
     >
       <span className="mx-1">Less</span>

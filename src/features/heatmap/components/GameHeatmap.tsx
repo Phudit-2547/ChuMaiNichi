@@ -191,7 +191,7 @@ export function GameHeatmap({
       </span>
       <div className="flex items-center justify-between mt-2 min-h-[1.6em]">
         <p
-          className={`text-xs text-muted m-0 transition-colors duration-150 ${tapInfo ? "text-foreground" : ""}`}
+          className={`text-xs text-muted-foreground m-0 transition-colors duration-150 ${tapInfo ? "text-foreground" : ""}`}
         >
           {tapInfo || "Click a cell for details"}
         </p>
