@@ -1,5 +1,5 @@
 import { useState, useRef, type FormEvent } from "react";
-import { setPassword } from "../lib/auth";
+import useAuthStore from "../stores/auth-store";
 
 interface Props {
   onAuthenticated: () => void;
@@ -10,6 +10,8 @@ export default function PasswordGate({ onAuthenticated }: Props) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const { setPassword } = useAuthStore();
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -53,7 +55,11 @@ export default function PasswordGate({ onAuthenticated }: Props) {
           autoFocus
           className="password-gate-input"
         />
-        {error && <span className="password-gate-error" role="alert">{error}</span>}
+        {error && (
+          <span className="password-gate-error" role="alert">
+            {error}
+          </span>
+        )}
         <button
           type="submit"
           disabled={loading || !value}

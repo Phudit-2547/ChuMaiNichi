@@ -1,13 +1,18 @@
-import { authHeaders } from "./auth";
+import useAuthStore from "../stores/auth-store";
 
 export async function queryDB<T = Record<string, unknown>>(
   sql: string,
   params: unknown[] = [],
   signal?: AbortSignal,
 ): Promise<T[]> {
+  const { getAuthHeaders } = useAuthStore.getState();
+
   const res = await fetch("/api/query", {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+    },
     body: JSON.stringify({ sql, params }),
     signal,
   });
