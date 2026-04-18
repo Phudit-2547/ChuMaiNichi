@@ -4,6 +4,7 @@ import HeatmapSkeleton from "./features/heatmap/components/heatmap-skeleton/Heat
 import AuthLoading from "./features/auth/components/AuthLoading";
 import { APP_CONFIG } from "./global/lib/config";
 import { authenticate } from "./global/lib/auth";
+import { triggerRefresh } from "./global/lib/api";
 import {
   ResizablePanel,
   ResizablePanelGroup,
@@ -20,6 +21,7 @@ const Heatmap = lazy(() => import("./features/heatmap/components/Heatmap"));
 
 function App() {
   const [authed, setAuthed] = useState<boolean | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useDarkMode();
   useEffect(() => {
@@ -30,6 +32,18 @@ function App() {
 
   const runtime = useChatRuntime();
 
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      const { run_url } = await triggerRefresh();
+      window.open(run_url, "_blank");
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   if (authed === null) return <AuthLoading />;
   if (!authed) return <PasswordGate onAuthenticated={() => setAuthed(true)} />;
 
@@ -39,7 +53,17 @@ function App() {
         <ResizablePanelGroup orientation="horizontal" className="h-dvh">
           <ResizablePanel defaultSize="75%" className="overflow-auto">
             <div className="p-8 mx-auto max-w-5xl">
-              <h1>ChuMaiNichi</h1>
+              <h1 className="flex items-center gap-3">
+                ChuMaiNichi
+                <button
+                  className="bg-accent text-accent-foreground border-0 rounded-md w-8 h-8 text-lg cursor-pointer inline-flex items-center justify-center hover:bg-accent/80 disabled:opacity-60 disabled:cursor-not-allowed"
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  title="Trigger user data refresh"
+                >
+                  {refreshing ? "⟳" : "↻"}
+                </button>
+              </h1>
               <SettingsModal />
               <Suspense fallback={<HeatmapSkeleton />}>
                 <Heatmap games={APP_CONFIG.games} />

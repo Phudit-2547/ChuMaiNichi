@@ -1,0 +1,13 @@
+commands:
+  install: cd scraper && uv sync
+  test: cd scraper && uv run pytest
+  lint: echo "No lint configured"
+  typecheck: echo "No typecheck configured"
+
+services:
+  postgres:
+    start: docker run -d --name chumai-postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=chumai -p 5432:5432 postgres:15
+    stop: docker rm -f chumai-postgres || true
+    healthcheck: pg_isready -h localhost -p 5432 -U postgres
+    port: 5432
+    depends_on: []

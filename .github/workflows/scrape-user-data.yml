@@ -1,0 +1,78 @@
+name: Scrape User Data
+
+on:
+  workflow_dispatch:
+    inputs:
+      games:
+        description: 'Comma-separated games to scrape (maimai,chunithm). Overrides config.json.'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  scrape-user-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Read config.json
+        id: config
+        uses: juliangruber/read-file-action@v1
+        with:
+          path: config.json
+
+      - name: Determine which games to scrape
+        id: games
+        run: |
+          if [ -n "${{ github.event.inputs.games }}" ]; then
+            GAMES="${{ github.event.inputs.games }}"
+          else
+            GAMES=$(echo '${{ steps.config.outputs.content }}' | jq -r '.games | join(",")')
+          fi
+          echo "games=$GAMES" >> $GITHUB_OUTPUT
+          echo "games: $GAMES"
+
+      - name: Create outputs directory
+        run: mkdir -p outputs
+
+      - name: Scrape maimai
+        if: contains(steps.games.outputs.games, 'maimai')
+        run: |
+          docker run \
+            --rm \
+            -v ${{ github.workspace }}/outputs:/app/outputs \
+            -e VERSION=CiRCLE \
+            -e USERNAME=${{ secrets.SEGA_USERNAME }} \
+            -e PASSWORD=${{ secrets.SEGA_PASSWORD }} \
+            ghcr.io/leomotors/maimai-scraper:v1
+
+      - name: Scrape chunithm
+        if: contains(steps.games.outputs.games, 'chunithm')
+        run: |
+          docker run \
+            --rm \
+            -v ${{ github.workspace }}/outputs:/app/outputs \
+            -e VERSION=XVRS \
+            -e USERNAME=${{ secrets.SEGA_USERNAME }} \
+            -e PASSWORD=${{ secrets.SEGA_PASSWORD }} \
+            ghcr.io/leomotors/chunithm-scraper:v6
+
+      - name: Install uv and dependencies
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python dependencies
+        working-directory: scraper
+        run: uv sync
+
+      - name: Import user data into database
+        working-directory: scraper
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          uv run python import_user_data.py "${{ github.workspace }}/outputs"

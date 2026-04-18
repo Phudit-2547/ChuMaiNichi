@@ -1,0 +1,7 @@
+{
+  "assertions": {
+    "VAL-CI-001": { "status": "passed", "validatedAtMilestone": "cicd" },
+    "VAL-CI-002": { "status": "passed", "validatedAtMilestone": "cicd" },
+    "VAL-API-001": { "status": "failed", "reason": "Feature api-refresh-route is still pending. api/refresh.ts is a stub that does not implement GitHub action triggering." }
+  }
+}

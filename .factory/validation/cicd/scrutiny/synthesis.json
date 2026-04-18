@@ -1,0 +1,28 @@
+{
+  "milestone": "cicd",
+  "round": 2,
+  "status": "fail",
+  "validatorsRun": {
+    "test": { "passed": true, "command": "cd scraper && uv run pytest", "exitCode": 0, "note": "18 tests passed" },
+    "typecheck": { "passed": true, "command": "npm run build", "exitCode": 0, "note": "TypeScript compilation and Vite build succeeded" },
+    "lint": { "passed": true, "command": "npm run lint", "exitCode": 0, "note": "Lint passed in round 2 (pre-existing Heatmap.tsx errors were fixed in feat/pipeline)" }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [
+    {
+      "featureId": "api-refresh",
+      "severity": "blocking",
+      "description": "api/refresh.ts is a stub that only checks auth and returns {status:\"ok\"}. It does NOT dispatch a GitHub Actions workflow. According to CLAUDE.md and VAL-API-001, it should use GITHUB_PAT and GITHUB_REPO to trigger workflow_dispatch on scrape-user-data.yml and return {run_url:\"...\"}. No GitHub API client (octokit or otherwise) is imported or used.",
+      "fixRequired": "Implement the GitHub API call to dispatch scrape-user-data.yml using GITHUB_PAT and GITHUB_REPO env vars. Return {run_url:\"...\"} with the workflow run URL."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [],
+  "rejectedObservations": [],
+  "previousRound": ".factory/validation/cicd/scrutiny/synthesis.json"
+}

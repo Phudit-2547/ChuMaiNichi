@@ -1,0 +1,20 @@
+{
+  "assertionIds": ["VAL-CI-001", "VAL-CI-002"],
+  "status": "pass",
+  "results": [
+    {
+      "assertionId": "VAL-CI-001",
+      "status": "pass",
+      "details": "scrape-user-data.yml exists, triggers on workflow_dispatch, runs maimai-scraper and chunithm-scraper based on config.json (using jq), and executes import_user_data.py with DATABASE_URL secret"
+    },
+    {
+      "assertionId": "VAL-CI-002",
+      "status": "pass",
+      "details": "refresh-songs.yml exists, triggers on weekly cron (0 0 * * 0) and workflow_dispatch, fetches from maimai.wonderhoy.me/api/musicData, commits to public/songs.json via git-auto-commit-action, only runs if maimai is in config.json games array"
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "toolsUsed": ["bash"],
+  "isolationContext": "File content inspection only - no running services required for YAML structure validation"
+}

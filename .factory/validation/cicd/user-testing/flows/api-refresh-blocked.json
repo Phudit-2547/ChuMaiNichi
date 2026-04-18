@@ -1,0 +1,20 @@
+{
+  "assertionIds": ["VAL-API-001"],
+  "status": "blocked",
+  "results": [
+    {
+      "assertionId": "VAL-API-001",
+      "status": "blocked",
+      "details": "api/refresh.ts is a stub implementation that only returns { status: 'ok' } without triggering any GitHub action. The feature api-refresh-route has status 'pending' and does not meet the expected behavior: 'Reads GITHUB_PAT and GITHUB_REPO, POSTs to GitHub API to dispatch the workflow, returns { run_url }'."
+    }
+  ],
+  "frictions": [],
+  "blockers": [
+    {
+      "assertionId": "VAL-API-001",
+      "reason": "Feature api-refresh-route is still pending. api/refresh.ts is a stub that does not implement the required functionality."
+    }
+  ],
+  "toolsUsed": ["bash"],
+  "isolationContext": "Code inspection - stub implementation confirmed by reading api/refresh.ts"
+}

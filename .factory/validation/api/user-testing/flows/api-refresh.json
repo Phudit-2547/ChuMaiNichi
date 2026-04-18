@@ -1,0 +1,21 @@
+{
+  "assertionIds": ["VAL-API-001"],
+  "status": "pass",
+  "testsRun": 12,
+  "testsPassed": 12,
+  "testsFailed": 0,
+  "tool": "vitest (unit test)",
+  "summary": "All 12 unit tests pass for api/refresh.ts. The endpoint correctly: (1) rejects non-POST methods with 405, (2) authenticates via DASHBOARD_PASSWORD bearer token, (3) validates GITHUB_PAT and GITHUB_REPO env vars, (4) dispatches GitHub workflow via API and returns run_url.",
+  "details": {
+    "VAL-API-001": {
+      "method_validation": "405 returned for GET/PUT methods",
+      "auth_validation": "401 returned for missing/invalid bearer token when DASHBOARD_PASSWORD is set",
+      "credential_validation": "500 returned when GITHUB_PAT or GITHUB_REPO is missing or invalid",
+      "github_api_call": "Correct URL, headers, and body sent to GitHub API",
+      "success_response": "200 returned with { run_url: 'https://github.com/{owner}/{repo}/actions/workflows/scrape-user-data.yml' }",
+      "error_handling": "500 returned when GitHub API returns error or fetch throws"
+    }
+  },
+  "frictions": [],
+  "blockers": []
+}

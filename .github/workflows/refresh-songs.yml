@@ -1,0 +1,39 @@
+name: Refresh Songs Cache
+
+on:
+  schedule:
+    - cron: "0 0 * * 0"  # Weekly at midnight on Sunday (UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-songs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Check if maimai is in config
+        id: check-config
+        run: |
+          if jq -e '.games | index("maimai")' config.json > /dev/null; then
+            echo "maimai_enabled=true" >> $GITHUB_OUTPUT
+          else
+            echo "maimai_enabled=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Fetch songs data
+        if: steps.check-config.outputs.maimai_enabled == 'true'
+        id: fetch
+        run: |
+          curl -sS "https://maimai.wonderhoy.me/api/musicData" -o public/songs.json
+          echo "downloaded=true" >> $GITHUB_OUTPUT
+
+      - name: Commit songs.json
+        if: steps.fetch.outputs.downloaded == 'true'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(songs): refresh songs.json cache"
+          file_pattern: public/songs.json

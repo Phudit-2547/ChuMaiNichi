@@ -1,0 +1,12 @@
+{
+  "milestone": "cicd",
+  "round": 2,
+  "assertionId": "VAL-API-001",
+  "status": "blocked",
+  "blocker": "Feature api-refresh-route is still pending. api/refresh.ts remains a stub.",
+  "evidence": {
+    "currentImplementation": "Stub that only returns { status: 'ok' } after auth check",
+    "expectedBehavior": "Reads GITHUB_PAT and GITHUB_REPO, POSTs to GitHub API to dispatch workflow, returns { run_url }"
+  },
+  "previousRound": "Round 1: same blocker reported"
+}

@@ -26,3 +26,23 @@ export async function queryDB<T = Record<string, unknown>>(
     throw SharedErrorHandler.wrapError(err);
   }
 }
+
+export async function triggerRefresh(): Promise<{ run_url: string }> {
+  const { getAuthHeaders } = useAuthStore.getState();
+
+  try {
+    const res = await axios.post(
+      "/api/refresh",
+      {},
+      {
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+      },
+    );
+    return res.data;
+  } catch (err) {
+    throw SharedErrorHandler.wrapError(err);
+  }
+}
