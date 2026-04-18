@@ -63,19 +63,23 @@ export async function executeTool(
 ): Promise<unknown> {
   if (name === "query_database") {
     const sql = args.sql as string;
-    const trimmed = sql.trim();
-    if (!trimmed.toUpperCase().startsWith("SELECT")) {
-      return { error: "Only SELECT statements are allowed" };
+    const normalized = sql.trim().replace(/\s*;+\s*$/, "");
+    if (!normalized.toUpperCase().startsWith("SELECT")) {
+      return { error: "Only SELECT statements are allowed", sql };
     }
-    if (FORBIDDEN_SQL.test(trimmed)) {
-      return { error: "Forbidden SQL pattern detected" };
+    if (FORBIDDEN_SQL.test(normalized)) {
+      return {
+        error:
+          "Forbidden SQL pattern detected (DML/DDL keyword, inline comment, or extra semicolon). Submit a single SELECT statement.",
+        sql,
+      };
     }
     try {
       const db = neon(process.env.DATABASE_URL!);
-      const rows = await db.query(sql, (args.params as unknown[]) ?? []);
-      return { rows, rowCount: rows.length };
+      const rows = await db.query(normalized, (args.params as unknown[]) ?? []);
+      return { sql: normalized, rows, rowCount: rows.length };
     } catch {
-      return { error: "Query execution failed" };
+      return { error: "Query execution failed", sql };
     }
   }
   if (name === "maimai_suggest_songs") {

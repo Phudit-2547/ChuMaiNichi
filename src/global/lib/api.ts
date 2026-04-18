@@ -27,6 +27,20 @@ export async function queryDB<T = Record<string, unknown>>(
   }
 }
 
+export async function fetchModel(signal?: AbortSignal): Promise<string> {
+  const { getAuthHeaders } = useAuthStore.getState();
+
+  try {
+    const res = await axios.get("/api/model", {
+      headers: { ...getAuthHeaders() },
+      signal,
+    });
+    return res.data.model;
+  } catch (err) {
+    throw SharedErrorHandler.wrapError(err);
+  }
+}
+
 export async function triggerRefresh(): Promise<{ run_url: string }> {
   const { getAuthHeaders } = useAuthStore.getState();
 

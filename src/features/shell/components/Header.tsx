@@ -47,7 +47,6 @@ export default function Header({
         onClick={toggleChat}
       >
         <MessageCircle size={18} />
-        {!chatOpen && <span className="icon-btn__dot" />}
       </button>
     </header>
   );

@@ -1,25 +1,276 @@
-import { Thread } from "@/global/components/assistant-ui/thread";
-import { ThreadList } from "@/global/components/assistant-ui/thread-list";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/global/components/ui/resizable";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { MessageCircle, Send, X } from "lucide-react";
+import useShellStore from "@/features/shell/stores/shell-store";
+import useSettingsStore from "@/features/settings/stores/settings-store";
+import { fetchModel } from "@/global/lib/api";
+import { streamChat, type ChatMessage, type StreamEvent } from "../lib/stream";
+import { renderBody } from "../lib/render-body";
+import ToolCall from "./ToolCall";
+import EmptyState from "./EmptyState";
+
+type UiMessage =
+  | { role: "user"; content: string }
+  | { role: "assistant"; content: string; streaming?: boolean }
+  | { role: "tool"; name: string; result: unknown }
+  | { role: "error"; content: string };
 
 export default function ChatPanel() {
-  return (
-    <ResizablePanelGroup orientation="vertical">
-      <ResizablePanel defaultSize="10%" className="p-4 overflow-hidden">
-        <ThreadList />
-      </ResizablePanel>
-      <ResizableHandle withHandle />
-      <ResizablePanel className="relative">
-        <div className="flex flex-col h-full">
-          <div className="flex-1 min-h-0">
-            <Thread />
-          </div>
-        </div>
-      </ResizablePanel>
-    </ResizablePanelGroup>
+  const { setChatOpen } = useShellStore();
+  const { showToolCalls } = useSettingsStore();
+  const [messages, setMessages] = useState<UiMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [modelLabel, setModelLabel] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    fetchModel(ctrl.signal)
+      .then(setModelLabel)
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [messages]);
+
+  useEffect(() => {
+    const ta = taRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = Math.min(ta.scrollHeight, 140) + "px";
+  }, [input]);
+
+  const send = useCallback(
+    async (textOverride?: string) => {
+      const text = (textOverride ?? input).trim();
+      if (!text || busy) return;
+      setInput("");
+      setBusy(true);
+
+      const userMsg: UiMessage = { role: "user", content: text };
+      const streamingMsg: UiMessage = {
+        role: "assistant",
+        content: "",
+        streaming: true,
+      };
+
+      setMessages((prev) => [...prev, userMsg, streamingMsg]);
+
+      const apiHistory: ChatMessage[] = [...messages, userMsg]
+        .filter(
+          (m): m is Extract<UiMessage, { role: "user" | "assistant" }> =>
+            m.role === "user" || m.role === "assistant",
+        )
+        .map((m) => ({ role: m.role, content: m.content }));
+
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
+
+      try {
+        await streamChat(apiHistory, handleEvent, ctrl.signal);
+        finalizeStreaming();
+      } catch (err) {
+        if (!ctrl.signal.aborted) {
+          setMessages((prev) => {
+            const next = dropEmptyStreaming(prev);
+            next.push({
+              role: "error",
+              content:
+                err instanceof Error
+                  ? `Stream failed: ${err.message}`
+                  : "Stream failed — please retry.",
+            });
+            return next;
+          });
+        }
+      } finally {
+        setBusy(false);
+        abortRef.current = null;
+      }
+    },
+    [input, busy, messages],
   );
+
+  function handleEvent(ev: StreamEvent) {
+    if (ev.type === "content") {
+      setMessages((prev) => {
+        const next = [...prev];
+        for (let i = next.length - 1; i >= 0; i--) {
+          const m = next[i];
+          if (m.role === "assistant" && m.streaming) {
+            next[i] = { ...m, content: m.content + ev.content };
+            break;
+          }
+        }
+        return next;
+      });
+    } else if (ev.type === "tool") {
+      setMessages((prev) => {
+        const next = [...prev];
+        for (let i = next.length - 1; i >= 0; i--) {
+          const m = next[i];
+          if (m.role === "assistant" && m.streaming) {
+            next[i] = { ...m, streaming: false };
+            break;
+          }
+        }
+        next.push({ role: "tool", name: ev.name, result: ev.result });
+        next.push({ role: "assistant", content: "", streaming: true });
+        return next;
+      });
+    } else if (ev.type === "done") {
+      finalizeStreaming();
+    } else if (ev.type === "error") {
+      setMessages((prev) => {
+        const next = dropEmptyStreaming(prev);
+        next.push({ role: "error", content: ev.error });
+        return next;
+      });
+    }
+  }
+
+  function finalizeStreaming() {
+    setMessages((prev) => {
+      const next = [...prev];
+      for (let i = next.length - 1; i >= 0; i--) {
+        const m = next[i];
+        if (m.role === "assistant" && m.streaming) {
+          if (!m.content) {
+            next.splice(i, 1);
+          } else {
+            next[i] = { ...m, streaming: false };
+          }
+          break;
+        }
+      }
+      return next;
+    });
+  }
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  };
+
+  const clear = () => {
+    abortRef.current?.abort();
+    setMessages([]);
+  };
+
+  return (
+    <aside className="chat-panel" aria-label="Assistant chat">
+      <div className="chat-panel__header">
+        <MessageCircle
+          size={16}
+          style={{ color: "var(--color-accent-hover)" }}
+        />
+        <div className="chat-panel__title">Assistant</div>
+        <div className="chat-panel__sub">
+          <span className="chat-panel__status-dot" />
+          {modelLabel ?? "…"}
+        </div>
+        <button
+          type="button"
+          className="chat-panel__close"
+          onClick={() => setChatOpen(false)}
+          title="Close"
+        >
+          <X size={14} />
+        </button>
+      </div>
+
+      <div className="chat-panel__scroll" ref={scrollRef}>
+        {messages.length === 0 ? (
+          <EmptyState onPick={(t) => send(t)} />
+        ) : (
+          messages
+            .filter((m) => showToolCalls || m.role !== "tool")
+            .map((m, i) => <MessageRow key={i} m={m} />)
+        )}
+      </div>
+
+      <div className="chat-composer">
+        <div className="chat-composer__box">
+          <textarea
+            ref={taRef}
+            className="chat-composer__input"
+            placeholder="Ask about your play history, rating, or song picks…"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={onKeyDown}
+            rows={1}
+            disabled={busy}
+          />
+          <button
+            type="button"
+            className="chat-composer__send"
+            disabled={!input.trim() || busy}
+            onClick={() => send()}
+            title="Send"
+          >
+            <Send size={14} />
+          </button>
+        </div>
+        <div className="chat-composer__hints">
+          <span>
+            <kbd>Enter</kbd> send · <kbd>Shift</kbd>+<kbd>Enter</kbd> newline
+          </span>
+          {messages.length > 0 && (
+            <button
+              type="button"
+              className="chat-composer__clear"
+              onClick={clear}
+            >
+              clear
+            </button>
+          )}
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function MessageRow({ m }: { m: UiMessage }) {
+  if (m.role === "user") {
+    return (
+      <div className="chat-msg chat-msg--user">
+        <div className="chat-msg__role">you</div>
+        <div className="chat-msg__body">{m.content}</div>
+      </div>
+    );
+  }
+  if (m.role === "tool") {
+    return <ToolCall name={m.name} result={m.result} />;
+  }
+  if (m.role === "error") {
+    return <div className="chat-err">{m.content}</div>;
+  }
+  return (
+    <div className="chat-msg chat-msg--assistant">
+      <div className="chat-msg__role">chumai</div>
+      <div className="chat-msg__body">
+        {renderBody(m.content, m.streaming ?? false)}
+      </div>
+    </div>
+  );
+}
+
+function dropEmptyStreaming(prev: UiMessage[]): UiMessage[] {
+  const next = [...prev];
+  for (let i = next.length - 1; i >= 0; i--) {
+    const m = next[i];
+    if (m.role === "assistant" && m.streaming && !m.content) {
+      next.splice(i, 1);
+      break;
+    }
+  }
+  return next;
 }

@@ -5,9 +5,13 @@ import type { Plugin } from "vite";
 import path from "path";
 
 import { viteHandler as queryViteHandler } from "./api/query";
+import chatHandler from "./api/chat";
+import refreshHandler from "./api/refresh";
+import modelHandler from "./api/model";
+import { toViteMiddleware } from "./src/api/vite-adapter";
 
 /**
- * Dev-only middleware that handles POST /api/query against Neon,
+ * Dev-only middleware that emulates Vercel serverless functions,
  * so we don't need `vercel dev` locally.
  */
 function devApiProxy(): Plugin {
@@ -15,6 +19,18 @@ function devApiProxy(): Plugin {
     name: "dev-api-proxy",
     configureServer(server) {
       server.middlewares.use("/api/query", queryViteHandler);
+      server.middlewares.use(
+        "/api/chat",
+        toViteMiddleware(chatHandler, { skipAuth: true }),
+      );
+      server.middlewares.use(
+        "/api/refresh",
+        toViteMiddleware(refreshHandler, { skipAuth: true }),
+      );
+      server.middlewares.use(
+        "/api/model",
+        toViteMiddleware(modelHandler, { skipAuth: true }),
+      );
     },
   };
 }
