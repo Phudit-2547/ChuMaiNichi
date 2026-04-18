@@ -7,20 +7,21 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/global/components/ui/dialog";
 import useSettingsStore from "../stores/settings-store";
 import { Switch } from "@/global/components/ui/switch";
 import { Label } from "@/global/components/ui/label";
 
-export default function SettingsModal() {
+interface SettingsModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export default function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const { isDarkMode, setDarkMode } = useSettingsStore();
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="outline">Settings</Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>

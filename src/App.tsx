@@ -5,23 +5,22 @@ import AuthLoading from "./features/auth/components/AuthLoading";
 import { APP_CONFIG } from "./global/lib/config";
 import { authenticate } from "./global/lib/auth";
 import { triggerRefresh } from "./global/lib/api";
-import {
-  ResizablePanel,
-  ResizablePanelGroup,
-  ResizableHandle,
-} from "./global/components/ui/resizable";
 import { AssistantRuntimeProvider } from "@assistant-ui/react";
 import { TooltipProvider } from "./global/components/ui/tooltip";
 import ChatPanel from "./features/chat/components/ChatPanel";
 import useChatRuntime from "./features/chat/hooks/useChatRuntime";
 import SettingsModal from "./features/settings/components/SettingsModal";
 import useDarkMode from "./features/settings/hooks/useDarkMode";
+import Header from "./features/shell/components/Header";
+import useShellStore from "./features/shell/stores/shell-store";
 
 const Heatmap = lazy(() => import("./features/heatmap/components/Heatmap"));
 
 function App() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const { chatOpen } = useShellStore();
 
   useDarkMode();
   useEffect(() => {
@@ -50,31 +49,24 @@ function App() {
   return (
     <TooltipProvider>
       <AssistantRuntimeProvider runtime={runtime}>
-        <ResizablePanelGroup orientation="horizontal" className="h-dvh">
-          <ResizablePanel defaultSize="75%" className="overflow-auto">
-            <div className="p-8 mx-auto max-w-5xl">
-              <h1 className="flex items-center gap-3">
-                ChuMaiNichi
-                <button
-                  className="bg-accent text-accent-foreground border-0 rounded-md w-8 h-8 text-lg cursor-pointer inline-flex items-center justify-center hover:bg-accent/80 disabled:opacity-60 disabled:cursor-not-allowed"
-                  onClick={handleRefresh}
-                  disabled={refreshing}
-                  title="Trigger user data refresh"
-                >
-                  {refreshing ? "⟳" : "↻"}
-                </button>
-              </h1>
-              <SettingsModal />
+        <div className="app-shell" data-chat-open={chatOpen}>
+          <Header
+            onRefresh={handleRefresh}
+            onOpenSettings={() => setSettingsOpen(true)}
+            refreshing={refreshing}
+          />
+          <main className="app-main">
+            <div className="app-main__inner">
               <Suspense fallback={<HeatmapSkeleton />}>
                 <Heatmap games={APP_CONFIG.games} />
               </Suspense>
             </div>
-          </ResizablePanel>
-          <ResizableHandle withHandle />
-          <ResizablePanel>
+          </main>
+          <div className="overflow-hidden min-w-0">
             <ChatPanel />
-          </ResizablePanel>
-        </ResizablePanelGroup>
+          </div>
+        </div>
+        <SettingsModal open={settingsOpen} onOpenChange={setSettingsOpen} />
       </AssistantRuntimeProvider>
     </TooltipProvider>
   );
