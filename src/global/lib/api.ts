@@ -1,5 +1,5 @@
 import axios from "axios";
-import useAuthStore from "../stores/auth-store";
+import useAuthStore from "../../features/auth/stores/auth-store";
 
 export async function queryDB<T = Record<string, unknown>>(
   sql: string,

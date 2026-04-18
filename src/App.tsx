@@ -1,9 +1,9 @@
 import { useState, useEffect, lazy, Suspense } from "react";
-import PasswordGate from "./components/PasswordGate";
-import { APP_CONFIG } from "./lib/config";
-import useAuthStore from "./stores/auth-store";
+import PasswordGate from "./features/auth/components/PasswordGate";
+import useAuthStore from "./features/auth/stores/auth-store";
+import { APP_CONFIG } from "./global/lib/config";
 
-const Heatmap = lazy(() => import("./components/Heatmap"));
+const Heatmap = lazy(() => import("./features/heatmap/components/Heatmap"));
 
 function App() {
   const [authed, setAuthed] = useState<boolean | null>(null);
