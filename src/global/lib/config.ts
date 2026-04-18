@@ -1,4 +1,4 @@
-import rawConfig from "../../config.json";
+import rawConfig from "../../../config.json";
 
 export type Game = "maimai" | "chunithm";
 
