@@ -10,6 +10,10 @@ import {
   ResizablePanelGroup,
   ResizableHandle,
 } from "./global/components/ui/resizable";
+import { AssistantRuntimeProvider } from "@assistant-ui/react";
+import { TooltipProvider } from "./global/components/ui/tooltip";
+import ChatPanel from "./features/chat/components/ChatPanel";
+import useChatRuntime from "./features/chat/hooks/useChatRuntime";
 
 const Heatmap = lazy(() => import("./features/heatmap/components/Heatmap"));
 
@@ -23,20 +27,28 @@ function App() {
       .catch(() => setAuthed(false));
   }, [password, getAuthHeaders]);
 
+  const runtime = useChatRuntime();
+
   if (authed === null) return <AuthLoading />;
   if (!authed) return <PasswordGate onAuthenticated={() => setAuthed(true)} />;
 
   return (
-    <ResizablePanelGroup orientation="horizontal" className="max-w-5xl">
-      <ResizablePanel defaultSize="75%" className="p-8 mx-auto">
-        <h1>ChuMaiNichi</h1>
-        <Suspense fallback={<HeatmapSkeleton />}>
-          <Heatmap games={APP_CONFIG.games} />
-        </Suspense>
-      </ResizablePanel>
-      <ResizableHandle withHandle />
-      <ResizablePanel>Chat</ResizablePanel>
-    </ResizablePanelGroup>
+    <TooltipProvider>
+      <AssistantRuntimeProvider runtime={runtime}>
+        <ResizablePanelGroup orientation="horizontal">
+          <ResizablePanel defaultSize="75%" className="p-8 mx-auto max-w-5xl">
+            <h1>ChuMaiNichi</h1>
+            <Suspense fallback={<HeatmapSkeleton />}>
+              <Heatmap games={APP_CONFIG.games} />
+            </Suspense>
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel>
+            <ChatPanel />
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      </AssistantRuntimeProvider>
+    </TooltipProvider>
   );
 }
 

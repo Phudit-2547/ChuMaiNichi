@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@assistant-ui/react": "^0.12.24",
+    "@assistant-ui/react-markdown": "^0.12.8",
     "@fontsource-variable/geist": "^5.2.8",
     "@neondatabase/serverless": "^1.0.2",
     "@tailwindcss/vite": "^4.2.2",
@@ -26,6 +28,7 @@
     "react-dom": "^19.2.4",
     "react-resizable-panels": "^4.10.0",
     "recharts": "^2.15.0",
+    "remark-gfm": "^4.0.1",
     "shadcn": "^4.2.0",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.2",
