@@ -4,6 +4,7 @@ import useAuthStore from "./features/auth/stores/auth-store";
 import HeatmapSkeleton from "./features/heatmap/components/heatmap-skeleton/HeatmapSkeleton";
 import AuthLoading from "./features/auth/components/AuthLoading";
 import { APP_CONFIG } from "./global/lib/config";
+import { queryDB } from "./global/lib/api";
 
 const Heatmap = lazy(() => import("./features/heatmap/components/Heatmap"));
 
@@ -12,26 +13,8 @@ function App() {
   const { password, getAuthHeaders } = useAuthStore();
 
   useEffect(() => {
-    if (!password) {
-      fetch("/api/query", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sql: "SELECT 1" }),
-      })
-        .then((res) => {
-          setAuthed(res.status !== 401);
-        })
-        .catch(() => setAuthed(false));
-      return;
-    }
-    fetch("/api/query", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-      body: JSON.stringify({ sql: "SELECT 1" }),
-    })
-      .then((res) => {
-        setAuthed(res.status !== 401);
-      })
+    queryDB("SELECT 1")
+      .then(() => setAuthed(true))
       .catch(() => setAuthed(false));
   }, [password, getAuthHeaders]);
 

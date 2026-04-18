@@ -1,5 +1,6 @@
 import { useState, useRef, type FormEvent } from "react";
 import useAuthStore from "../stores/auth-store";
+import { queryDB } from "../../../global/lib/api";
 
 interface Props {
   onAuthenticated: () => void;
@@ -18,28 +19,21 @@ export default function PasswordGate({ onAuthenticated }: Props) {
     setError("");
     setLoading(true);
 
-    try {
-      const res = await fetch("/api/query", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${value}`,
-        },
-        body: JSON.stringify({ sql: "SELECT 1" }),
-      });
-      if (res.status === 401) {
-        setError("Wrong password");
+    queryDB("SELECT 1")
+      .then(() => {
+        setPassword(value);
+        onAuthenticated();
+      })
+      .catch((err) => {
+        // TODO: This is hacky
+        if (err.message === "unauthorized") {
+          setError("Wrong password");
+        } else {
+          setError("Connection failed");
+        }
         setLoading(false);
         inputRef.current?.focus();
-        return;
-      }
-      setPassword(value);
-      onAuthenticated();
-    } catch {
-      setError("Connection failed");
-      setLoading(false);
-      inputRef.current?.focus();
-    }
+      });
   }
 
   return (
