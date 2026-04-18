@@ -110,7 +110,7 @@ The one file friends edit after forking. Read by GitHub Actions (which scrapers 
 
 | Field | Values | Effect |
 |---|---|---|
-| `games` | `["maimai"]`, `["chunithm"]`, or `["maimai", "chunithm"]` | Controls which scrapers run in Actions, which heatmap columns / rating lines render, and whether `suggest_songs` is available (maimai only) |
+| `games` | `["maimai"]`, `["chunithm"]`, or `["maimai", "chunithm"]` | Controls which scrapers run in Actions, which heatmap columns / rating lines render, and whether `maimai_suggest_songs` is available (maimai only) |
 | `currency_per_play` | Number (THB) | Used in spending calculations on the dashboard |
 
 **Do NOT put secrets in this file.** It is committed to git and publicly visible.
@@ -153,12 +153,12 @@ Single config file at repo root. Friends edit this once after forking.
 
 | Field | Values | Effect |
 |---|---|---|
-| `games` | `["maimai"]`, `["chunithm"]`, or `["maimai", "chunithm"]` | Controls which scrapers run in GitHub Actions, which heatmap columns render, which rating lines show, whether suggest_songs is available (maimai only) |
+| `games` | `["maimai"]`, `["chunithm"]`, or `["maimai", "chunithm"]` | Controls which scrapers run in GitHub Actions, which heatmap columns render, which rating lines show, whether `maimai_suggest_songs` is available (maimai only) |
 | `currency_per_play` | Integer (THB) | Used to calculate money spent in reports and Discord notifications |
 
 **Who reads it:**
 - GitHub Actions workflows: decides which Docker scrapers to run and which Playwright portals to scrape
-- Vercel API routes: `api/chat.ts` reads it to configure available tools (suggest_songs only when `"maimai"` is in `games`)
+- Vercel API routes: `api/chat.ts` reads it to configure available tools (`maimai_suggest_songs` only when `"maimai"` is in `games`)
 - React frontend: fetches `/config.json` to decide which UI components to render (heatmap columns, rating chart lines)
 
 **Do NOT put secrets in config.json** — it is committed to git and served publicly.
@@ -235,7 +235,7 @@ Achievement is score / 10000 (e.g., 1005000 = 100.5%).
 - Streams response via ReadableStream
 - Tool definitions:
   - `query_database`: generates and executes read-only SQL against Neon
-  - `suggest_songs`: maimai only — finds songs where score improvement most efficiently increases DX rating (see "Song suggestion algorithm" section below)
+  - `maimai_suggest_songs`: maimai only — finds songs where score improvement most efficiently increases DX rating (see "Song suggestion algorithm" section below). Name is game-prefixed so a future `chunithm_suggest_songs` can coexist without ambiguity.
 - System prompt includes full schema DDL, rating formula, and tool examples
 - **60-second timeout on Vercel Hobby** — use streaming to keep connection alive
 
@@ -276,7 +276,7 @@ Achievement is score / 10000 (e.g., 1005000 = 100.5%).
 
 > CHUNITHM song suggestion is a future feature, not in scope for the deadline.
 
-The `suggest_songs` tool runs server-side in `api/chat.ts`. It is maimai-specific.
+The `maimai_suggest_songs` tool runs server-side in `api/chat.ts`. It is maimai-specific (a future `chunithm_suggest_songs` will be a separate file — see `src/lib/maimai-suggest.ts`).
 
 ### Data inputs
 - **player_data**: From `user_scores` table (JSONB). Contains `profile`, `best` (top 35 old), `current` (top 15 new), and `allRecords` (full play history from play_data page)

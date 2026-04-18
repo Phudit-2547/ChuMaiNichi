@@ -131,7 +131,7 @@ After this: tell teammates "pull main, read CLAUDE.md, start on your section."
      - `query_database`: LLM generates SQL → execute via Neon → return results
        - Read-only guard: reject non-SELECT statements
        - `pnpm add @neondatabase/serverless`
-     - `suggest_songs`: call maimai-suggest.ts with parameters from LLM
+     - `maimai_suggest_songs`: call maimai-suggest.ts with parameters from LLM
    - Stream response back using ReadableStream
    - 60-second Vercel Hobby timeout — keep streaming to stay alive
 
