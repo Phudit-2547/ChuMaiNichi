@@ -8,7 +8,6 @@ export default function useChatRuntime() {
     async run({ messages, abortSignal }) {
       // TODO replace with your own API
       const response = await axios.post("/api/chat", {
-        responseType: "stream",
         headers: {
           ...getAuthHeaders,
           "Content-Type": "application/json",
@@ -30,14 +29,15 @@ export default function useChatRuntime() {
         signal: abortSignal,
       });
 
-      response.data.on("data", (chunk) => {
-        // logic to process stream data
-        console.log(chunk);
-      });
-
-      response.data.on("end", () => {
-        // logic for stream complete
-      });
+      const data = await response.data;
+      return {
+        content: [
+          {
+            type: "text",
+            text: data.text,
+          },
+        ],
+      };
     },
   };
 
