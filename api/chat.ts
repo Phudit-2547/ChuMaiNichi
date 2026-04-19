@@ -65,12 +65,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const MAX_ROUNDS = 5;
     for (let round = 0; round < MAX_ROUNDS; round++) {
-      const stream = await client.chat.completions.create({
+      const completionOpts: Record<string, unknown> = {
         model,
         messages,
         tools,
         stream: true,
-      });
+      };
+      // Gemini 2.5 Flash thinks by default. Unbounded thinking can starve
+      // the output stream, but disabling it entirely also breaks tool
+      // reasoning. Use the minimum non-zero budget ("low") and pair with a
+      // large max_tokens so thinking + output both fit. Other providers
+      // (e.g. MiniMax) cap output around 8K and 400 on larger values.
+      if (process.env.GEMINI_API_KEY) {
+        completionOpts.reasoning_effort = "low";
+        completionOpts.max_tokens = 32768;
+      }
+      const stream = await client.chat.completions.create(
+        completionOpts as Parameters<typeof client.chat.completions.create>[0],
+      );
 
       let content = "";
       const toolCalls: {
@@ -91,18 +103,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (delta.tool_calls) {
           for (const tc of delta.tool_calls) {
-            if (tc.index === undefined) continue;
-            if (!toolCalls[tc.index]) {
-              toolCalls[tc.index] = {
+            // OpenAI emits fragmented tool_calls with an explicit index;
+            // Gemini's OpenAI-compat layer emits each tool call whole in a
+            // single chunk and omits index. Fall back to the running length.
+            const idx = tc.index ?? toolCalls.length;
+            if (!toolCalls[idx]) {
+              toolCalls[idx] = {
                 id: "",
                 function: { name: "", arguments: "" },
               };
             }
-            if (tc.id) toolCalls[tc.index].id = tc.id;
+            if (tc.id) toolCalls[idx].id = tc.id;
             if (tc.function?.name)
-              toolCalls[tc.index].function.name += tc.function.name;
+              toolCalls[idx].function.name += tc.function.name;
             if (tc.function?.arguments)
-              toolCalls[tc.index].function.arguments += tc.function.arguments;
+              toolCalls[idx].function.arguments += tc.function.arguments;
           }
         }
       }
