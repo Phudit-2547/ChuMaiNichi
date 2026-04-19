@@ -14,10 +14,64 @@ type UiMessage =
   | { role: "tool"; name: string; result: unknown }
   | { role: "error"; content: string };
 
+const CHAT_STORAGE_KEY = "chumai-chat-messages";
+const CHAT_MAX_STORED = 100;
+
+function loadMessages(): UiMessage[] {
+  try {
+    const raw = localStorage.getItem(CHAT_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const valid: UiMessage[] = [];
+    for (const m of parsed) {
+      if (!m || typeof m !== "object") continue;
+      const r = (m as { role?: unknown }).role;
+      const content = (m as { content?: unknown }).content;
+      if (r === "user" && typeof content === "string") {
+        valid.push({ role: "user", content });
+      } else if (r === "assistant" && typeof content === "string" && content) {
+        valid.push({ role: "assistant", content });
+      } else if (r === "tool") {
+        const name = (m as { name?: unknown }).name;
+        if (typeof name === "string") {
+          valid.push({
+            role: "tool",
+            name,
+            result: (m as { result?: unknown }).result,
+          });
+        }
+      } else if (r === "error" && typeof content === "string") {
+        valid.push({ role: "error", content });
+      }
+    }
+    return valid;
+  } catch {
+    return [];
+  }
+}
+
+function saveMessages(messages: UiMessage[]): void {
+  try {
+    const toSave: UiMessage[] = [];
+    for (const m of messages) {
+      if (m.role === "assistant") {
+        if (m.content) toSave.push({ role: "assistant", content: m.content });
+      } else {
+        toSave.push(m);
+      }
+    }
+    const capped = toSave.slice(-CHAT_MAX_STORED);
+    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(capped));
+  } catch {
+    /* quota or serialization error — drop silently */
+  }
+}
+
 export default function ChatPanel() {
   const { setChatOpen } = useShellStore();
   const { showToolCalls } = useSettingsStore();
-  const [messages, setMessages] = useState<UiMessage[]>([]);
+  const [messages, setMessages] = useState<UiMessage[]>(loadMessages);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [modelLabel, setModelLabel] = useState<string | null>(null);
@@ -37,6 +91,11 @@ export default function ChatPanel() {
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
+  }, [messages]);
+
+  useEffect(() => {
+    const handle = setTimeout(() => saveMessages(messages), 300);
+    return () => clearTimeout(handle);
   }, [messages]);
 
   useEffect(() => {
@@ -163,6 +222,11 @@ export default function ChatPanel() {
   const clear = () => {
     abortRef.current?.abort();
     setMessages([]);
+    try {
+      localStorage.removeItem(CHAT_STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
   };
 
   return (
