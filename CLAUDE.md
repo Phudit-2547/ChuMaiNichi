@@ -80,7 +80,6 @@ ChuMaiNichi/
 ├── src/                          # React frontend (single-page app, NO router)
 │   ├── components/
 │   │   ├── Heatmap.tsx           # Cal-heatmap play count visualization
-│   │   ├── RatingChart.tsx       # Rating over time (recharts)
 │   │   ├── ChatPanel.tsx         # AI chat — collapsible right sidebar
 │   │   └── SettingsModal.tsx     # Theme toggle, display preferences — modal overlay
 │   ├── lib/
@@ -110,7 +109,7 @@ The one file friends edit after forking. Read by GitHub Actions (which scrapers 
 
 | Field | Values | Effect |
 |---|---|---|
-| `games` | `["maimai"]`, `["chunithm"]`, or `["maimai", "chunithm"]` | Controls which scrapers run in Actions, which heatmap columns / rating lines render, and whether `maimai_suggest_songs` is available (maimai only) |
+| `games` | `["maimai"]`, `["chunithm"]`, or `["maimai", "chunithm"]` | Controls which scrapers run in Actions, which heatmap columns render, and whether `maimai_suggest_songs` is available (maimai only) |
 | `currency_per_play` | Number (THB) | Used in spending calculations on the dashboard |
 
 **Do NOT put secrets in this file.** It is committed to git and publicly visible.
@@ -125,15 +124,15 @@ Single-page app. No `react-router-dom`. No client-side routing.
 ├──────────────────────────────┬───────────────┤
 │                              │               │
 │  Main view                   │  Chat panel   │
-│  ├── Heatmap                 │  (sidebar,    │
-│  └── Rating chart            │   collapsible)│
+│  └── Heatmap                 │  (sidebar,    │
+│                              │   collapsible)│
 │                              │               │
 ├──────────────────────────────┴───────────────┤
 │  Settings modal (overlay, triggered by ⚙)    │
 └──────────────────────────────────────────────┘
 ```
 
-- **Main view**: Heatmap + rating chart, always visible
+- **Main view**: Heatmap, always visible
 - **Chat panel**: Right sidebar, toggle via header button. Streams AI responses from `/api/chat`
 - **Settings modal**: Overlay triggered by gear icon. Theme toggle and display preferences. Stored in `localStorage`
 - **Game selection and currency**: Configured in `config.json` at repo root (deploy-time, not per-session)
@@ -153,13 +152,13 @@ Single config file at repo root. Friends edit this once after forking.
 
 | Field | Values | Effect |
 |---|---|---|
-| `games` | `["maimai"]`, `["chunithm"]`, or `["maimai", "chunithm"]` | Controls which scrapers run in GitHub Actions, which heatmap columns render, which rating lines show, whether `maimai_suggest_songs` is available (maimai only) |
+| `games` | `["maimai"]`, `["chunithm"]`, or `["maimai", "chunithm"]` | Controls which scrapers run in GitHub Actions, which heatmap columns render, whether `maimai_suggest_songs` is available (maimai only) |
 | `currency_per_play` | Integer (THB) | Used to calculate money spent in reports and Discord notifications |
 
 **Who reads it:**
 - GitHub Actions workflows: decides which Docker scrapers to run and which Playwright portals to scrape
 - Vercel API routes: `api/chat.ts` reads it to configure available tools (`maimai_suggest_songs` only when `"maimai"` is in `games`)
-- React frontend: imports `config.json` at build time via `src/lib/config.ts` to decide which UI components to render (heatmap columns, rating chart lines). Baked into the bundle, so editing requires a redeploy.
+- React frontend: imports `config.json` at build time via `src/lib/config.ts` to decide which UI components to render (heatmap columns). Baked into the bundle, so editing requires a redeploy.
 
 **Do NOT put secrets in config.json** — it is committed to git and served publicly.
 
