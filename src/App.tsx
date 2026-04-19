@@ -31,8 +31,7 @@ function App() {
   async function handleRefresh() {
     setRefreshing(true);
     try {
-      const { run_url } = await triggerRefresh();
-      window.open(run_url, "_blank");
+      await triggerRefresh();
     } catch (e) {
       console.error(e);
     } finally {
