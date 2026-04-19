@@ -95,8 +95,8 @@ async def upsert_daily_play(
     chunithm_new: int,
     maimai_cumulative: int,
     chunithm_cumulative: int,
-    maimai_rating: float | None,
-    chunithm_rating: float | None,
+    maimai_rating: float | int | Decimal | None,
+    chunithm_rating: float | int | Decimal | None,
     scrape_failed: bool = False,
     failure_reason: str | None = None,
 ):
@@ -116,6 +116,11 @@ async def upsert_daily_play(
               scrape_failed=EXCLUDED.scrape_failed,
               failure_reason=EXCLUDED.failure_reason
     """
+    if chunithm_rating is not None and not isinstance(chunithm_rating, (int, Decimal)):
+        chunithm_rating = Decimal(str(chunithm_rating)).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+
     date_obj = datetime.strptime(date_str, "%Y-%m-%d")
     params = (
         date_obj,
