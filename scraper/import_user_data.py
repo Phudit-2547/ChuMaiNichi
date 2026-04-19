@@ -120,12 +120,16 @@ async def import_user_data(data: dict[str, Any], game: str) -> dict[str, Any]:
             """
             INSERT INTO public.user_scores (game, scraped_at, data)
             VALUES ($1, $2, $3)
+            ON CONFLICT (game, ((scraped_at AT TIME ZONE 'Asia/Bangkok')::date))
+            DO UPDATE SET
+                scraped_at = EXCLUDED.scraped_at,
+                data = EXCLUDED.data
             """,
             game,
             scraped_at,
             json.dumps(data),
         )
-        print(f"[OK] Inserted {game} snapshot at {scraped_at.isoformat()}")
+        print(f"[OK] Upserted {game} snapshot at {scraped_at.isoformat()}")
         return {"game": game, "scraped_at": scraped_at}
     finally:
         await conn.close()

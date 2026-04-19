@@ -18,3 +18,22 @@ CREATE TABLE IF NOT EXISTS public.user_scores (
     scraped_at TIMESTAMPTZ DEFAULT NOW(),
     data       JSONB NOT NULL
 );
+
+-- Collapse same-day snapshots (keep newest per game per BKK day) before
+-- enforcing the unique index. Safe to re-run: once the index exists no
+-- duplicates can be created.
+DELETE FROM public.user_scores
+WHERE id IN (
+    SELECT id FROM (
+        SELECT id,
+               ROW_NUMBER() OVER (
+                   PARTITION BY game, (scraped_at AT TIME ZONE 'Asia/Bangkok')::date
+                   ORDER BY scraped_at DESC, id DESC
+               ) AS rn
+        FROM public.user_scores
+    ) ranked
+    WHERE rn > 1
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS user_scores_game_day_bkk_key
+    ON public.user_scores (game, ((scraped_at AT TIME ZONE 'Asia/Bangkok')::date));
