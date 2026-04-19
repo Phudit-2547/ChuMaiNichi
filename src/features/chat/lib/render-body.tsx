@@ -1,6 +1,7 @@
 import { useState, useEffect, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
 import { Brain, ChevronRight } from "lucide-react";
 
 type Segment =
@@ -52,6 +53,15 @@ function ThoughtBlock({ content, done }: { content: string; done: boolean }) {
   );
 }
 
+const COVER_FILENAME_RE = /([a-f0-9]{16}\.png)/i;
+
+function normalizeUrl(url: string, key: string): string {
+  if (key !== "src") return url;
+  const match = COVER_FILENAME_RE.exec(url);
+  if (match) return `/api/cover?img=${match[1]}`;
+  return url;
+}
+
 export function renderBody(text: string, streaming: boolean): ReactNode {
   const segs = parseSegments(text);
   return (
@@ -60,7 +70,12 @@ export function renderBody(text: string, streaming: boolean): ReactNode {
         s.type === "think" ? (
           <ThoughtBlock key={i} content={s.content} done={s.done} />
         ) : (
-          <ReactMarkdown key={i} remarkPlugins={[remarkGfm]}>
+          <ReactMarkdown
+            key={i}
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeRaw]}
+            urlTransform={normalizeUrl}
+          >
             {s.content}
           </ReactMarkdown>
         ),
