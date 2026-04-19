@@ -167,6 +167,7 @@ export default function ChatPanel() {
 
   return (
     <aside className="chat-panel" aria-label="Assistant chat">
+      <ChatResizer />
       <div className="chat-panel__header">
         <MessageCircle
           size={16}
@@ -260,6 +261,59 @@ function MessageRow({ m }: { m: UiMessage }) {
         {renderBody(m.content, m.streaming ?? false)}
       </div>
     </div>
+  );
+}
+
+function ChatResizer() {
+  const setChatWidth = useShellStore((s) => s.setChatWidth);
+  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const shell = document.querySelector<HTMLElement>(".app-shell");
+    if (!shell) return;
+    dragRef.current = {
+      startX: e.clientX,
+      startWidth: useShellStore.getState().chatWidth,
+    };
+    shell.dataset.resizing = "true";
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current;
+    if (!d) return;
+    setChatWidth(d.startWidth + (d.startX - e.clientX));
+  };
+
+  const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return;
+    dragRef.current = null;
+    const shell = document.querySelector<HTMLElement>(".app-shell");
+    if (shell) delete shell.dataset.resizing;
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* noop */
+    }
+  };
+
+  return (
+    <div
+      className="chat-resizer"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize chat panel"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+    />
   );
 }
 

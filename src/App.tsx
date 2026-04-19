@@ -18,7 +18,7 @@ function App() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const { chatOpen, setChatOpen } = useShellStore();
+  const { chatOpen, setChatOpen, chatWidth } = useShellStore();
 
   useEffect(() => {
     authenticate()
@@ -45,7 +45,11 @@ function App() {
 
   return (
     <TooltipProvider>
-      <div className="app-shell" data-chat-open={chatOpen}>
+      <div
+        className="app-shell"
+        data-chat-open={chatOpen}
+        style={{ "--chat-width": `${chatWidth}px` } as React.CSSProperties}
+      >
         <Header
           onRefresh={handleRefresh}
           onOpenSettings={() => setSettingsOpen(true)}
