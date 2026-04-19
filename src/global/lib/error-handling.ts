@@ -9,12 +9,8 @@ export type GeneralErrorCode =
 export class ApplicationException<CodeT extends string> extends Error {
   public code: CodeT;
 
-  constructor(
-    code: CodeT,
-    message?: string | undefined,
-    options?: ErrorOptions | undefined,
-  ) {
-    super(message ? message : code, options);
+  constructor(code: CodeT, message?: string) {
+    super(message ? message : code);
     this.code = code;
   }
 }
