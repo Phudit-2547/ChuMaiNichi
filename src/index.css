@@ -207,6 +207,7 @@ body {
 
 #root {
   height: 100vh;
+  height: 100dvh;
 }
 
 h1 {
@@ -1382,6 +1383,14 @@ rect.heatmap-today {
   }
 }
 
+/* ── Responsive: tablet ───────────────────────── */
+@media (max-width: 1024px) {
+  .app-main { padding: 1.5rem 1.25rem 3rem; }
+  .app-shell[data-chat-open="true"] {
+    --chat-col: min(var(--chat-width, 360px), 40vw);
+  }
+}
+
 /* ── Responsive: mobile overlay ───────────────── */
 @media (max-width: 820px) {
   .app-shell,
@@ -1413,13 +1422,35 @@ rect.heatmap-today {
 
   .chat-panel__scroll { padding: 0.85rem 0.85rem 0.35rem; }
   .chat-composer { padding: 0.55rem 0.7rem 0.75rem; }
+  .chat-composer textarea { font-size: 16px; }
   .chat-panel__sub { font-size: 0.65rem; }
 
   .modal { width: 100%; border-radius: 10px; }
-  .modal-backdrop { padding: 0.5rem; }
+  .modal-backdrop {
+    padding: max(0.5rem, env(safe-area-inset-top))
+             max(0.5rem, env(safe-area-inset-right))
+             max(0.5rem, env(safe-area-inset-bottom))
+             max(0.5rem, env(safe-area-inset-left));
+  }
+}
+
+@media (max-width: 640px) {
+  .text-btn__label { display: none; }
+  .text-btn--refresh {
+    width: 34px;
+    padding: 0;
+    justify-content: center;
+  }
 }
 
 @media (max-width: 480px) {
   .app-header__brand { font-size: 0.95rem; }
   .icon-btn { width: 32px; height: 32px; }
+  .app-main { padding: 0.75rem 0.75rem 2rem; }
+  .app-main__inner h2 { font-size: 1rem; }
+}
+
+@media (max-width: 360px) {
+  .app-header { gap: 0.25rem; }
+  .icon-btn { width: 30px; height: 30px; }
 }

@@ -15,17 +15,11 @@ export function StatsBar({
         </strong>{" "}
         plays in {year}
       </span>
-      <span className="mx-1 text-muted-foreground" aria-hidden="true">
-        &middot;
-      </span>
       <span title="Plays since Sunday">
         <strong className="text-foreground font-semibold">
           {stats.thisWeek}
         </strong>{" "}
         this week
-      </span>
-      <span className="mx-1 text-muted-foreground" aria-hidden="true">
-        &middot;
       </span>
       <span title="Consecutive days with at least one play, ending today">
         streak{" "}
@@ -33,9 +27,6 @@ export function StatsBar({
           {stats.currentStreak}
         </strong>{" "}
         days
-      </span>
-      <span className="mx-1 text-muted-foreground" aria-hidden="true">
-        &middot;
       </span>
       <span title="Longest consecutive play streak this year">
         longest{" "}

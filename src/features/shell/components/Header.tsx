@@ -24,12 +24,16 @@ export default function Header({
       <div className="app-header__spacer" />
       <button
         type="button"
-        className="text-btn"
+        className="text-btn text-btn--refresh"
         onClick={onRefresh}
         disabled={refreshing}
+        title={refreshing ? "Please wait ~2 min" : "Refresh scores"}
+        aria-label={refreshing ? "Please wait ~2 min" : "Refresh scores"}
       >
         <RotateCw size={16} className={refreshing ? "icon-spin" : ""} />
-        <span>{refreshing ? "Please wait ~2 min" : "Refresh scores"}</span>
+        <span className="text-btn__label">
+          {refreshing ? "Please wait ~2 min" : "Refresh scores"}
+        </span>
       </button>
       <button
         type="button"

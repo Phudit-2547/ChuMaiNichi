@@ -96,7 +96,7 @@ export default function Heatmap({ games }: { games: Game[] }) {
 
   return (
     <div>
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex flex-wrap items-center gap-2 mb-4">
         <label
           className="text-sm text-secondary-foreground"
           htmlFor="heatmap-year"
@@ -119,7 +119,7 @@ export default function Heatmap({ games }: { games: Game[] }) {
         </select>
         {lastUpdated && (
           <span
-            className={`ml-auto text-xs ${isStale ? "text-destructive" : "text-muted-foreground"}`}
+            className={`w-full sm:w-auto sm:ml-auto text-xs ${isStale ? "text-destructive" : "text-muted-foreground"}`}
           >
             Updated {formatLastUpdated(lastUpdated)}
           </span>

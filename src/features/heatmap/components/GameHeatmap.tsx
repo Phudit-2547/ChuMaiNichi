@@ -19,13 +19,31 @@ export function GameHeatmap({
   year: number;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const calRef = useRef<CalHeatmap | null>(null);
   const [tapInfo, setTapInfo] = useState("");
+  const [cellSize, setCellSize] = useState(15);
 
   const stats = useMemo(
     () => computeStats(data, game, year),
     [data, game, year],
   );
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const compute = (width: number) => {
+      const available = width - 24 - 12 * 4;
+      const next = Math.max(9, Math.min(15, Math.floor(available / 53) - 4));
+      setCellSize((prev) => (prev === next ? prev : next));
+    };
+    compute(el.clientWidth);
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) compute(entry.contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -70,8 +88,8 @@ export function GameHeatmap({
           subDomain: {
             type: "ghDay",
             radius: 2,
-            width: 15,
-            height: 15,
+            width: cellSize,
+            height: cellSize,
             gutter: 4,
           },
           date: { start: new Date(`${year}-01-01T00:00:00`) },
@@ -117,7 +135,7 @@ export function GameHeatmap({
               key: "left",
               text: () => ["", "Mon", "", "Wed", "", "Fri", ""],
               textAlign: "end",
-              width: 24,
+              width: cellSize < 12 ? 20 : 24,
               padding: [25, 0, 0, 0],
             },
           ],
@@ -170,14 +188,14 @@ export function GameHeatmap({
       wrapper.removeEventListener("click", handleClick);
       cal.destroy();
     };
-  }, [game, data, year]);
+  }, [game, data, year, cellSize]);
 
   const gameName = game === "maimai" ? "maimai" : "CHUNITHM";
 
   return (
     <div className="w-full max-w-[1100px]">
       <StatsBar stats={stats} year={year} />
-      <div className="relative overflow-x-auto scrollbar-thin">
+      <div ref={scrollRef} className="relative overflow-x-auto scrollbar-thin">
         <div
           ref={containerRef}
           role="figure"
