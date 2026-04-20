@@ -31,6 +31,16 @@ function App() {
     setChatOpen(autoOpenChat && isDesktop);
   }, [setChatOpen]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mql = window.matchMedia("(max-width: 1200px)");
+    const handler = (e: MediaQueryListEvent) => {
+      if (e.matches) setChatOpen(false);
+    };
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, [setChatOpen]);
+
   async function handleRefresh() {
     setRefreshing(true);
     try {

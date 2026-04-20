@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { DailyRow, Game } from "../types/types";
 import CalHeatmap from "cal-heatmap";
 import { computeStats } from "../lib/stats";
@@ -29,15 +29,17 @@ export function GameHeatmap({
     [data, game, year],
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = scrollRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
+    if (!el) return;
     const compute = (width: number) => {
+      if (width <= 0) return;
       const available = width - 24 - 12 * 4;
       const next = Math.max(9, Math.min(15, Math.floor(available / 53) - 4));
       setCellSize((prev) => (prev === next ? prev : next));
     };
     compute(el.clientWidth);
+    if (typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) compute(entry.contentRect.width);
     });
