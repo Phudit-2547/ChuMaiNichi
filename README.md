@@ -6,11 +6,11 @@ A personal dashboard for CHUNITHM and maimai DX arcade rhythm-game players. Trac
 
 ## Screenshots
 
-> **TODO:** drop dashboard screenshot here.
+<img width="3794" height="2052" alt="CleanShot 2569-04-20 at 20 21 49@2x" src="https://github.com/user-attachments/assets/86875e7f-7701-427c-8c60-8962d7e8ddc9" />
 
 *Main dashboard: play-count heatmap for both games.*
 
-> **TODO:** drop chat-suggestion screenshot here.
+<img width="838" height="1918" alt="CleanShot 2569-04-20 at 20 23 25@2x" src="https://github.com/user-attachments/assets/c745f095-bd08-4964-b697-1b2455260638" />
 
 *AI agent suggesting songs to grind for rating improvement.*
 
