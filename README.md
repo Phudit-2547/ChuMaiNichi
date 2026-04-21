@@ -207,7 +207,8 @@ See `CLAUDE.md` for the full database schema, rating formula, and song-suggestio
 ## Roadmap
 
 - [ ] CHUNITHM song suggestion (maimai done; CHUNITHM deferred)
-- [ ] Mobile-responsive polish
+- [ ] SEGA news ingestion — scrape `info-chunithm.sega.com` and `info-maimai.sega.com`, cache as JSON/Markdown, and expose to the AI agent as tool-accessible knowledge (event schedules, version updates, song additions)
+- [ ] Keyboard navigation — shortcuts for toggling the chat panel, opening settings, triggering refresh, and focusing the chat input
 
 ## Acknowledgements
 
