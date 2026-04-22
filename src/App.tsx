@@ -17,6 +17,7 @@ const Heatmap = lazy(() => import("./features/heatmap/components/Heatmap"));
 function App() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshNonce, setRefreshNonce] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { chatOpen, setChatOpen, chatWidth } = useShellStore();
 
@@ -45,7 +46,10 @@ function App() {
     setRefreshing(true);
     try {
       await triggerRefresh();
-      window.setTimeout(() => setRefreshing(false), 2 * 60 * 1000);
+      window.setTimeout(() => {
+        setRefreshing(false);
+        setRefreshNonce((n) => n + 1);
+      }, 2 * 60 * 1000);
     } catch (e) {
       console.error(e);
       setRefreshing(false);
@@ -70,7 +74,7 @@ function App() {
         <main className="app-main">
           <div className="app-main__inner">
             <Suspense fallback={<HeatmapSkeleton />}>
-              <Heatmap games={APP_CONFIG.games} />
+              <Heatmap games={APP_CONFIG.games} refreshNonce={refreshNonce} />
             </Suspense>
           </div>
         </main>

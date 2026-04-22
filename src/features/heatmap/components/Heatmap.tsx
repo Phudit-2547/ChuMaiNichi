@@ -8,7 +8,13 @@ import { GAME_ACCENT } from "../lib/constants";
 import { GameHeatmap } from "./GameHeatmap";
 import HeatmapSkeletonBlock from "./heatmap-skeleton/HeatmapSkeletonBlock";
 
-export default function Heatmap({ games }: { games: Game[] }) {
+export default function Heatmap({
+  games,
+  refreshNonce = 0,
+}: {
+  games: Game[];
+  refreshNonce?: number;
+}) {
   const [years, setYears] = useState<number[]>([]);
   const [selectedYear, setSelectedYear] = useState<number>(
     new Date().getFullYear(),
@@ -17,6 +23,7 @@ export default function Heatmap({ games }: { games: Game[] }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const isInitialLoad = useRef(true);
 
   useEffect(() => {
     const currentYear = new Date().getFullYear();
@@ -32,14 +39,20 @@ export default function Heatmap({ games }: { games: Game[] }) {
         set.add(currentYear - 1);
         const list = Array.from(set).sort((a, b) => a - b);
         setYears(list);
-        setSelectedYear(list[list.length - 1]);
+        if (isInitialLoad.current) {
+          setSelectedYear(list[list.length - 1]);
+          isInitialLoad.current = false;
+        }
         if (lastRows[0]?.last_date) setLastUpdated(lastRows[0].last_date);
       })
       .catch(() => {
-        setYears([currentYear, currentYear - 1]);
-        setSelectedYear(currentYear);
+        if (isInitialLoad.current) {
+          setYears([currentYear, currentYear - 1]);
+          setSelectedYear(currentYear);
+          isInitialLoad.current = false;
+        }
       });
-  }, []);
+  }, [refreshNonce]);
 
   const [isStale, setIsStale] = useState(false);
 
@@ -92,7 +105,7 @@ export default function Heatmap({ games }: { games: Game[] }) {
       clearTimeout(id);
       abortRef.current?.abort();
     };
-  }, [selectedYear, years, loadData]);
+  }, [selectedYear, years, loadData, refreshNonce]);
 
   return (
     <div>
