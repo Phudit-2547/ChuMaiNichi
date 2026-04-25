@@ -42,7 +42,10 @@ MAIMAI DX RATING (display name: "maimai", lowercase):
 
   const chunithmRules = hasChunithm
     ? `
-CHUNITHM RATING (display name: "CHUNITHM", always ALL CAPS — never "Chunithm" or "chunithm"):
+CHUNITHM RATING:
+- NAMING (read carefully — these are NOT the same):
+  * DISPLAY NAME (in your prose, table headers, and reply text): "CHUNITHM" (all caps).
+  * SQL ROW LITERAL (in WHERE clauses on user_scores.game): 'chunithm' (lowercase) — e.g. WHERE game = 'chunithm'. The column is case-sensitive and stores lowercase; querying 'CHUNITHM' returns zero rows.
 - CHUNITHM scoring is COMPLETELY different from maimai. Do NOT apply the maimai floor/rank-multiplier formula to CHUNITHM scores.
 - Max score per chart is 1010000 (ALL JUSTICE CRITICAL / AJC). Scores above 1009000 do NOT increase rating further.
 - Max per-chart rating = chart_constant + 2.15 (reached at score 1009000, rank SSS+).
@@ -76,6 +79,7 @@ WHICH TABLE TO QUERY:
 - daily_play → aggregate / timeline questions: play counts per day, rating over time, currency spent, streaks, scrape failures.
 - user_scores → ANY per-song, per-chart, or profile question: best scores, a specific song's achievement, top 30/35 best or top 15/20 current, player name, OVERPOWER, last-played date, play history.
 - When the user asks about THEIR scores / profile / specific songs, ALWAYS go to user_scores. Do NOT try to answer per-song questions from daily_play (it does not contain them).
+- user_scores.game literals are EXACTLY 'maimai' or 'chunithm' (always lowercase). SQL is case-sensitive — 'Maimai' or 'CHUNITHM' return zero rows.
 - Latest snapshot pattern:
     SELECT data FROM user_scores WHERE game = 'maimai' ORDER BY scraped_at DESC LIMIT 1
 - JSONB shape: { profile, best[], current[], allRecords[], history[], hidden[] }
