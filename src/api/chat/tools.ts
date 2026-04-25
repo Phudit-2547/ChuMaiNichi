@@ -57,6 +57,9 @@ export const SUGGEST_SONGS_TOOL: ChatCompletionTool = {
 const FORBIDDEN_SQL =
   /;|--|\/\*|\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|EXEC|EXECUTE|CALL|COPY|INTO)\b/i;
 
+const GAME_LITERAL = /\bgame\s*=\s*'([^']+)'/gi;
+const VALID_GAMES = new Set(["maimai", "chunithm"]);
+
 export async function executeTool(
   name: string,
   args: Record<string, unknown>,
@@ -72,6 +75,15 @@ export async function executeTool(
       return {
         error:
           "Forbidden SQL pattern detected (DML/DDL keyword, inline comment, or extra semicolon). Submit a single SELECT statement.",
+        sql,
+      };
+    }
+    const badGame = [...normalized.matchAll(GAME_LITERAL)]
+      .map((m) => m[1])
+      .find((literal) => !VALID_GAMES.has(literal));
+    if (badGame !== undefined) {
+      return {
+        error: `Invalid game literal '${badGame}'. user_scores.game stores 'maimai' or 'chunithm' (lowercase, case-sensitive). Retry with the correct literal.`,
         sql,
       };
     }
