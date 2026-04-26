@@ -275,7 +275,7 @@ Achievement is score / 10000 (e.g., 1005000 = 100.5%).
 
 > CHUNITHM song suggestion is a future feature, not in scope for the deadline.
 
-The `maimai_suggest_songs` tool runs server-side in `api/chat.ts`. It is maimai-specific (a future `chunithm_suggest_songs` will be a separate file — see `src/lib/maimai-suggest.ts`).
+The `maimai_suggest_songs` tool runs server-side and is dispatched from `executeTool` in `src/api/chat/tools.ts`. The algorithm itself lives in `src/global/lib/maimai-suggest.ts`; rating helpers live in `src/global/lib/maimai-rating.ts`. A future `chunithm_suggest_songs` will be a separate file in the same directory.
 
 ### Data inputs
 - **player_data**: From `user_scores` table (JSONB). Contains `profile`, `best` (top 35 old), `current` (top 15 new), and `allRecords` (full play history from play_data page)
@@ -283,28 +283,35 @@ The `maimai_suggest_songs` tool runs server-side in `api/chat.ts`. It is maimai-
 
 ### Two modes
 
-**best_effort** (default): Returns the top N improvements and new songs sorted by rating gain.
+**best_effort** (default): Walks every chart in `best` + `current` with score < SSS+, builds a "next rank up" move, drops moves with `rating_gain ≤ 0`, sorts by `score_gap` ascending (easiest grind first), and returns the top `maxSuggestions`.
 
-**target** (when user specifies a target rating): Greedy algorithm that finds the minimum-effort path to reach the target. It:
-1. Builds the player's current top-50 ratings (sorted ascending)
-2. Collects all candidates: improvements (existing songs with score < SSS+) and new songs (from CiRCLE/PRiSM+ not yet in top 50)
-3. Sorts all candidates by `potential_gain` descending (max_rating minus current contribution)
-4. Greedily picks songs until `remaining_rating ≤ 0`:
-   - **Improve**: replaces the song's own rating in the top-50 (no song pushed out)
-   - **New**: enters top-50, pushes out the lowest-rated song
-5. For each pick, calculates the minimum score/rank needed to achieve the required gain
+**target** (when user specifies a target rating): **Per-slot threshold** algorithm — NOT a greedy-by-gain accumulator.
+
+1. `threshold = ceil(target_rating / slotCount)` where `slotCount = best.length + current.length` (50 for full data). The rating each top-50 slot must contribute on average.
+2. `minConstant` = smallest chart constant where SSS+ (1005000) reaches `threshold`. Searches `c = 1.0 … 16.0` in 0.1 steps via `findMinConstant`.
+3. **Classify every top-50 chart**:
+   - `constant < minConstant` → **REPLACE** (can't hit threshold even at SSS+; slot recorded with its current rating)
+   - `current_rating < threshold` → **IMPROVE** to the lowest rank that reaches threshold (`findMinRankForThreshold`)
+   - `current_rating ≥ threshold` → KEEP, no action
+4. **Replacements**: scan `allRecords`, skip charts already in top-50, keep `constant ≥ minConstant`. Split into pools by version:
+   - `newCandidates` (CiRCLE / PRiSM+) → fill `current` slots
+   - `oldCandidates` (everything else) → fill `best` slots
+   Both pools sorted by lowest constant first, then highest existing score (least grinding). Slots filled weakest-first (lowest `replacesRating`). Pools that run dry → bump `unfilled` counter, surfaced in the message.
+5. Final action list = improvements + replacements with `rating_gain > 0`, sorted by `score_gap` ascending.
+6. `projected_rating = current_rating + Σ rating_gain`. Message either confirms the plan reaches the target or reports the shortfall and any unfilled slots.
 
 ### Version classification for old/new
 - **New songs**: `releasedVersion` is `CiRCLE` or `PRiSM+` (current + previous version)
 - **Old songs**: everything else
-- This determines whether a song competes for the 15-slot "new" bucket or the 35-slot "old" bucket
+- Drives both the bucket a song competes for (35 old / 15 new) and the replacement pool it can fill.
 
-### Key functions (from rating.py, to be ported to TypeScript)
-- `calculate_song_rating(constant, score)`: applies the rating formula
-- `calc_rating(player_data, version)`: computes total DX rating from top 50
-- `get_rank_info(score)`: returns rank name and achievement percentage
-- `get_next_rank(score)`: returns the next rank threshold above current score
-- `RANK_FACTORS`: list of `(min_score, multiplier, rank_name)` tuples
+### Key functions (in `src/global/lib/maimai-rating.ts` and `maimai-suggest.ts`)
+- `calculateSongRating(constant, score)`: applies the rating formula
+- `calcRating(playerData, allSongs)`: computes total DX rating from top 50
+- `getRankInfo(score)`: returns rank name and achievement percentage
+- `getNextRank(score)`: returns the next rank threshold above current score (used in best_effort)
+- `RANK_FACTORS`: array of `[minScore, multiplier, rankName]` tuples
+- `suggestSongs(playerData, allSongs, options)`: main entry point — returns `TargetResult | BestEffortResult`
 
 ## Environment variables
 
