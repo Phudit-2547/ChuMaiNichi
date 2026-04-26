@@ -106,7 +106,7 @@ Step-by-step walkthrough (originally for a predecessor repo — *steps are ident
 
 ### 6. Trigger the first scrape
 
-On your fork: **Actions → scrape-daily → Run workflow**. The first run:
+On your fork: **Actions → Run Scraper → Run workflow** (the workflow file is `scrape-daily.yml`; "Run Scraper" is its display name in the Actions sidebar). The first run:
 
 - Executes `init.sql` to create the tables (idempotent, safe to re-run).
 - Logs into your SEGA portal and scrapes today's play count and rating.
