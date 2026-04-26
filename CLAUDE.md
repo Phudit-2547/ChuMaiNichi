@@ -300,6 +300,12 @@ The `maimai_suggest_songs` tool runs server-side and is dispatched from `execute
 5. Final action list = improvements + replacements with `rating_gain > 0`, sorted by `score_gap` ascending.
 6. `projected_rating = current_rating + Σ rating_gain`. Message either confirms the plan reaches the target or reports the shortfall and any unfilled slots.
 
+### Large rating gaps — staging guard (in system prompt)
+
+The uniform per-slot threshold breaks down when `target - current` is large (roughly > 1000). Example: 8000 → 15000 sets threshold = 300, which forces `minConstant ≈ 13.4` and demands SSS+ on every slot — unrealistic, and the candidate pool usually can't fill all the replacement slots, so `unfilled` dominates the response.
+
+The tool itself does not clamp. Instead the staging guard lives in `src/api/chat/system-prompt.ts` ("MAIMAI TARGET-RATING STAGING"): the agent queries the user's current rating from `user_scores` first, and if `target - current > 1000` it calls `maimai_suggest_songs` with `target_rating = current + 500` (rounded to nearest 100) and frames the result as step 1 of N. Smaller gaps pass through unchanged. This avoids the sparse-plan failure without touching the algorithm.
+
 ### Version classification for old/new
 - **New songs**: `releasedVersion` is `CiRCLE` or `PRiSM+` (current + previous version)
 - **Old songs**: everything else

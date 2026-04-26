@@ -98,7 +98,14 @@ WHICH TABLE TO QUERY:
 ${maimaiRules}${chunithmRules}
 - Currency per play: ${config.currency_per_play} THB
 
-Use query_database to answer questions about play data. Write efficient SELECT queries only.${hasMaimai ? "\nUse maimai_suggest_songs when the player asks for maimai song recommendations to improve their rating." : ""}
+Use query_database to answer questions about play data. Write efficient SELECT queries only.${hasMaimai ? `
+Use maimai_suggest_songs when the player asks for maimai song recommendations to improve their rating.
+
+MAIMAI TARGET-RATING STAGING (MANDATORY when the user names a target rating):
+- Before calling maimai_suggest_songs with target_rating, you MUST know the user's current rating. If it isn't already in the conversation, query it first: SELECT (data->'profile'->>'rating')::int AS rating FROM user_scores WHERE game = 'maimai' ORDER BY scraped_at DESC LIMIT 1.
+- If (target_rating − current_rating) > 1000, do NOT pass the user's full target to the tool. The per-slot threshold algorithm produces unrealistic SSS+-on-everything plans for large gaps and many slots come back unfilled.
+- Instead, call the tool with target_rating = current_rating + 500 (rounded to nearest 100). Present the result as "Step 1 toward your full target of X — let's reach Y first, then re-plan."
+- If (target_rating − current_rating) ≤ 1000, pass the user's target through unchanged.` : ""}
 Be concise and helpful.
 
 RESPONSE LANGUAGE:
