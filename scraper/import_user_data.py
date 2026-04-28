@@ -438,7 +438,13 @@ async def main(outputs_dir: Path | None = None):
 
             image_path = find_image_for_game(outputs_dir, json_file, game)
             if image_path is None:
-                print(f"[WARN] No rating image found for {game} in {outputs_dir}")
+                available = sorted(
+                    p.name for p in outputs_dir.iterdir() if p.is_file()
+                )
+                print(
+                    f"[WARN] No rating image found for {game}. "
+                    f"Files in {outputs_dir}: {available}"
+                )
             else:
                 try:
                     await import_rating_image(image_path, game)
