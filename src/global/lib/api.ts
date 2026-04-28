@@ -60,3 +60,19 @@ export async function triggerRefresh(): Promise<{ run_url: string }> {
     throw SharedErrorHandler.wrapError(err);
   }
 }
+
+export async function fetchRatingImage(
+  game: "maimai" | "chunithm",
+  signal?: AbortSignal,
+): Promise<Blob | null> {
+  const { getAuthHeaders } = useAuthStore.getState();
+  const res = await fetch(`/api/rating-image?game=${encodeURIComponent(game)}`, {
+    headers: { ...getAuthHeaders() },
+    signal,
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`rating-image request failed: ${res.status}`);
+  }
+  return res.blob();
+}

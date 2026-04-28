@@ -9,6 +9,7 @@ import chatHandler from "./api/chat";
 import refreshHandler from "./api/refresh";
 import modelHandler from "./api/model";
 import coverHandler from "./api/cover";
+import ratingImageHandler from "./api/rating-image";
 import { toViteMiddleware } from "./src/api/vite-adapter";
 
 /**
@@ -35,6 +36,10 @@ function devApiProxy(): Plugin {
       server.middlewares.use(
         "/api/cover",
         toViteMiddleware(coverHandler),
+      );
+      server.middlewares.use(
+        "/api/rating-image",
+        toViteMiddleware(ratingImageHandler, { skipAuth: true }),
       );
     },
   };

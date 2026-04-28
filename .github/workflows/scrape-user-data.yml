@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: scrape-user-data
+  cancel-in-progress: true
+
 jobs:
   scrape-user-data:
     runs-on: ubuntu-latest
@@ -40,6 +44,9 @@ jobs:
 
       - name: Scrape maimai
         if: contains(steps.games.outputs.games, 'maimai')
+        env:
+          MAIMAI_SERVICE_URL: ${{ secrets.MAIMAI_SERVICE_URL || 'https://maimai.wonderhoy.me' }}
+          MAIMAI_SERVICE_API_KEY: ${{ secrets.MAIMAI_SERVICE_API_KEY }}
         run: |
           docker run \
             --rm \
@@ -47,10 +54,15 @@ jobs:
             -e VERSION=CiRCLE \
             -e USERNAME=${{ secrets.SEGA_USERNAME }} \
             -e PASSWORD=${{ secrets.SEGA_PASSWORD }} \
+            -e MAIMAI_SERVICE_URL="$MAIMAI_SERVICE_URL" \
+            -e MAIMAI_SERVICE_API_KEY="$MAIMAI_SERVICE_API_KEY" \
             ghcr.io/leomotors/maimai-scraper:v1
 
       - name: Scrape chunithm
         if: contains(steps.games.outputs.games, 'chunithm')
+        env:
+          CHUNI_SERVICE_URL: ${{ secrets.CHUNI_SERVICE_URL || 'https://chuni.wonderhoy.me' }}
+          CHUNI_SERVICE_API_KEY: ${{ secrets.CHUNI_SERVICE_API_KEY }}
         run: |
           docker run \
             --rm \
@@ -58,6 +70,8 @@ jobs:
             -e VERSION=XVRS \
             -e USERNAME=${{ secrets.SEGA_USERNAME }} \
             -e PASSWORD=${{ secrets.SEGA_PASSWORD }} \
+            -e CHUNI_SERVICE_URL="$CHUNI_SERVICE_URL" \
+            -e CHUNI_SERVICE_API_KEY="$CHUNI_SERVICE_API_KEY" \
             ghcr.io/leomotors/chunithm-scraper:v6
 
       - name: Install uv and dependencies

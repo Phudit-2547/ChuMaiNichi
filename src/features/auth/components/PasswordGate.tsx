@@ -27,6 +27,14 @@ export default function PasswordGate({ onAuthenticated }: Props) {
       })
       .catch((err) => {
         const errorCode = SharedErrorHandler.getErrorCode(err);
+        // Surface raw server messages only in dev. The password gate renders
+        // before auth, so production users could otherwise read DB hints
+        // (DATABASE_URL, Neon endpoint, etc.) just by hitting the login form.
+        const rawDetail =
+          err instanceof Error && err.message && err.message !== errorCode
+            ? err.message
+            : null;
+        const detail = import.meta.env.DEV ? rawDetail : null;
         switch (errorCode) {
           case "INVALID_CREDENTIALS": {
             setError("Wrong password");
@@ -34,7 +42,9 @@ export default function PasswordGate({ onAuthenticated }: Props) {
           }
           case "INTERNAL_ERROR": {
             setError(
-              "Connection failed. Please check your database connection.",
+              detail
+                ? `Server error: ${detail}`
+                : "Server error. Check the dev console.",
             );
             break;
           }
@@ -43,10 +53,11 @@ export default function PasswordGate({ onAuthenticated }: Props) {
             break;
           }
           case "UNKNOWN_ERROR": {
-            setError("Unknown error occured.");
+            setError(detail ? `Error: ${detail}` : "Unknown error occured.");
             break;
           }
         }
+        if (rawDetail) console.error("PasswordGate auth failure:", rawDetail);
         setLoading(false);
         inputRef.current?.focus();
       });

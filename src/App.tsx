@@ -13,6 +13,9 @@ import Header from "./features/shell/components/Header";
 import useShellStore from "./features/shell/stores/shell-store";
 
 const Heatmap = lazy(() => import("./features/heatmap/components/Heatmap"));
+const RatingImage = lazy(
+  () => import("./features/rating-image/components/RatingImage"),
+);
 
 function App() {
   const [authed, setAuthed] = useState<boolean | null>(null);
@@ -75,6 +78,12 @@ function App() {
           <div className="app-main__inner">
             <Suspense fallback={<HeatmapSkeleton />}>
               <Heatmap games={APP_CONFIG.games} refreshNonce={refreshNonce} />
+            </Suspense>
+            <Suspense fallback={null}>
+              <RatingImage
+                games={APP_CONFIG.games}
+                refreshNonce={refreshNonce}
+              />
             </Suspense>
           </div>
         </main>

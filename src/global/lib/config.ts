@@ -1,6 +1,7 @@
 import rawConfig from "../../../config.json";
+import type { Game } from "./games";
 
-export type Game = "maimai" | "chunithm";
+export type { Game };
 
 export interface AppConfig {
   games: Game[];

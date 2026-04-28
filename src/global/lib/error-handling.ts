@@ -61,6 +61,19 @@ const generalErrorEntries: ErrorEntry<GeneralErrorCode>[] = [
   },
 ];
 
+function extractDetail(error: unknown): string | undefined {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data;
+    if (data && typeof data === "object" && "error" in data) {
+      const errVal = (data as { error: unknown }).error;
+      if (typeof errVal === "string" && errVal.trim()) return errVal;
+    }
+    if (typeof data === "string" && data.trim()) return data;
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return undefined;
+}
+
 export class ErrorHandler<CodeT extends string> {
   entries: ErrorEntry<CodeT | GeneralErrorCode>[] = [];
 
@@ -76,7 +89,7 @@ export class ErrorHandler<CodeT extends string> {
     }
     const errorEntry = this.entries.find((entry) => entry.condition(error));
     const { code } = errorEntry!;
-    return new ApplicationException(code);
+    return new ApplicationException(code, extractDetail(error));
   }
 
   public getErrorCode(error: unknown): CodeT | GeneralErrorCode | null {
