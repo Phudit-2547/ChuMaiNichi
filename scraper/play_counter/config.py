@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from envparse import env
@@ -13,7 +14,10 @@ WEEKREPORT_WEBHOOK = env.str("WEEKREPORT_WEBHOOK", default=DISCORD_WEBHOOK_URL)
 DATABASE_URL = env.str("DATABASE_URL", default="")
 SEGA_USERNAME = env.str("SEGA_USERNAME", default="")
 SEGA_PASSWORD = env.str("SEGA_PASSWORD", default="")
-CONFIG = {"chunithm": True, "maimai": True}
+
+_config_json_path = Path(__file__).resolve().parent.parent.parent / "config.json"
+_games_list: list[str] = json.loads(_config_json_path.read_text())["games"]
+CONFIG = {"maimai": "maimai" in _games_list, "chunithm": "chunithm" in _games_list}
 
 NOTIFICATION_CONFIG = {
     "default": {
