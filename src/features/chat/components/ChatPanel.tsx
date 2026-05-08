@@ -114,6 +114,21 @@ export default function ChatPanel() {
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [draft, setDraft] = useState("");
+
+  // Escape key to close chat panel
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        useShellStore.getState().setChatOpen(false);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
+  const userMessages = messages.filter((m) => m.role === "user");
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -150,6 +165,7 @@ export default function ChatPanel() {
       const text = (textOverride ?? input).trim();
       if (!text || busy) return;
       setInput("");
+      setHistoryIndex(-1);
       setBusy(true);
 
       const userMsg: UiMessage = {
@@ -283,6 +299,27 @@ export default function ChatPanel() {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       send();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (userMessages.length === 0) return;
+      const newIndex =
+        historyIndex === -1
+          ? userMessages.length - 1
+          : Math.max(0, historyIndex - 1);
+      if (historyIndex === -1) setDraft(input);
+      setHistoryIndex(newIndex);
+      setInput(userMessages[newIndex].content);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (historyIndex === -1) return;
+      const newIndex = historyIndex + 1;
+      if (newIndex >= userMessages.length) {
+        setHistoryIndex(-1);
+        setInput(draft);
+      } else {
+        setHistoryIndex(newIndex);
+        setInput(userMessages[newIndex].content);
+      }
     }
   };
 
@@ -349,7 +386,10 @@ export default function ChatPanel() {
             placeholder="Ask about your play history, rating, or song picks…"
             value={input}
             style={{ transform: "translateY(-10%)" }}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              if (historyIndex !== -1) setHistoryIndex(-1);
+            }}
             onKeyDown={onKeyDown}
             rows={1}
             disabled={busy}
@@ -367,7 +407,8 @@ export default function ChatPanel() {
         </div>
         <div className="chat-composer__hints">
           <span>
-            <kbd>Enter</kbd> send · <kbd>Shift</kbd>+<kbd>Enter</kbd> newline
+            <kbd>↑</kbd>/<kbd>↓</kbd> history · <kbd>Enter</kbd> send ·{" "}
+            <kbd>Esc</kbd> close
           </span>
           {messages.length > 0 && (
             <button
