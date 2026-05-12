@@ -81,8 +81,13 @@ async def main():
     if today.weekday() == 0:
         await generate_weekly_report()
 
-    # Fetch all player data (rating + cumulative) in one pass
-    tasks = {game: fetch_player_data(game) for game, enable in CONFIG.items() if enable}
+    # Fetch all player data in one browser session per game.
+    # maimai returns both cumulative count and record-page daily count.
+    tasks = {
+        game: fetch_player_data(game, today_str)
+        for game, enable in CONFIG.items()
+        if enable
+    }
     player_data_results = await asyncio.gather(*tasks.values())
     player_data = dict(zip(tasks.keys(), player_data_results))
 
@@ -103,17 +108,43 @@ async def main():
             if ratings[game] is None or ratings[game] == 0:
                 ratings[game] = await get_previous_rating(game, today_str)
 
-    # Calculate new plays (delta)
+    # Calculate new plays (dual logic)
     # prev_cumulative = the *_cumulative value from the most recent DB record (yesterday's baseline)
     # On first run: prev_cumulative is 0, so new_plays=0 (don't record prior plays)
     # On subsequent runs: new_plays = today's cumulative - prev_cumulative (actual delta)
-    prev_cumulative = {game: await get_previous_cumulative(game, today_str) for game in cumulative}
+    # maimai: if the record page contains the full target date, prefer TRACK 01 count
+    # because it is calendar-day exact. Otherwise fall back to cumulative delta.
+    prev_cumulative = {
+        game: await get_previous_cumulative(game, today_str)
+        for game in cumulative
+    }
     new_plays = {}
     for game in cumulative:
         if prev_cumulative[game] == 0:
-            new_plays[game] = 0
+            delta_plays = 0
         else:
-            new_plays[game] = max(0, cumulative[game] - prev_cumulative[game])
+            delta_plays = max(0, cumulative[game] - prev_cumulative[game])
+
+        record_play_count = player_data[game].get("record_play_count")
+        record_complete = player_data[game].get("record_play_count_complete", False)
+        if game == "maimai" and record_complete and record_play_count is not None:
+            new_plays[game] = record_play_count
+            print(
+                f"[OK] maimai daily plays from record page: {record_play_count} "
+                f"(cumulative delta was {delta_plays})"
+            )
+        else:
+            new_plays[game] = delta_plays
+            if game == "maimai":
+                if prev_cumulative[game] == 0:
+                    print(
+                        "[WARN] maimai first-run baseline only: record page was "
+                        "unavailable or unsafe, so today's count is stored as 0."
+                    )
+                else:
+                    print(
+                        f"[OK] maimai daily plays from cumulative delta: {delta_plays}"
+                    )
 
     # Insert with ratings and failure info
     await upsert_daily_play(

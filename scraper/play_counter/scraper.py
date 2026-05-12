@@ -3,7 +3,7 @@ import json
 import re
 import time
 from pathlib import Path
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 BKK = timezone(timedelta(hours=7))
 
@@ -15,6 +15,12 @@ from play_counter.utils.constants import DISCORD_WEBHOOK_URL, HOME_URLS, LOGIN_U
 
 MAX_RETRIES = 3
 RETRY_DELAY = 2  # seconds
+MAIMAI_PLAYER_DATA_URL = "https://maimaidx-eng.com/maimai-mobile/playerData/"
+MAIMAI_RECORD_URL = "https://maimaidx-eng.com/maimai-mobile/record/"
+MAIMAI_PLAYLOG_PAGE_SIZE = 50
+MAIMAI_PLAYLOG_TEXT_RE = re.compile(
+    r"(TRACK\s+\d+)\s+(\d{4}/\d{2}/\d{2})\s+\d{2}:\d{2}"
+)
 
 # Cookie storage path (local only - users manage their own)
 COOKIES_DIR = Path("cookies")
@@ -160,7 +166,80 @@ async def save_failure_trace(context, game: str) -> str:
         return None
 
 
-async def fetch_player_data(game: str) -> dict:
+def _coerce_bkk_date(target_date: date | datetime | str | None) -> date:
+    """Return the BKK date used for daily playlog matching."""
+    if target_date is None:
+        return datetime.now(BKK).date()
+    if isinstance(target_date, datetime):
+        if target_date.tzinfo is None:
+            return target_date.date()
+        return target_date.astimezone(BKK).date()
+    if isinstance(target_date, date):
+        return target_date
+    return datetime.strptime(target_date, "%Y-%m-%d").date()
+
+
+def count_maimai_record_plays(
+    playlog_texts: list[str], target_date: date | datetime | str | None = None
+) -> dict:
+    """Count maimai credits from playlog text rows.
+
+    maimai's record page lists one row per track. A credit/session starts at
+    TRACK 01, so daily play count is the number of TRACK 01 rows for the date.
+    """
+    target = _coerce_bkk_date(target_date)
+    target_key = target.strftime("%Y/%m/%d")
+
+    parsed_dates = []
+    play_count = 0
+    track_count = 0
+
+    for text in playlog_texts:
+        normalized = re.sub(r"\s+", " ", text.strip())
+        match = MAIMAI_PLAYLOG_TEXT_RE.search(normalized)
+        if not match:
+            continue
+
+        track_label, date_text = match.groups()
+        entry_date = datetime.strptime(date_text, "%Y/%m/%d").date()
+        parsed_dates.append(entry_date)
+
+        if date_text != target_key:
+            continue
+
+        track_count += 1
+        if track_label == "TRACK 01":
+            play_count += 1
+
+    # The page shows the latest 50 rows. Once we see any older date, all rows
+    # for the target date are present. Fewer than 50 rows also means no truncation.
+    complete = bool(parsed_dates) and (
+        len(parsed_dates) < MAIMAI_PLAYLOG_PAGE_SIZE
+        or any(entry_date < target for entry_date in parsed_dates)
+    )
+
+    return {
+        "play_count": play_count,
+        "track_count": track_count,
+        "complete": complete,
+        "entry_count": len(parsed_dates),
+        "target_date": target.strftime("%Y-%m-%d"),
+    }
+
+
+async def extract_maimai_record_play_count(
+    page, target_date: date | datetime | str | None = None
+) -> dict:
+    """Navigate to maimai record page and count daily credits from playlog rows."""
+    await page.goto(MAIMAI_RECORD_URL, wait_until="domcontentloaded")
+    await page.wait_for_selector(".playlog_top_container", timeout=10000)
+    playlog_texts = await page.locator(
+        ".playlog_top_container .sub_title"
+    ).all_inner_texts()
+    return count_maimai_record_plays(playlog_texts, target_date)
+
+
+async def fetch_player_data(game: str, target_date: date | datetime | str | None = None) -> dict:
     """
     Logs into the game website and retrieves player data (rating + cumulative play count).
     Uses cookie caching for faster subsequent runs.
@@ -169,6 +248,8 @@ async def fetch_player_data(game: str) -> dict:
         dict: {
             "rating": float/int,
             "cumulative": int,
+            "record_play_count": int or None,
+            "record_play_count_complete": bool,
             "failed": bool,
             "failure_reason": str or None
         }
@@ -180,6 +261,7 @@ async def fetch_player_data(game: str) -> dict:
     For maimai:
         - Rating from home page: extracts from .rating_block
         - Play count from playerData page: extracts via regex "maimaiDX total play count：XXX"
+        - Daily play count from record page: counts TRACK 01 rows for target date
     """
     start_time = time.perf_counter()
     using_cached_session = False
@@ -187,7 +269,14 @@ async def fetch_player_data(game: str) -> dict:
     if not SEGA_USERNAME or not SEGA_PASSWORD:
         default_rating = 0 if game == "maimai" else 0.0
         print("[WARN] SEGA credentials are not configured. Returning default values.")
-        return {"rating": default_rating, "cumulative": 0, "failed": True, "failure_reason": "credentials_not_configured"}
+        return {
+            "rating": default_rating,
+            "cumulative": 0,
+            "record_play_count": None,
+            "record_play_count_complete": False,
+            "failed": True,
+            "failure_reason": "credentials_not_configured",
+        }
 
     cookies_loaded = False
     last_failure_reason = None
@@ -243,6 +332,8 @@ async def fetch_player_data(game: str) -> dict:
                         return {
                             "rating": 0 if game == "maimai" else 0.0,
                             "cumulative": 0,
+                            "record_play_count": None,
+                            "record_play_count_complete": False,
                             "failed": True,
                             "failure_reason": msg,
                         }
@@ -292,6 +383,7 @@ async def fetch_player_data(game: str) -> dict:
                 # === Get play count ===
                 print(f"[RETRY] Navigating to {game} play data page...")
 
+                record_stats = None
                 if game == "chunithm":
                     await page.goto(
                         f"{HOME_URLS[game]}playerData", wait_until="domcontentloaded"
@@ -305,7 +397,7 @@ async def fetch_player_data(game: str) -> dict:
 
                 elif game == "maimai":
                     await page.goto(
-                        "https://maimaidx-eng.com/maimai-mobile/playerData/",
+                        MAIMAI_PLAYER_DATA_URL,
                         wait_until="domcontentloaded",
                     )
                     play_count_text = await page.locator(
@@ -316,6 +408,23 @@ async def fetch_player_data(game: str) -> dict:
                     )
                     cumulative = int(match.group(1).replace(",", "")) if match else 0
 
+                    try:
+                        record_stats = await extract_maimai_record_play_count(
+                            page, target_date
+                        )
+                        print(
+                            "[OK] maimai record page: "
+                            f"{record_stats['play_count']} credit(s), "
+                            f"{record_stats['track_count']} track(s), "
+                            f"complete={record_stats['complete']} "
+                            f"for {record_stats['target_date']}"
+                        )
+                    except Exception as e:
+                        print(
+                            "[WARN] maimai record page count failed; "
+                            f"using cumulative delta only: {e}"
+                        )
+
                 await save_cookies(context, game)
                 await browser.close()
 
@@ -325,7 +434,18 @@ async def fetch_player_data(game: str) -> dict:
                     f"[OK] [{session_type}] {game} done in {total_time:.2f}s "
                     f"(login: {login_time:.2f}s) - Rating: {rating}, Cumulative: {cumulative}"
                 )
-                return {"rating": rating, "cumulative": cumulative, "failed": False, "failure_reason": None}
+                return {
+                    "rating": rating,
+                    "cumulative": cumulative,
+                    "record_play_count": (
+                        record_stats["play_count"] if record_stats else None
+                    ),
+                    "record_play_count_complete": (
+                        record_stats["complete"] if record_stats else False
+                    ),
+                    "failed": False,
+                    "failure_reason": None,
+                }
 
         except Exception as e:
             failure_reason = await capture_failure_details(page) if page else str(e)
@@ -343,6 +463,8 @@ async def fetch_player_data(game: str) -> dict:
                 return {
                     "rating": 0 if game == "maimai" else 0.0,
                     "cumulative": 0,
+                    "record_play_count": None,
+                    "record_play_count_complete": False,
                     "failed": True,
                     "failure_reason": last_failure_reason
                 }
