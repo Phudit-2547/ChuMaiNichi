@@ -18,12 +18,15 @@ export function computeStats(
 
   const total = yearData.reduce((sum, d) => sum + (d[key] as number), 0);
 
-  // This week (Sunday start)
   const now = new Date();
+  const todayStr = toDateStr(now);
+  const todayData = yearData.find((d) => d.play_date === todayStr);
+  const today = todayData ? (todayData[key] as number) : 0;
+
+  // This week (Sunday start)
   const weekStart = new Date(now);
   weekStart.setDate(now.getDate() - now.getDay());
   const weekStartStr = toDateStr(weekStart);
-  const todayStr = toDateStr(now);
   const thisWeek = yearData
     .filter((d) => d.play_date >= weekStartStr && d.play_date <= todayStr)
     .reduce((sum, d) => sum + (d[key] as number), 0);
@@ -66,5 +69,5 @@ export function computeStats(
     }
   }
 
-  return { total, thisWeek, currentStreak, longestStreak };
+  return { today, total, thisWeek, currentStreak, longestStreak };
 }

@@ -168,6 +168,21 @@
   --color-maimai: #ff69aa;
   --color-chunithm: #3d67e3;
 
+  /* Premium glass effects */
+  --color-glass-10: rgba(22, 27, 34, 0.85);
+  --color-glass-20: rgba(22, 27, 34, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
+  --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.15), 0 0 1px rgba(0, 0, 0, 0.1);
+  --card-shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(0, 0, 0, 0.15);
+  --elevated-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+
+  /* Game-specific accent tints (used for backgrounds, borders) */
+  --color-maimai-soft: rgba(255, 105, 170, 0.08);
+  --color-chunithm-soft: rgba(61, 103, 227, 0.08);
+  --color-maimai-border: rgba(255, 105, 170, 0.2);
+  --color-chunithm-border: rgba(61, 103, 227, 0.2);
+
   --animate-skeleton-pulse: skeleton-pulse 1.5s ease-in-out infinite;
 }
 
@@ -198,9 +213,10 @@ body {
   content: "";
   position: fixed;
   inset: 0;
-  background-image:
-    radial-gradient(circle at 20% 0%, rgba(134, 59, 255, 0.05), transparent 40%),
-    radial-gradient(circle at 90% 100%, rgba(255, 105, 170, 0.04), transparent 40%);
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(134, 59, 255, 0.10), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(61, 103, 227, 0.07), transparent 50%),
+    radial-gradient(ellipse 50% 30% at 0% 100%, rgba(255, 105, 170, 0.05), transparent 50%);
   pointer-events: none;
   z-index: 0;
 }
@@ -239,10 +255,11 @@ h1 {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0 1.25rem;
-  border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--background) 80%, transparent);
-  backdrop-filter: blur(8px);
+  padding: 0 1.5rem;
+  border-bottom: 1px solid var(--glass-border);
+  background: var(--color-glass-10);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
   min-width: 0;
 }
 
@@ -285,71 +302,77 @@ h1 {
 }
 
 .icon-btn {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 10px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--muted-foreground);
   cursor: pointer;
-  transition: background 120ms, color 120ms, border-color 120ms;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
   position: relative;
 }
 
 .icon-btn:hover {
   background: var(--color-elevated);
   color: var(--foreground);
+  box-shadow: var(--card-shadow);
 }
 
 .icon-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .icon-btn:disabled:hover {
   background: transparent;
   color: var(--muted-foreground);
+  box-shadow: none;
 }
 
 .icon-btn[aria-pressed="true"] {
   background: var(--color-accent-soft);
   color: var(--color-accent-hover);
-  border-color: rgba(134, 59, 255, 0.4);
+  border-color: rgba(134, 59, 255, 0.3);
+  box-shadow: 0 0 12px rgba(134, 59, 255, 0.15);
 }
 
 .text-btn {
-  height: 34px;
+  height: 36px;
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0 0.7rem;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  background: transparent;
+  gap: 0.5rem;
+  padding: 0 0.875rem;
+  border-radius: 10px;
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-elevated);
   color: var(--muted-foreground);
   font-size: 0.8rem;
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
-  transition: background 120ms, color 120ms, border-color 120ms;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
 }
 
 .text-btn:hover {
-  background: var(--color-elevated);
+  background: var(--color-surface);
   color: var(--foreground);
+  border-color: var(--border);
+  box-shadow: var(--card-shadow);
 }
 
 .text-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .text-btn:disabled:hover {
-  background: transparent;
+  background: var(--color-elevated);
   color: var(--muted-foreground);
+  box-shadow: none;
 }
 
 .app-main {
@@ -362,6 +385,57 @@ h1 {
   margin: 0 auto;
 }
 
+/* Year select — premium dropdown button */
+.year-select-wrapper {
+  /* wrapper handles rounded clip on select */
+}
+
+.year-select {
+  /* uses bg-elevated + border from wrapper, text is bold */
+}
+
+.year-select option {
+  background: var(--color-elevated);
+  color: var(--foreground);
+}
+
+.year-select:hover {
+  color: var(--color-accent-hover);
+}
+
+.year-select:focus {
+  outline: none;
+}
+
+.year-select:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+/* ── Cal-heatmap cell hover (premium) ─────────── */
+/* Override library defaults for premium feel */
+[data-theme=dark] .ch-subdomain-bg {
+  stroke: transparent;
+  transition: stroke 120ms ease;
+}
+
+[data-theme=dark] .ch-subdomain-bg:hover {
+  stroke: var(--color-accent-hover);
+  stroke-width: 1.5px;
+  filter: drop-shadow(0 0 3px rgba(157, 95, 255, 0.5));
+}
+
+[data-theme=dark] .ch-subdomain-bg.highlight {
+  stroke: var(--color-accent-hover);
+  stroke-width: 1.5px;
+}
+
+/* Today cell — extra emphasis */
+rect.heatmap-today {
+  stroke: var(--foreground) !important;
+  stroke-width: 1.5px !important;
+}
+
 @keyframes icon-spin {
   to { transform: rotate(360deg); }
 }
@@ -370,14 +444,16 @@ h1 {
   animation: icon-spin 0.8s linear infinite;
 }
 
-/* ── Chat panel ───────────────────────────────── */
+/* ── Chat panel (premium glass) ───────────────── */
 .chat-panel {
   position: relative;
   width: 100%;
   min-width: 0;
   height: 100%;
-  border-left: 1px solid var(--border);
-  background: var(--color-surface);
+  border-left: 1px solid var(--glass-border);
+  background: var(--color-glass-10);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -415,12 +491,13 @@ h1 {
 
 .chat-panel__header {
   position: relative;
-  padding: 0.9rem 1rem 0.85rem 1rem;
-  border-bottom: 1px solid var(--border);
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--glass-border);
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.75rem;
   flex-shrink: 0;
+  background: var(--color-glass-10);
 }
 
 
@@ -445,7 +522,7 @@ h1 {
   height: 6px;
   border-radius: 50%;
   background: var(--color-success);
-  box-shadow: 0 0 6px rgba(35, 134, 54, 0.6);
+  /* no glow — premium flat indicator */
 }
 
 .chat-panel__close {
@@ -733,14 +810,15 @@ h1 {
 }
 
 .chat-msg--user .chat-msg__body {
-  background: var(--color-accent-soft);
-  border: 1px solid rgba(134, 59, 255, 0.3);
-  padding: 0.55rem 0.75rem;
-  border-radius: 8px;
+  background: rgba(134, 59, 255, 0.15);
+  border: 1px solid rgba(134, 59, 255, 0.25);
+  padding: 0.55rem 0.8rem;
+  border-radius: 12px;
+  border-bottom-left-radius: 4px;
 }
 
 .chat-msg--assistant .chat-msg__body strong {
-  color: #fff;
+  color: var(--foreground);
 }
 
 .chat-msg--assistant .chat-msg__body code {
@@ -839,29 +917,32 @@ h1 {
   50% { opacity: 1; }
 }
 
-/* Settings modal */
+/* Settings modal (premium glass) */
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(5, 7, 10, 0.6);
-  backdrop-filter: blur(4px);
+  background: rgba(5, 7, 10, 0.7);
+  backdrop-filter: blur(8px) saturate(150%);
+  -webkit-backdrop-filter: blur(8px) saturate(150%);
   z-index: 100;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  animation: modal-fade-in 140ms ease;
+  animation: modal-fade-in 180ms ease;
 }
 
 .modal {
-  width: min(460px, 100%);
+  width: min(480px, 100%);
   max-height: calc(100vh - 2rem);
   overflow: auto;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 14px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
-  animation: modal-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  background: var(--color-glass-10);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow: var(--glass-shadow);
+  animation: modal-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 @keyframes modal-fade-in {
@@ -877,16 +958,17 @@ h1 {
 .modal-head {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 1rem 1.1rem;
-  border-bottom: 1px solid var(--color-border);
+  gap: 0.75rem;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--glass-border);
 }
 
 .modal-head h2 {
   margin: 0;
   font-size: 1rem;
   font-weight: 600;
-  color: var(--color-foreground);
+  color: var(--foreground);
+  letter-spacing: -0.01em;
 }
 
 .modal-close {
@@ -894,23 +976,23 @@ h1 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
   background: transparent;
   border: 0;
   color: var(--color-muted-foreground);
   cursor: pointer;
-  transition: background 120ms ease, color 120ms ease;
+  transition: background 150ms ease, color 150ms ease;
 }
 
 .modal-close:hover {
   background: var(--color-elevated);
-  color: var(--color-foreground);
+  color: var(--foreground);
 }
 
 .modal-body {
-  padding: 1rem 1.1rem 1.2rem;
+  padding: 1.5rem;
 }
 
 .modal-section {
@@ -965,19 +1047,32 @@ h1 {
 .game-badge {
   font-size: 0.72rem;
   font-family: var(--font-mono);
-  padding: 2px 8px;
-  border-radius: 4px;
+  padding: 3px 10px;
+  border-radius: 6px;
   border: 1px solid;
+  transition: all 150ms ease;
 }
 
 .game-badge[data-game="maimai"] {
-  border-color: rgba(255, 105, 170, 0.4);
+  border-color: rgba(255, 105, 170, 0.5);
   color: #ff9cc6;
+  background: rgba(255, 105, 170, 0.08);
+}
+
+.game-badge[data-game="maimai"]:hover {
+  border-color: rgba(255, 105, 170, 0.7);
+  background: rgba(255, 105, 170, 0.14);
 }
 
 .game-badge[data-game="chunithm"] {
-  border-color: rgba(61, 103, 227, 0.5);
-  color: #7f9fe8;
+  border-color: rgba(61, 103, 227, 0.6);
+  color: #8faff5;
+  background: rgba(61, 103, 227, 0.08);
+}
+
+.game-badge[data-game="chunithm"]:hover {
+  border-color: rgba(61, 103, 227, 0.8);
+  background: rgba(61, 103, 227, 0.14);
 }
 
 .toggle {
@@ -1013,8 +1108,8 @@ h1 {
 }
 
 .modal-footer {
-  padding: 0.85rem 1.1rem;
-  border-top: 1px solid var(--color-border);
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--glass-border);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1208,16 +1303,17 @@ h1 {
   display: flex;
   gap: 0.45rem;
   align-items: end;
-  background: var(--color-elevated);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 0.45rem 0.55rem;
-  transition: border-color 120ms, box-shadow 120ms;
+  background: rgba(28, 33, 40, 0.9);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  padding: 0.5rem 0.6rem;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+  box-shadow: var(--card-shadow);
 }
 
 .chat-composer__box:focus-within {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(134, 59, 255, 0.15);
+  border-color: rgba(134, 59, 255, 0.5);
+  box-shadow: 0 0 0 3px rgba(134, 59, 255, 0.12), var(--card-shadow);
 }
 
 .chat-composer__input {
@@ -1255,22 +1351,24 @@ h1 {
 }
 
 .chat-composer__send {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   flex-shrink: 0;
   border: none;
-  border-radius: 7px;
+  border-radius: 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: var(--primary);
-  color: #fff;
+  color: var(--primary-foreground);
   cursor: pointer;
-  transition: background 120ms, transform 120ms;
+  transition: background 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+  box-shadow: 0 2px 8px rgba(134, 59, 255, 0.3);
 }
 
 .chat-composer__send:hover:not(:disabled) {
   background: var(--color-accent-hover);
+  box-shadow: 0 4px 12px rgba(134, 59, 255, 0.4);
 }
 
 .chat-composer__send:active:not(:disabled) {
@@ -1278,8 +1376,9 @@ h1 {
 }
 
 .chat-composer__send:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .chat-composer__hints {

@@ -104,6 +104,18 @@ function saveMessages(messages: UiMessage[]): void {
   }
 }
 
+function dropEmptyStreaming(prev: UiMessage[]): UiMessage[] {
+  const next = [...prev];
+  for (let i = next.length - 1; i >= 0; i--) {
+    const m = next[i];
+    if (m.role === "assistant" && m.streaming && !m.content) {
+      next.splice(i, 1);
+      break;
+    }
+  }
+  return next;
+}
+
 export default function ChatPanel() {
   const { setChatOpen } = useShellStore();
   const { showToolCalls } = useSettingsStore();
@@ -117,6 +129,8 @@ export default function ChatPanel() {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [draft, setDraft] = useState("");
 
+  const userMessages = messages.filter((m) => m.role === "user");
+
   // Escape key to close chat panel
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -127,8 +141,6 @@ export default function ChatPanel() {
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, []);
-
-  const userMessages = messages.filter((m) => m.role === "user");
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -160,82 +172,7 @@ export default function ChatPanel() {
     ta.style.height = Math.min(ta.scrollHeight, 140) + "px";
   }, [input]);
 
-  const send = useCallback(
-    async (textOverride?: string) => {
-      const text = (textOverride ?? input).trim();
-      if (!text || busy) return;
-      setInput("");
-      setHistoryIndex(-1);
-      setBusy(true);
-
-      const userMsg: UiMessage = {
-        role: "user",
-        content: text,
-        timestamp: currentTimestampIct(),
-      };
-      const streamingMsg: UiMessage = {
-        role: "assistant",
-        content: "",
-        streaming: true,
-      };
-
-      setMessages((prev) => [...prev, userMsg, streamingMsg]);
-
-      // Build apiHistory: the LLM can't see tool UI messages, so after a
-      // tool call the conversation can contain empty or consecutive assistant
-      // turns that many providers reject. Drop empties and merge runs.
-      // User messages are prefixed with their send timestamp and a
-      // pre-computed "X ago" delta so the model can reason about when
-      // each was sent without doing datetime math itself.
-      const apiHistory: ChatMessage[] = [];
-      const now = new Date();
-      for (const m of [...messages, userMsg]) {
-        if (m.role !== "user" && m.role !== "assistant") continue;
-        if (m.role === "assistant" && !m.content) continue;
-        const last = apiHistory[apiHistory.length - 1];
-        let content = m.content;
-        if (m.role === "user" && m.timestamp) {
-          const ago = formatAgo(m.timestamp, now);
-          content = ago
-            ? `[${m.timestamp}, ${ago}] ${m.content}`
-            : `[${m.timestamp}] ${m.content}`;
-        }
-        if (last && last.role === "assistant" && m.role === "assistant") {
-          last.content = `${last.content}\n\n${content}`;
-        } else {
-          apiHistory.push({ role: m.role, content });
-        }
-      }
-
-      const ctrl = new AbortController();
-      abortRef.current = ctrl;
-
-      try {
-        await streamChat(apiHistory, handleEvent, ctrl.signal);
-        finalizeStreaming();
-      } catch (err) {
-        if (!ctrl.signal.aborted) {
-          setMessages((prev) => {
-            const next = dropEmptyStreaming(prev);
-            next.push({
-              role: "error",
-              content:
-                err instanceof Error
-                  ? `Stream failed: ${err.message}`
-                  : "Stream failed — please retry.",
-            });
-            return next;
-          });
-        }
-      } finally {
-        setBusy(false);
-        abortRef.current = null;
-      }
-    },
-    [input, busy, messages],
-  );
-
-  function handleEvent(ev: StreamEvent) {
+  const handleEvent = useCallback((ev: StreamEvent) => {
     if (ev.type === "content") {
       setMessages((prev) => {
         const next = [...prev];
@@ -267,7 +204,21 @@ export default function ChatPanel() {
         return next;
       });
     } else if (ev.type === "done") {
-      finalizeStreaming();
+      setMessages((prev) => {
+        const next = [...prev];
+        for (let i = next.length - 1; i >= 0; i--) {
+          const m = next[i];
+          if (m.role === "assistant" && m.streaming) {
+            if (!m.content) {
+              next.splice(i, 1);
+            } else {
+              next[i] = { ...m, streaming: false };
+            }
+            break;
+          }
+        }
+        return next;
+      });
     } else if (ev.type === "error") {
       setMessages((prev) => {
         const next = dropEmptyStreaming(prev);
@@ -275,25 +226,90 @@ export default function ChatPanel() {
         return next;
       });
     }
-  }
+  }, []);
 
-  function finalizeStreaming() {
-    setMessages((prev) => {
-      const next = [...prev];
-      for (let i = next.length - 1; i >= 0; i--) {
-        const m = next[i];
-        if (m.role === "assistant" && m.streaming) {
-          if (!m.content) {
-            next.splice(i, 1);
-          } else {
-            next[i] = { ...m, streaming: false };
-          }
-          break;
+  const send = useCallback(
+    async (textOverride?: string) => {
+      const text = (textOverride ?? input).trim();
+      if (!text || busy) return;
+      setInput("");
+      setHistoryIndex(-1);
+      setBusy(true);
+
+      const userMsg: UiMessage = {
+        role: "user",
+        content: text,
+        timestamp: currentTimestampIct(),
+      };
+      const streamingMsg: UiMessage = {
+        role: "assistant",
+        content: "",
+        streaming: true,
+      };
+
+      setMessages((prev) => [...prev, userMsg, streamingMsg]);
+
+      const apiHistory: ChatMessage[] = [];
+      const now = new Date();
+      for (const m of [...messages, userMsg]) {
+        if (m.role !== "user" && m.role !== "assistant") continue;
+        if (m.role === "assistant" && !m.content) continue;
+        const last = apiHistory[apiHistory.length - 1];
+        let content = m.content;
+        if (m.role === "user" && m.timestamp) {
+          const ago = formatAgo(m.timestamp, now);
+          content = ago
+            ? `[${m.timestamp}, ${ago}] ${m.content}`
+            : `[${m.timestamp}] ${m.content}`;
+        }
+        if (last && last.role === "assistant" && m.role === "assistant") {
+          last.content = `${last.content}\n\n${content}`;
+        } else {
+          apiHistory.push({ role: m.role, content });
         }
       }
-      return next;
-    });
-  }
+
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
+
+      try {
+        await streamChat(apiHistory, handleEvent, ctrl.signal);
+        setMessages((prev) => {
+          const next = [...prev];
+          for (let i = next.length - 1; i >= 0; i--) {
+            const m = next[i];
+            if (m.role === "assistant" && m.streaming) {
+              if (!m.content) {
+                next.splice(i, 1);
+              } else {
+                next[i] = { ...m, streaming: false };
+              }
+              break;
+            }
+          }
+          return next;
+        });
+      } catch (err) {
+        if (!ctrl.signal.aborted) {
+          setMessages((prev) => {
+            const next = dropEmptyStreaming(prev);
+            next.push({
+              role: "error",
+              content:
+                err instanceof Error
+                  ? `Stream failed: ${err.message}`
+                  : "Stream failed — please retry.",
+            });
+            return next;
+          });
+        }
+      } finally {
+        setBusy(false);
+        abortRef.current = null;
+      }
+    },
+    [input, busy, messages, handleEvent],
+  );
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -501,16 +517,4 @@ function ChatResizer() {
       onPointerCancel={endDrag}
     />
   );
-}
-
-function dropEmptyStreaming(prev: UiMessage[]): UiMessage[] {
-  const next = [...prev];
-  for (let i = next.length - 1; i >= 0; i--) {
-    const m = next[i];
-    if (m.role === "assistant" && m.streaming && !m.content) {
-      next.splice(i, 1);
-      break;
-    }
-  }
-  return next;
 }

@@ -6,6 +6,7 @@ import { fetchData, fetchYears } from "../lib/fetch";
 import { formatLastUpdated } from "../lib/formatting";
 import { GAME_ACCENT } from "../lib/constants";
 import { GameHeatmap } from "./GameHeatmap";
+import { YearDropdown } from "./YearDropdown";
 import HeatmapSkeletonBlock from "./heatmap-skeleton/HeatmapSkeletonBlock";
 
 export default function Heatmap({
@@ -110,26 +111,12 @@ export default function Heatmap({
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        <label
-          className="text-sm text-secondary-foreground"
-          htmlFor="heatmap-year"
-        >
-          Year
-        </label>
-        <select
-          id="heatmap-year"
-          className="bg-elevated text-foreground border border-border rounded px-2 py-1 text-sm cursor-pointer
-                     hover:border-accent focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30
-                     transition-colors duration-150"
+        <label className="text-sm text-secondary-foreground">Year</label>
+        <YearDropdown
           value={selectedYear}
-          onChange={(e) => setSelectedYear(Number(e.target.value))}
-        >
-          {years.map((y) => (
-            <option key={y} value={y}>
-              {y}
-            </option>
-          ))}
-        </select>
+          years={years}
+          onChange={setSelectedYear}
+        />
         {lastUpdated && (
           <span
             className={`w-full sm:w-auto sm:ml-auto text-xs ${isStale ? "text-destructive" : "text-muted-foreground"}`}

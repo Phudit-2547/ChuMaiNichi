@@ -11,6 +11,7 @@ export interface DailyRow {
 }
 
 export interface HeatmapStats {
+  today: number;
   total: number;
   thisWeek: number;
   currentStreak: number;

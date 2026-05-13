@@ -177,8 +177,16 @@ export function GameHeatmap({
   const gameName = game === "maimai" ? "maimai" : "CHUNITHM";
 
   return (
-    <div className="w-full max-w-[1100px]">
-      <StatsBar stats={stats} year={year} />
+    <div
+      className="w-full max-w-[1100px] rounded-2xl px-4 pt-3 pb-2"
+      style={{
+        background:
+          game === "maimai"
+            ? "rgba(255, 105, 170, 0.04)"
+            : "rgba(61, 103, 227, 0.04)",
+      }}
+    >
+      <StatsBar stats={stats} year={year} game={game} />
       <div className="relative overflow-x-auto scrollbar-thin">
         <div
           ref={containerRef}
