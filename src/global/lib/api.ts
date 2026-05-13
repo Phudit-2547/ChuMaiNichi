@@ -67,6 +67,7 @@ export async function fetchRatingImage(
 ): Promise<Blob | null> {
   const { getAuthHeaders } = useAuthStore.getState();
   const res = await fetch(`/api/rating-image?game=${encodeURIComponent(game)}`, {
+    cache: "no-store",
     headers: { ...getAuthHeaders() },
     signal,
   });
