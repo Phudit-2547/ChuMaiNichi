@@ -318,7 +318,7 @@ async def fetch_player_data(game: str, target_date: date | datetime | str | None
 
                 print(f"[RETRY] Waiting for {game} home page...")
                 try:
-                    await page.wait_for_url(HOME_URLS[game], timeout=10000)
+                    await page.wait_for_url(lambda url: url.startswith(HOME_URLS[game]), timeout=10000)
                 except Exception:
                     failure_reason = await capture_failure_details(page)
                     print(f"[ERROR] Failed to load {game} home page: {failure_reason}")
