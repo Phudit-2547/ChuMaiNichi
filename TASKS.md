@@ -1,7 +1,5 @@
 # ChuMaiNichi — Task Delegation
 
-> Deadline: April 28, 2026 (Digital & AI demo)
-> MVP target: April 16 (gives 12 days buffer)
 > Repo: https://github.com/Phudit-2547/ChuMaiNichi
 
 ---

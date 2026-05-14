@@ -1,4 +1,4 @@
-# CLAUDE.md — ChuMaiNichi
+# AGENTS.md — ChuMaiNichi
 
 > Repository: https://github.com/Phudit-2547/ChuMaiNichi
 > Owner: Phudit (Big), CEDT Year 3, Chulalongkorn University
@@ -92,7 +92,7 @@ ChuMaiNichi/
 ├── tsconfig.json
 ├── vite.config.ts
 ├── vercel.json
-└── CLAUDE.md
+└── AGENTS.md
 ```
 
 ## config.json
