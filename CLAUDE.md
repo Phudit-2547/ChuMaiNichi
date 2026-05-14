@@ -364,14 +364,6 @@ The tool itself does not clamp. Instead the staging guard lives in `src/api/chat
 - **Timezone**: All scraping and date logic uses `Asia/Bangkok` (UTC+7).
 - **Currency**: Default cost per play is 40 THB, configurable in settings.
 
-## Academic context
-
-This project is submitted for two courses:
-
-1. **AI and Digital Technology** (CEDT course) — 12-min presentation + demo. The AI agent with tool-calling is the star feature (satisfies "Generative AI" requirement). Playwright scraping is framed as automation, NOT RPA.
-
-2. **GenAI and HCI research** (NIDA) — ACM-format paper on "Designing a More Socially Equitable Rhythm-Game Dashboard." Needs a user study (6-10 participants, comparing task completion time and decision confidence with/without the dashboard).
-
 ## Code style and preferences
 
 - Respond concisely. No filler, no enthusiasm.
