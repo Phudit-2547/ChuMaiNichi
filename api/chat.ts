@@ -8,6 +8,11 @@ import type {
 import { checkAuth } from "../src/api/auth.js";
 import { loadConfig } from "../src/api/config.js";
 import { createClient, defaultModel } from "../src/api/chat/client.js";
+import { loadSongs } from "../src/api/chat/songs-cache.js";
+import {
+  getMaimaiMaxConstant,
+  runSlashCommand,
+} from "../src/api/chat/slash-commands.js";
 import { buildSystemPrompt } from "../src/api/chat/system-prompt.js";
 import {
   QUERY_TOOL,
@@ -60,6 +65,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
+  let config: ReturnType<typeof loadConfig>;
+  try {
+    config = loadConfig();
+  } catch (err) {
+    console.error("Failed to load config.json:", err);
+    return res.status(500).json({ error: "Server config missing" });
+  }
+
+  let lastUserText = "";
+  for (let i = userMessages.length - 1; i >= 0; i--) {
+    const m = userMessages[i];
+    if (m?.role === "user" && typeof m.content === "string") {
+      lastUserText = m.content;
+      break;
+    }
+  }
+
+  const slashCommandResult = runSlashCommand(lastUserText, config.games, {
+    maimaiMaxConstant: config.games.includes("maimai")
+      ? getMaimaiMaxConstant(loadSongs())
+      : null,
+  });
+  if (slashCommandResult != null) {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.write(
+      `data: ${JSON.stringify({ type: "content", content: slashCommandResult })}\n\n`,
+    );
+    res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
+    return res.end();
+  }
+
   let client: OpenAI;
   try {
     client = createClient();
@@ -68,13 +106,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const model = requestModel || defaultModel();
-  let config: ReturnType<typeof loadConfig>;
-  try {
-    config = loadConfig();
-  } catch (err) {
-    console.error("Failed to load config.json:", err);
-    return res.status(500).json({ error: "Server config missing" });
-  }
   const tools: ChatCompletionTool[] = [QUERY_TOOL];
   if (config.games.includes("maimai")) {
     tools.push(SUGGEST_SONGS_TOOL);
@@ -85,14 +116,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ...userMessages,
   ];
 
-  let lastUserText = "";
-  for (let i = userMessages.length - 1; i >= 0; i--) {
-    const m = userMessages[i];
-    if (m?.role === "user" && typeof m.content === "string") {
-      lastUserText = m.content;
-      break;
-    }
-  }
   const forceQuery = shouldForceQuery(lastUserText);
 
   // SSE streaming

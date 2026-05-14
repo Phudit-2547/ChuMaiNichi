@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   calculateSongRating,
+  calculateScoreForSongRating,
   getRankInfo,
   getNextRank,
   makeKey,
@@ -84,6 +85,30 @@ describe("calculateSongRating", () => {
     // 13.7 * 100.5 * 0.224 = 308.4336 → should be 308 (trunc), not 308 (round same here)
     // Better example: 13.1 * 100.5 * 0.224 = 294.9264 → 294 (trunc, not 295)
     expect(calculateSongRating(13.1, 1005000)).toBe(294);
+  });
+});
+
+// ── calculateScoreForSongRating ──────────────────────
+
+describe("calculateScoreForSongRating", () => {
+  it("finds the minimum score for a target song rating", () => {
+    expect(calculateScoreForSongRating(14.0, 302)).toEqual({
+      score: 1000000,
+      rankName: "SSS",
+      pct: 100,
+    });
+  });
+
+  it("moves to SSS+ when lower ranks cannot reach the target", () => {
+    expect(calculateScoreForSongRating(13.4, 300)).toEqual({
+      score: 1005000,
+      rankName: "SSS+",
+      pct: 100.5,
+    });
+  });
+
+  it("returns null when the target exceeds the chart cap", () => {
+    expect(calculateScoreForSongRating(13.4, 999)).toBeNull();
   });
 });
 

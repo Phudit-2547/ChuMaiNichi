@@ -51,6 +51,12 @@ export interface NextRank {
   minScore: number;
 }
 
+export interface RequiredScore {
+  score: number;
+  rankName: string;
+  pct: number;
+}
+
 export interface RatedSong extends PlayerSong {
   rating: number;
 }
@@ -150,6 +156,40 @@ export function calculateSongRating(
   const base = Math.trunc(constant * achievement * factor);
   const apBonus = (comboMark === "AP" || comboMark === "AP+") ? 1 : 0;
   return base + apBonus;
+}
+
+/**
+ * Find the minimum maimai achievement score needed to reach a song-rating
+ * contribution on a chart constant. This ignores AP/AP+ bonus because score
+ * alone cannot determine combo status.
+ */
+export function calculateScoreForSongRating(
+  constant: number,
+  targetRating: number,
+): RequiredScore | null {
+  if (constant <= 0 || !Number.isFinite(constant)) return null;
+  if (!Number.isFinite(targetRating)) return null;
+  if (targetRating <= 0) return { score: 0, rankName: "Below A", pct: 0 };
+
+  for (let i = RANK_FACTORS.length - 1; i >= 0; i--) {
+    const [minScore, factor, rankName] = RANK_FACTORS[i];
+    const maxScore = i === 0 ? 1005000 : RANK_FACTORS[i - 1][0] - 1;
+    let score = Math.ceil((targetRating / (constant * factor)) * 10000 - 1e-9);
+    score = Math.max(score, minScore);
+
+    while (score > minScore && calculateSongRating(constant, score - 1) >= targetRating) {
+      score--;
+    }
+    while (score <= maxScore && calculateSongRating(constant, score) < targetRating) {
+      score++;
+    }
+
+    if (score <= maxScore) {
+      return { score, rankName, pct: score / 10000 };
+    }
+  }
+
+  return null;
 }
 
 /** Key format: "title|chartType|difficulty" */
