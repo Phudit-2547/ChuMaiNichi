@@ -376,13 +376,14 @@ h1 {
 }
 
 .app-main {
-  overflow: auto;
+  overflow: hidden;
   padding: 2rem 2rem 4rem;
 }
 
 .app-main__inner {
   max-width: 1100px;
   margin: 0 auto;
+  overflow: hidden;
 }
 
 /* Year select — premium dropdown button */
