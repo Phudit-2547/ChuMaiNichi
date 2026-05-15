@@ -4,7 +4,7 @@
   "discord_notification": {
     "default": {
       "username": "毎日みのり",
-      "avatar_url": "https://pbs.twimg.com/media/GjfKtY6acAIo5Ga?format=jpg"
+      "avatar_url": "https://cdn.discordapp.com/attachments/917303163470635018/1504898194641785013/CleanShot_2569-05-16_at_00.28.012x.png"
     },
     "weekly": {
       "username": "毎週みのり",
@@ -24,7 +24,7 @@
     },
     "monthly": {
       "username": "毎月みのり",
-      "avatar_url": "https://maimaidx-eng.com/maimai-mobile/img/Icon/436c054614f29700.png"
+      "avatar_url": "https://cdn.discordapp.com/attachments/917303163470635018/1504898194641785013/CleanShot_2569-05-16_at_00.28.012x.png"
     }
   }
 }
