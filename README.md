@@ -6,13 +6,25 @@ A personal dashboard for CHUNITHM and maimai DX arcade rhythm-game players. Trac
 
 ## Screenshots
 
-<img width="3794" height="2052" alt="CleanShot 2569-04-20 at 20 21 49@2x" src="https://github.com/user-attachments/assets/86875e7f-7701-427c-8c60-8962d7e8ddc9" />
+<img width="3773" height="1618" alt="CleanShot 2569-05-16 at 00 44 40@2x" src="https://github.com/user-attachments/assets/502dbcc9-36c8-4246-be49-749774e7882d" />
 
 *Main dashboard: play-count heatmap for both games.*
 
-<img width="838" height="1918" alt="CleanShot 2569-04-20 at 20 23 25@2x" src="https://github.com/user-attachments/assets/c745f095-bd08-4964-b697-1b2455260638" />
+<img width="1198" height="1828" alt="CleanShot 2569-05-16 at 00 43 22@2x" src="https://github.com/user-attachments/assets/a8bb8f9d-0c5e-4e8c-af9d-754d0e2d1f96" />
 
 *AI agent suggesting songs to grind for rating improvement.*
+
+<img width="1210" height="356" alt="CleanShot 2569-05-16 at 00 32 55@2x" src="https://github.com/user-attachments/assets/3319f714-1af9-4c57-aefe-52d647a594d5" />
+
+*Discord notification : Montly.*
+
+<img width="1014" height="334" alt="CleanShot 2569-05-16 at 00 37 56@2x" src="https://github.com/user-attachments/assets/0e49b734-b97a-4a9e-85bf-62bcfc2680b5" />
+
+*Discord notification : Weekly.*
+
+<img width="812" height="174" alt="CleanShot 2569-05-16 at 00 36 11@2x" src="https://github.com/user-attachments/assets/a16d4737-0d46-40c3-98f2-d92f2890dee7" />
+
+*Discord notification : Daily.*
 
 ## Features
 
