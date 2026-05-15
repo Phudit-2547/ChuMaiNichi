@@ -2,6 +2,7 @@ import requests
 import json
 
 from play_counter.db import connect_db
+from play_counter.config import NOTIFICATION_CONFIG
 from play_counter.utils.constants import COST_PER_PLAY, MONTHREPORT_WEBHOOK
 from play_counter.utils.date_helpers import last_month_range
 
@@ -44,10 +45,16 @@ async def generate_monthly_report():
             f"**Total**: {maimai_total + chunithm_total} plays → **{total_cost:,} THB** (avg {avg_total:.2f} THB/day)"
         )
 
+        # Get monthly report specific configuration
+        config = NOTIFICATION_CONFIG.get("monthly", NOTIFICATION_CONFIG["default"])
+
         # Send to Discord
         message = {
-            "username": "桃井 愛莉",
-            "avatar_url": "https://pbs.twimg.com/media/F2kuFKjaYAEWnpO?format=jpg&name=4096x4096",
+            "username": config.get("username", "桃井 愛莉"),
+            "avatar_url": config.get(
+                "avatar_url",
+                "https://pbs.twimg.com/media/F2kuFKjaYAEWnpO?format=jpg&name=4096x4096",
+            ),
             "content": report_content,
         }
         response = requests.post(
