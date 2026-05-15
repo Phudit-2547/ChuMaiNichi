@@ -113,7 +113,7 @@ function buildChunithmRatingTable(targetRating: number): string {
     )}.`;
   }
 
-  const lines = ["Const |   Score", "---------------"];
+  const dataRows: string[] = [];
   let level10 = Math.max(Math.trunc(targetRating - 3) * 10, 10);
   const target10 = targetRating * 10;
   const max10 = CHUNITHM_MAX_INTERNAL_LEVEL * 10;
@@ -122,7 +122,7 @@ function buildChunithmRatingTable(targetRating: number): string {
     const constant = Math.round(level10) / 10;
     const requiredScore = calculateChunithmScoreForRating(targetRating, constant);
     if (requiredScore != null && requiredScore >= CHUNITHM_MIN_DISPLAY_SCORE) {
-      lines.push(`${constant.toFixed(1).padStart(5)} | ${String(requiredScore).padStart(7)}`);
+      dataRows.push(`${constant.toFixed(1)} | ${String(requiredScore)}`);
     }
 
     if (level10 >= 100) {
@@ -134,44 +134,46 @@ function buildChunithmRatingTable(targetRating: number): string {
     }
   }
 
-  if (lines.length === 2) return "No CHUNITHM chart constants found for that target.";
+  if (dataRows.length === 0) return "No CHUNITHM chart constants found for that target.";
 
   return [
     `Score required to achieve **${formatChunithmRating(targetRating)}** CHUNITHM play rating:`,
-    "```txt",
-    ...lines,
-    "```",
+    "",
+    "| Const | Score |",
+    "| ----- | ----- |",
+    ...dataRows.map((l) => {
+      const parts = l.split(" | ");
+      return `| ${parts[0].trim().padStart(5)} | ${parts[1].trim().padStart(7)} |`;
+    }),
   ].join("\n");
 }
 
 function buildMaimaiTargetTable(targetRating: number, maxConstant: number): string {
   if (targetRating <= 0) return "maimai target song rating must be greater than 0.";
 
-  const rows: string[] = [];
+  const dataRows: string[] = [];
   for (let level10 = 10; level10 <= maxConstant * 10; level10++) {
     const constant = level10 / 10;
     const required = calculateMaimaiScoreForSongRating(constant, targetRating);
     if (!required || required.score < MAIMAI_MIN_DISPLAY_SCORE) continue;
-    rows.push(
-      `${constant.toFixed(1).padStart(5)} | ${formatMaimaiPct(required.score).padStart(
-        9,
-      )} | ${required.rankName.padStart(4)} | ${String(
-        calculateMaimaiSongRating(constant, required.score),
-      ).padStart(6)}`,
+    dataRows.push(
+      `${constant.toFixed(1)} | ${formatMaimaiPct(required.score)} | ${required.rankName} | ${calculateMaimaiSongRating(constant, required.score)}`,
     );
   }
 
-  if (rows.length === 0) return "No maimai chart constants found for that target.";
+  if (dataRows.length === 0) return "No maimai chart constants found for that target.";
 
   return [
     `Score required to achieve **${formatMaimaiTarget(
       targetRating,
     )}** maimai song rating, without AP bonus:`,
-    "```txt",
-    "Const | Achievement | Rank | Rating",
-    "------------------------------------",
-    ...rows,
-    "```",
+    "",
+    "| Const | Achievement | Rank | Rating |",
+    "| ----- | ---------- | ---- | ------ |",
+    ...dataRows.map((r) => {
+      const parts = r.split(" | ");
+      return `| ${parts[0].padStart(5)} | ${parts[1].padStart(9)} | ${parts[2].padStart(4)} | ${parts[3].padStart(6)} |`;
+    }),
   ].join("\n");
 }
 
