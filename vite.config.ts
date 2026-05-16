@@ -54,6 +54,7 @@ export default defineConfig(({ mode }) => {
     plugins: [react(), devApiProxy(), tailwindcss()],
     build: {
       chunkSizeWarningLimit: 1000,
+      assetsInlineLimit: 0,
     },
     resolve: {
       alias: {

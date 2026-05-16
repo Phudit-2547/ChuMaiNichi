@@ -4,7 +4,13 @@ import { GAME_ACCENT, GAME_LABELS, type Game } from "../../../global/lib/games";
 
 type Status = "loading" | "ready" | "missing" | "error";
 
-function GameRatingImage({ game }: { game: Game }) {
+function GameRatingImage({
+  game,
+  refreshNonce,
+}: {
+  game: Game;
+  refreshNonce: number;
+}) {
   const [src, setSrc] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>("loading");
 
@@ -12,7 +18,7 @@ function GameRatingImage({ game }: { game: Game }) {
     const controller = new AbortController();
     let objectUrl: string | null = null;
 
-    fetchRatingImage(game, controller.signal)
+    fetchRatingImage(game, controller.signal, refreshNonce)
       .then((blob) => {
         if (controller.signal.aborted) return;
         if (!blob) {
@@ -34,7 +40,7 @@ function GameRatingImage({ game }: { game: Game }) {
       controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [game]);
+  }, [game, refreshNonce]);
 
   if (status === "missing") return null;
 
@@ -92,7 +98,11 @@ export default function RatingImage({
   return (
     <>
       {games.map((game) => (
-        <GameRatingImage key={`${game}-${refreshNonce}`} game={game} />
+        <GameRatingImage
+          key={`${game}-${refreshNonce}`}
+          game={game}
+          refreshNonce={refreshNonce}
+        />
       ))}
     </>
   );

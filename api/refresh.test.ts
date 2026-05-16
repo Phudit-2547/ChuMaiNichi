@@ -22,6 +22,7 @@ function createMockRequest(overrides: Partial<VercelRequest> = {}): VercelReques
   return {
     method: "POST",
     headers: {},
+    query: {},
     ...overrides,
   } as VercelRequest;
 }
@@ -168,10 +169,36 @@ describe("api/refresh.ts", () => {
       process.env.GITHUB_PAT = "test-pat";
       process.env.GITHUB_REPO = "owner/repo";
 
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        status: 204,
-      });
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ workflow_runs: [] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 204,
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: () =>
+            Promise.resolve({
+              workflow_runs: [
+                {
+                  id: 123,
+                  html_url:
+                    "https://github.com/owner/repo/actions/runs/123",
+                  status: "queued",
+                  conclusion: null,
+                  event: "workflow_dispatch",
+                  head_branch: "main",
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                },
+              ],
+            }),
+        });
 
       const handler = await getHandler();
       const req = createMockRequest();
@@ -200,11 +227,17 @@ describe("api/refresh.ts", () => {
       process.env.GITHUB_PAT = "test-pat";
       process.env.GITHUB_REPO = "owner/repo";
 
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 403,
-        text: () => Promise.resolve("Forbidden"),
-      });
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ workflow_runs: [] }),
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 403,
+          text: () => Promise.resolve("Forbidden"),
+        });
 
       const handler = await getHandler();
       const req = createMockRequest();
@@ -214,18 +247,45 @@ describe("api/refresh.ts", () => {
 
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
-        error: "Failed to trigger workflow",
+        error:
+          "GitHub API 403 while dispatching scrape-user-data.yml. Check that GITHUB_PAT has repository access plus Actions read/write permission. Forbidden",
       });
     });
 
-    it("returns 200 with run_url on success", async () => {
+    it("returns 200 with run_id and run_url on success", async () => {
       process.env.GITHUB_PAT = "test-pat";
       process.env.GITHUB_REPO = "owner/repo";
 
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        status: 204,
-      });
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ workflow_runs: [] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 204,
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: () =>
+            Promise.resolve({
+              workflow_runs: [
+                {
+                  id: 123,
+                  html_url:
+                    "https://github.com/owner/repo/actions/runs/123",
+                  status: "queued",
+                  conclusion: null,
+                  event: "workflow_dispatch",
+                  head_branch: "main",
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                },
+              ],
+            }),
+        });
 
       const handler = await getHandler();
       const req = createMockRequest();
@@ -235,7 +295,56 @@ describe("api/refresh.ts", () => {
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({
-        run_url: "https://github.com/owner/repo/actions/workflows/scrape-user-data.yml",
+        run_id: "123",
+        run_url: "https://github.com/owner/repo/actions/runs/123",
+      });
+    });
+
+    it("returns workflow status for a run_id poll", async () => {
+      process.env.GITHUB_PAT = "test-pat";
+      process.env.GITHUB_REPO = "owner/repo";
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            id: 123,
+            html_url: "https://github.com/owner/repo/actions/runs/123",
+            status: "completed",
+            conclusion: "success",
+            event: "workflow_dispatch",
+            head_branch: "main",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }),
+      });
+
+      const handler = await getHandler();
+      const req = createMockRequest({
+        method: "GET",
+        query: { run_id: "123" },
+      });
+      const res = createMockResponse();
+
+      await handler(req, res);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://api.github.com/repos/owner/repo/actions/runs/123",
+        {
+          headers: {
+            Authorization: "Bearer test-pat",
+            Accept: "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+          },
+        },
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        status: "completed",
+        conclusion: "success",
+        updated_at: expect.any(String),
+        run_url: "https://github.com/owner/repo/actions/runs/123",
       });
     });
   });
@@ -255,7 +364,7 @@ describe("api/refresh.ts", () => {
 
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
-        error: "Failed to trigger workflow",
+        error: "Network error",
       });
     });
   });

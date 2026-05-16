@@ -4,7 +4,11 @@ import HeatmapSkeleton from "./features/heatmap/components/heatmap-skeleton/Heat
 import AuthLoading from "./features/auth/components/AuthLoading";
 import { APP_CONFIG } from "./global/lib/config";
 import { authenticate } from "./global/lib/auth";
-import { triggerRefresh } from "./global/lib/api";
+import {
+  triggerRefresh,
+  pollRefreshStatus,
+  type WorkflowStatus,
+} from "./global/lib/api";
 import { TooltipProvider } from "./global/components/ui/tooltip";
 import ChatPanel from "./features/chat/components/ChatPanel";
 import SettingsModal from "./features/settings/components/SettingsModal";
@@ -17,9 +21,12 @@ const RatingImage = lazy(
   () => import("./features/rating-image/components/RatingImage"),
 );
 
+type RefreshUiStatus = WorkflowStatus | "syncing" | "failed" | "";
+
 function App() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshStatus, setRefreshStatus] = useState<RefreshUiStatus>("");
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { chatOpen, setChatOpen, chatWidth } = useShellStore();
@@ -47,15 +54,25 @@ function App() {
 
   async function handleRefresh() {
     setRefreshing(true);
+    setRefreshStatus("queued");
     try {
-      await triggerRefresh();
-      window.setTimeout(() => {
-        setRefreshing(false);
-        setRefreshNonce((n) => n + 1);
-      }, 2 * 60 * 1000);
+      const { run_id } = await triggerRefresh();
+      if (!run_id) throw new Error("No run_id returned");
+      const result = await pollRefreshStatus(run_id, (status) => {
+        setRefreshStatus(status);
+      });
+      if (result.conclusion && result.conclusion !== "success") {
+        throw new Error(`Workflow finished with conclusion: ${result.conclusion}`);
+      }
+      setRefreshStatus("syncing");
+      setRefreshNonce((n) => n + 1);
+      setRefreshStatus("completed");
     } catch (e) {
-      console.error(e);
+      console.error("[Refresh] error:", e);
+      setRefreshStatus("failed");
+    } finally {
       setRefreshing(false);
+      window.setTimeout(() => setRefreshStatus(""), 2500);
     }
   }
 
@@ -73,6 +90,7 @@ function App() {
           onRefresh={handleRefresh}
           onOpenSettings={() => setSettingsOpen(true)}
           refreshing={refreshing}
+          refreshStatus={refreshStatus}
         />
         <main className="app-main">
           <div className="app-main__inner">

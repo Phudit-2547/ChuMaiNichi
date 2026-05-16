@@ -5,14 +5,31 @@ interface HeaderProps {
   onRefresh: () => void;
   onOpenSettings: () => void;
   refreshing?: boolean;
+  refreshStatus?: string;
 }
 
 export default function Header({
   onRefresh,
   onOpenSettings,
   refreshing = false,
+  refreshStatus = "",
 }: HeaderProps) {
   const { chatOpen, toggleChat } = useShellStore();
+
+  const statusLabel =
+    refreshStatus === "queued"
+      ? "Queued…"
+      : refreshStatus === "in_progress"
+        ? "Scraping…"
+        : refreshStatus === "syncing"
+          ? "Updating…"
+          : refreshStatus === "completed"
+            ? "Done!"
+            : refreshStatus === "failed"
+              ? "Failed"
+              : refreshing
+                ? "Please wait…"
+                : "Refresh scores";
 
   return (
     <header className="app-header">
@@ -27,13 +44,11 @@ export default function Header({
         className="text-btn text-btn--refresh"
         onClick={onRefresh}
         disabled={refreshing}
-        title={refreshing ? "Please wait ~2 min" : "Refresh scores"}
-        aria-label={refreshing ? "Please wait ~2 min" : "Refresh scores"}
+        title={statusLabel}
+        aria-label={statusLabel}
       >
         <RotateCw size={16} className={refreshing ? "icon-spin" : ""} />
-        <span className="text-btn__label">
-          {refreshing ? "Please wait ~2 min" : "Refresh scores"}
-        </span>
+        <span className="text-btn__label">{statusLabel}</span>
       </button>
       <button
         type="button"
