@@ -60,12 +60,19 @@ export default function Header({
       </button>
       <button
         type="button"
-        className="icon-btn"
-        title={chatOpen ? "Close chat" : "Open chat"}
+        className="icon-btn icon-btn--chat"
+        title="Toggle chat (Ctrl/Cmd+K)"
+        aria-label={chatOpen ? "Close chat" : "Open chat"}
         aria-pressed={chatOpen}
+        aria-keyshortcuts="Control+K Meta+K"
         onClick={toggleChat}
       >
         <MessageCircle size={18} />
+        {!chatOpen && (
+          <span className="icon-btn__shortcut" aria-hidden="true">
+            Ctrl/⌘ K
+          </span>
+        )}
       </button>
     </header>
   );

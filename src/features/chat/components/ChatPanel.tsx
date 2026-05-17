@@ -171,16 +171,32 @@ export default function ChatPanel() {
     setSlashIndex(0);
   }, [input]);
 
-  // Escape key to close chat panel
+  // Global shortcuts for opening/focusing and closing the chat panel.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (
+        !e.isComposing &&
+        (e.ctrlKey || e.metaKey) &&
+        !e.altKey &&
+        !e.shiftKey &&
+        e.key.toLowerCase() === "k"
+      ) {
+        e.preventDefault();
+        const nextOpen = !useShellStore.getState().chatOpen;
+        setChatOpen(nextOpen);
+        if (nextOpen) {
+          requestAnimationFrame(() => taRef.current?.focus());
+        }
+        return;
+      }
+
       if (e.key === "Escape") {
-        useShellStore.getState().setChatOpen(false);
+        setChatOpen(false);
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, []);
+  }, [setChatOpen]);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -556,7 +572,8 @@ export default function ChatPanel() {
         <div className="chat-composer__hints">
           <span>
             <kbd>↑</kbd>/<kbd>↓</kbd> history · <kbd>Enter</kbd> send ·{" "}
-            <kbd>Esc</kbd> close
+            <kbd>Esc</kbd> close · <kbd>Ctrl</kbd>/<kbd>⌘</kbd>{" "}
+            <kbd>K</kbd> toggle
           </span>
           {messages.length > 0 && (
             <button
