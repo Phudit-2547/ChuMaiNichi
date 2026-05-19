@@ -47,18 +47,22 @@ function GameRatingImage({
   const label = GAME_LABELS[game];
 
   return (
-    <section className="mt-8" aria-labelledby={`rating-image-${game}-heading`}>
-      <h2
-        id={`rating-image-${game}-heading`}
-        className="text-lg font-semibold m-0 mb-2 pl-2 border-l-[3px]"
-        style={{ borderLeftColor: GAME_ACCENT[game] }}
-      >
-        {label} rating breakdown
+    <section
+      className="rating-image-section mt-8"
+      aria-labelledby={`rating-image-${game}-heading`}
+    >
+      <h2 id={`rating-image-${game}-heading`} className="game-heading">
+        <span
+          className="game-heading__mark"
+          style={{ backgroundColor: GAME_ACCENT[game] }}
+          aria-hidden="true"
+        />
+        <span>{label} rating breakdown</span>
       </h2>
 
       {status === "loading" && (
         <div
-          className="w-full max-w-235 h-80 bg-surface rounded animate-skeleton-pulse"
+          className="rating-image-placeholder content-panel w-full max-w-235 h-80 bg-surface rounded animate-skeleton-pulse"
           aria-busy="true"
           aria-label={`Loading ${label} rating image`}
         />
@@ -66,7 +70,7 @@ function GameRatingImage({
 
       {status === "error" && (
         <div
-          className="p-6 border border-border rounded-lg text-center text-secondary-foreground"
+          className="content-panel p-6 border border-border rounded-lg text-center text-secondary-foreground"
           role="alert"
         >
           <p className="m-0">Couldn't load the rating image.</p>
@@ -80,7 +84,7 @@ function GameRatingImage({
         <img
           src={src}
           alt={`${label} top-50 chart breakdown contributing to DX rating`}
-          className="block w-full max-w-235 h-auto rounded border border-border"
+          className="content-panel block w-full max-w-235 h-auto rounded border border-border"
           loading="lazy"
         />
       )}

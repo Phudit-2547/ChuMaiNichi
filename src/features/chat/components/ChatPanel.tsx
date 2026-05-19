@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MessageCircle, SquareSlash, X } from "lucide-react";
+import { MessageCircle, X } from "lucide-react";
 import useShellStore from "@/features/shell/stores/shell-store";
 import useSettingsStore from "@/features/settings/stores/settings-store";
 import { fetchModel } from "@/global/lib/api";
@@ -18,31 +18,73 @@ type UiMessage =
 
 const CHAT_STORAGE_KEY = "chumai-chat-messages";
 const CHAT_MAX_STORED = 100;
+interface SlashCommand {
+  id: string;
+  title: string;
+  label: string;
+  description: string;
+  draft: string;
+  example: string;
+  hint: string;
+  keywords: string[];
+}
+
 const SLASH_COMMANDS = [
   ...(APP_CONFIG.games.includes("chunithm")
     ? [
         {
-          value: "/chuni rating 15.00",
+          id: "chuni-rating-target",
+          title: "CHUNITHM target table",
           label: "CHUNITHM",
-          description: "Target play-rating score table",
+          description: "Score table for a target play rating.",
+          draft: "/chuni rating ",
+          example: "/chuni rating 15.00",
+          hint: "Enter a target play rating, e.g. 15.00.",
+          keywords: ["chuni", "chunithm", "target", "table", "score"],
         },
       ]
     : []),
   ...(APP_CONFIG.games.includes("maimai")
     ? [
         {
-          value: "/mai rating 300",
+          id: "mai-rating-target",
+          title: "maimai target table",
           label: "maimai",
-          description: "Target song-rating achievement table",
+          description: "Achievement table for a target song rating.",
+          draft: "/mai rating ",
+          example: "/mai rating 300",
+          hint: "Enter a target song rating, e.g. 300.",
+          keywords: ["mai", "maimai", "target", "song", "table"],
         },
         {
-          value: "/mai rating 14.0 100.0000%",
+          id: "mai-rating-chart",
+          title: "maimai chart rating",
           label: "maimai",
-          description: "Single-chart song rating",
+          description: "Calculate one chart from constant and achievement.",
+          draft: "/mai rating ",
+          example: "/mai rating 14.0 100.0000%",
+          hint: "Enter chart constant and achievement, e.g. 14.0 100.0000%.",
+          keywords: ["mai", "maimai", "chart", "constant", "achievement"],
         },
       ]
     : []),
-];
+] satisfies SlashCommand[];
+
+function matchesSlashCommand(command: SlashCommand, rawInput: string): boolean {
+  const query = rawInput.trim().replace(/^\/+/, "").toLowerCase();
+  if (!query) return true;
+  return [
+    command.title,
+    command.label,
+    command.description,
+    command.draft,
+    command.example,
+    ...command.keywords,
+  ]
+    .join(" ")
+    .toLowerCase()
+    .includes(query);
+}
 
 function currentTimestampIct(): string {
   const parts = new Intl.DateTimeFormat("en-GB", {
@@ -144,28 +186,36 @@ function dropEmptyStreaming(prev: UiMessage[]): UiMessage[] {
 }
 
 export default function ChatPanel() {
-  const { setChatOpen } = useShellStore();
+  const { chatOpen, setChatOpen } = useShellStore();
   const { showToolCalls } = useSettingsStore();
   const [messages, setMessages] = useState<UiMessage[]>(loadMessages);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [modelLabel, setModelLabel] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const panelRef = useRef<HTMLElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [draft, setDraft] = useState("");
   const [slashIndex, setSlashIndex] = useState(0);
   const [slashDismissed, setSlashDismissed] = useState(false);
+  const [selectedSlashId, setSelectedSlashId] = useState<string | null>(null);
 
   const userMessages = messages.filter((m) => m.role === "user");
+  const selectedSlashCommand =
+    SLASH_COMMANDS.find((command) => command.id === selectedSlashId) ?? null;
   const slashMatches =
     input.startsWith("/") && !slashDismissed
-      ? SLASH_COMMANDS.filter((command) => command.value.startsWith(input.trim()))
+      ? SLASH_COMMANDS.filter((command) => matchesSlashCommand(command, input))
       : [];
   const slashMenuOpen = slashMatches.length > 0;
   const activeSlashCommand = slashMatches[slashIndex] ?? slashMatches[0];
-  const slashInputIsExact = activeSlashCommand?.value === input.trim();
+  const slashInputIsExact = activeSlashCommand?.example === input.trim();
+  const draftHint =
+    selectedSlashCommand && input.startsWith(selectedSlashCommand.draft)
+      ? selectedSlashCommand.hint
+      : null;
 
   useEffect(() => {
     setSlashIndex(0);
@@ -197,6 +247,14 @@ export default function ChatPanel() {
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [setChatOpen]);
+
+  useEffect(() => {
+    if (chatOpen) return;
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement)) return;
+    if (!panelRef.current?.contains(active)) return;
+    document.getElementById("chat-toggle-button")?.focus();
+  }, [chatOpen]);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -289,6 +347,8 @@ export default function ChatPanel() {
       const text = (textOverride ?? input).trim();
       if (!text || busy) return;
       setInput("");
+      setSelectedSlashId(null);
+      setSlashDismissed(false);
       setHistoryIndex(-1);
       setBusy(true);
 
@@ -367,10 +427,16 @@ export default function ChatPanel() {
     [input, busy, messages, handleEvent],
   );
 
-  const applySlashCommand = (value: string) => {
-    setInput(value);
+  const applySlashCommand = (command: SlashCommand) => {
+    const nextInput = input.startsWith(command.draft) ? input : command.draft;
+    const caretPosition = nextInput.length;
+    setInput(nextInput);
+    setSelectedSlashId(command.id);
     setSlashDismissed(true);
-    requestAnimationFrame(() => taRef.current?.focus());
+    requestAnimationFrame(() => {
+      taRef.current?.focus();
+      taRef.current?.setSelectionRange(caretPosition, caretPosition);
+    });
   };
 
   const openSlashCommands = () => {
@@ -378,6 +444,7 @@ export default function ChatPanel() {
       if (!value.trim()) return "/";
       return value.startsWith("/") ? value : value;
     });
+    setSelectedSlashId(null);
     setSlashDismissed(false);
     setSlashIndex(0);
     requestAnimationFrame(() => taRef.current?.focus());
@@ -397,12 +464,12 @@ export default function ChatPanel() {
       }
       if (e.key === "Tab") {
         e.preventDefault();
-        applySlashCommand(activeSlashCommand.value);
+        if (activeSlashCommand) applySlashCommand(activeSlashCommand);
         return;
       }
       if (e.key === "Enter" && !e.shiftKey && !slashInputIsExact) {
         e.preventDefault();
-        applySlashCommand(activeSlashCommand.value);
+        if (activeSlashCommand) applySlashCommand(activeSlashCommand);
         return;
       }
       if (e.key === "Escape") {
@@ -451,9 +518,15 @@ export default function ChatPanel() {
   };
 
   return (
-    <aside className="chat-panel" aria-label="Assistant chat">
+    <aside
+      ref={panelRef}
+      className="chat-panel glass-panel-strong"
+      aria-label="Assistant chat"
+      aria-hidden={chatOpen ? undefined : true}
+      inert={chatOpen ? undefined : true}
+    >
       <ChatResizer />
-      <div className="chat-panel__header">
+      <div className="chat-panel__header glass-scroll-edge">
         <MessageCircle
           size={16}
           style={{ color: "var(--color-accent-hover)" }}
@@ -465,9 +538,10 @@ export default function ChatPanel() {
         </div>
         <button
           type="button"
-          className="chat-panel__close"
+          className="chat-panel__close glass-control glass-control--clear"
           onClick={() => setChatOpen(false)}
           title="Close"
+          aria-label="Close chat"
         >
           <X size={14} />
         </button>
@@ -495,38 +569,50 @@ export default function ChatPanel() {
             role="listbox"
             aria-label="Slash commands"
           >
-            <div className="slash-menu__header">Commands</div>
-            {slashMatches.map((command, index) => (
-              <button
-                key={command.value}
-                id={`slash-command-${index}`}
-                type="button"
-                className="slash-menu__item"
-                data-active={index === slashIndex}
-                role="option"
-                aria-selected={index === slashIndex}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  applySlashCommand(command.value);
-                }}
-              >
-                <span className="slash-menu__main">
-                  <code>{command.value}</code>
-                  <span>{command.description}</span>
-                </span>
-                <span className="slash-menu__badge">{command.label}</span>
-              </button>
-            ))}
+            <div className="slash-menu__header">
+              <span>Choose command</span>
+              <span>editable draft</span>
+            </div>
+            <div className="slash-menu__list">
+              {slashMatches.map((command, index) => (
+                <button
+                  key={command.id}
+                  id={`slash-command-${index}`}
+                  type="button"
+                  className="slash-menu__item"
+                  data-active={index === slashIndex}
+                  role="option"
+                  aria-selected={index === slashIndex}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    applySlashCommand(command);
+                  }}
+                >
+                  <span
+                    className="slash-menu__icon"
+                    data-game={command.label.toLowerCase()}
+                    aria-hidden="true"
+                  >
+                    {command.label === "CHUNITHM" ? "CH" : "M"}
+                  </span>
+                  <span className="slash-menu__main">
+                    <span className="slash-menu__title">{command.title}</span>
+                    <span>{command.description}</span>
+                    <code>{command.example}</code>
+                  </span>
+                </button>
+              ))}
+            </div>
             <div className="slash-menu__footer">
               <kbd>↑</kbd>/<kbd>↓</kbd> move · <kbd>Tab</kbd> select
             </div>
           </div>
         )}
         <GlassComposer className="p-1 px-2 py-1">
-          <div className="flex items-center gap-2">
+          <div className="chat-composer__row">
             <button
               type="button"
-              className="chat-composer__command"
+              className="chat-composer__command glass-control glass-control--clear"
               onClick={openSlashCommands}
               disabled={busy || Boolean(input && !input.startsWith("/"))}
               data-active={slashMenuOpen}
@@ -536,7 +622,9 @@ export default function ChatPanel() {
               aria-label="Open slash commands"
               title="Commands (/)"
             >
-              <SquareSlash size={16} />
+              <span className="chat-composer__command-glyph" aria-hidden="true">
+                /
+              </span>
             </button>
             <textarea
               ref={taRef}
@@ -553,8 +641,17 @@ export default function ChatPanel() {
               }
               value={input}
               onChange={(e) => {
-                setInput(e.target.value);
-                setSlashDismissed(false);
+                const nextInput = e.target.value;
+                setInput(nextInput);
+                if (
+                  selectedSlashCommand &&
+                  nextInput.startsWith(selectedSlashCommand.draft)
+                ) {
+                  setSlashDismissed(true);
+                } else {
+                  setSelectedSlashId(null);
+                  setSlashDismissed(false);
+                }
                 if (historyIndex !== -1) setHistoryIndex(-1);
               }}
               onKeyDown={onKeyDown}
@@ -565,20 +662,23 @@ export default function ChatPanel() {
               disabled={!input.trim() || busy}
               onClick={() => send()}
               title="Send"
-              size="default"
             />
           </div>
         </GlassComposer>
         <div className="chat-composer__hints">
-          <span>
-            <kbd>↑</kbd>/<kbd>↓</kbd> history · <kbd>Enter</kbd> send ·{" "}
-            <kbd>Esc</kbd> close · <kbd>Ctrl</kbd>/<kbd>⌘</kbd>{" "}
-            <kbd>K</kbd> toggle
-          </span>
+          {draftHint ? (
+            <span className="chat-composer__draft-hint">{draftHint}</span>
+          ) : (
+            <span className="chat-composer__shortcut-hints">
+              <kbd>↑</kbd>/<kbd>↓</kbd> history · <kbd>Enter</kbd> send ·{" "}
+              <kbd>Esc</kbd> close · <kbd>Ctrl</kbd>/<kbd>⌘</kbd>{" "}
+              <kbd>K</kbd> toggle
+            </span>
+          )}
           {messages.length > 0 && (
             <button
               type="button"
-              className="chat-composer__clear"
+              className="chat-composer__clear glass-control glass-control--clear"
               onClick={clear}
             >
               clear

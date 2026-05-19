@@ -63,18 +63,10 @@ export function YearDropdown({ value, years, onChange }: YearDropdownProps) {
   };
 
   return (
-    <div
-      ref={wrapperRef}
-      className="relative inline-flex items-center"
-      onKeyDown={handleKeyDown}
-    >
-      {/* Trigger button */}
+    <div ref={wrapperRef} className="year-dropdown" onKeyDown={handleKeyDown}>
       <button
         type="button"
-        className="inline-flex items-center gap-2 bg-elevated border border-border-subtle rounded-xl shadow-card
-                   px-4 py-2.5 text-base font-bold text-foreground cursor-pointer
-                   transition-all duration-150 hover:bg-surface hover:border-border
-                   focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+        className="year-dropdown__trigger"
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -86,12 +78,8 @@ export function YearDropdown({ value, years, onChange }: YearDropdownProps) {
         />
       </button>
 
-      {/* Options panel */}
       {open && (
-        <div
-          className="absolute top-full left-0 mt-2 z-50 min-w-full bg-elevated border border-border-subtle
-                     rounded-xl shadow-elevated overflow-hidden"
-        >
+        <div className="year-dropdown__menu">
           <ul
             ref={listRef}
             role="listbox"
@@ -103,15 +91,9 @@ export function YearDropdown({ value, years, onChange }: YearDropdownProps) {
                 key={year}
                 role="option"
                 aria-selected={year === value}
-                className={`
-                  flex items-center justify-between px-4 py-2 cursor-pointer text-sm select-none
-                  transition-colors duration-100
-                  ${year === value
-                    ? "bg-accent-soft text-accent-hover font-semibold"
-                    : "text-foreground hover:bg-surface"
-                  }
-                  ${focused === i ? "bg-surface" : ""}
-                `}
+                className={`year-dropdown__item ${year === value ? "year-dropdown__item--selected" : ""} ${
+                  focused === i ? "year-dropdown__item--focused" : ""
+                }`}
                 onMouseEnter={() => setFocused(i)}
                 onMouseLeave={() => setFocused(-1)}
                 onClick={() => {
@@ -121,7 +103,9 @@ export function YearDropdown({ value, years, onChange }: YearDropdownProps) {
                 }}
               >
                 <span>{year}</span>
-                {year === value && <Check size={12} className="text-accent-hover" />}
+                {year === value && (
+                  <Check size={12} className="text-accent-hover" />
+                )}
               </li>
             ))}
           </ul>

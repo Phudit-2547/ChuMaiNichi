@@ -34,46 +34,101 @@ export default function Header({
   return (
     <header className="app-header">
       <div className="app-header__brand">
-        <span className="app-header__logo" />
+        <svg
+          className="app-header__logo"
+          viewBox="0 0 100 100"
+          xmlns="http://www.w3.org/2000/svg"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <defs>
+            <linearGradient
+              id="app-header-logo-gradient"
+              x1="12"
+              y1="12"
+              x2="88"
+              y2="88"
+              gradientUnits="userSpaceOnUse"
+            >
+              <stop offset="0%" stopColor="var(--color-maimai)" />
+              <stop offset="52%" stopColor="var(--color-accent-hover)" />
+              <stop offset="100%" stopColor="var(--color-chunithm)" />
+            </linearGradient>
+          </defs>
+          <path
+            id="app-header-logo-circle"
+            className="app-header__logo-text-path"
+            d="M 50, 50 m -43, 0 a 43,43 0 1,1 86,0 a 43,43 0 1,1 -86,0"
+          />
+          <path
+            className="app-header__logo-orbit app-header__logo-orbit--back"
+            d="M 50, 50 m -38, 0 a 38,38 0 1,1 76,0 a 38,38 0 1,1 -76,0"
+          />
+          <path
+            className="app-header__logo-orbit"
+            d="M 50, 50 m -38, 0 a 38,38 0 1,1 76,0 a 38,38 0 1,1 -76,0"
+          />
+          <g className="app-header__logo-sparks">
+            <circle
+              className="app-header__logo-spark app-header__logo-spark--maimai"
+              cx="73"
+              cy="30"
+              r="5.5"
+            />
+            <circle
+              className="app-header__logo-spark app-header__logo-spark--chunithm"
+              cx="27"
+              cy="70"
+              r="4.5"
+            />
+          </g>
+          <text className="app-header__logo-text">
+            <textPath href="#app-header-logo-circle" startOffset="0%">
+              CHUMAINICHI / MAIMAI / CHUNITHM /
+            </textPath>
+          </text>
+        </svg>
         ChuMaiNichi
-        <span className="app-header__sub">/ dashboard</span>
       </div>
       <div className="app-header__spacer" />
-      <button
-        type="button"
-        className="text-btn text-btn--refresh"
-        onClick={onRefresh}
-        disabled={refreshing}
-        title={statusLabel}
-        aria-label={statusLabel}
-      >
-        <RotateCw size={16} className={refreshing ? "icon-spin" : ""} />
-        <span className="text-btn__label">{statusLabel}</span>
-      </button>
-      <button
-        type="button"
-        className="icon-btn"
-        title="Settings"
-        onClick={onOpenSettings}
-      >
-        <Settings size={18} />
-      </button>
-      <button
-        type="button"
-        className="icon-btn icon-btn--chat"
-        title="Toggle chat (Ctrl/Cmd+K)"
-        aria-label={chatOpen ? "Close chat" : "Open chat"}
-        aria-pressed={chatOpen}
-        aria-keyshortcuts="Control+K Meta+K"
-        onClick={toggleChat}
-      >
-        <MessageCircle size={18} />
-        {!chatOpen && (
-          <span className="icon-btn__shortcut" aria-hidden="true">
-            Ctrl/⌘ K
-          </span>
-        )}
-      </button>
+      <div className="app-header__actions">
+        <button
+          type="button"
+          className={`text-btn text-btn--refresh glass-control glass-control--primary ${refreshing ? "glass-control--active" : ""}`}
+          onClick={onRefresh}
+          disabled={refreshing}
+          title={statusLabel}
+          aria-label={statusLabel}
+        >
+          <RotateCw size={16} className={refreshing ? "icon-spin" : ""} />
+          <span className="text-btn__label">{statusLabel}</span>
+        </button>
+        <button
+          type="button"
+          className="icon-btn glass-control glass-control--clear"
+          title="Settings"
+          onClick={onOpenSettings}
+        >
+          <Settings size={18} />
+        </button>
+        <button
+          id="chat-toggle-button"
+          type="button"
+          className={`icon-btn icon-btn--chat glass-control glass-control--clear ${chatOpen ? "glass-control--active" : ""}`}
+          title="Toggle chat (Ctrl/Cmd+K)"
+          aria-label={chatOpen ? "Close chat" : "Open chat"}
+          aria-pressed={chatOpen}
+          aria-keyshortcuts="Control+K Meta+K"
+          onClick={toggleChat}
+        >
+          <MessageCircle size={18} />
+          {!chatOpen && (
+            <span className="icon-btn__shortcut" aria-hidden="true">
+              Ctrl/⌘ K
+            </span>
+          )}
+        </button>
+      </div>
     </header>
   );
 }
