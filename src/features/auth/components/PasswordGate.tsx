@@ -86,7 +86,7 @@ export default function PasswordGate({ onAuthenticated }: Props) {
           type="submit"
           disabled={loading || !value}
           className="py-2 px-4 rounded-md bg-accent text-white text-sm font-medium
-                     hover:bg-accent-hover active:bg-[#7232d9]
+                     hover:bg-accent-hover active:brightness-90
                      disabled:opacity-50 disabled:cursor-not-allowed
                      focus:outline-none focus:ring-2 focus:ring-accent/30
                      transition-colors duration-150"

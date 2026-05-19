@@ -21,7 +21,7 @@ function clampWidth(w: number): number {
 const useShellStore = create<ShellState>()(
   persist(
     (set, get) => ({
-      chatOpen: true,
+      chatOpen: false,
       chatWidth: CHAT_WIDTH_DEFAULT,
       setChatOpen: (chatOpen) => set({ chatOpen }),
       toggleChat: () => set({ chatOpen: !get().chatOpen }),

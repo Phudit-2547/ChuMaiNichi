@@ -110,7 +110,7 @@ export default function Heatmap({
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-2 mb-4">
+      <div className="heatmap-toolbar flex flex-wrap items-center gap-2 mb-4">
         <label className="text-sm text-secondary-foreground">Year</label>
         <YearDropdown
           value={selectedYear}
@@ -136,14 +136,14 @@ export default function Heatmap({
 
       {!loading && error && (
         <div
-          className="p-6 border border-border rounded-lg text-center text-secondary-foreground"
+          className="content-panel p-6 border border-border rounded-lg text-center text-secondary-foreground"
           role="alert"
         >
           <p className="m-0 mb-3">{error}</p>
           <button
-            className="bg-elevated text-foreground border border-border rounded px-4 py-1.5 text-sm cursor-pointer
-                       hover:border-accent focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30
-                       active:bg-surface transition-colors duration-150"
+            className="glass-control glass-control--primary px-4 py-1.5 text-sm cursor-pointer
+                       focus:outline-none focus:ring-2 focus:ring-accent/30
+                       transition-colors duration-150"
             onClick={() => loadData(selectedYear, true)}
           >
             Retry
@@ -154,17 +154,23 @@ export default function Heatmap({
       {!loading &&
         !error &&
         games.map((game) => (
-          <div key={game} className="mb-8">
-            <h2
-              className="text-lg font-semibold m-0 mb-2 pl-2 border-l-[3px]"
-              style={{ borderLeftColor: GAME_ACCENT[game] }}
-            >
-              {game === "maimai" ? "maimai" : "CHUNITHM"}
+          <div key={game} className="game-section mb-8">
+            <h2 className="game-heading">
+              <span
+                className="game-heading__mark"
+                style={{ backgroundColor: GAME_ACCENT[game] }}
+                aria-hidden="true"
+              />
+              <span>{game === "maimai" ? "maimai" : "CHUNITHM"}</span>
             </h2>
             {data.length > 0 ? (
-              <GameHeatmap game={game} data={data} year={selectedYear} />
+              <GameHeatmap
+                game={game}
+                data={data}
+                year={selectedYear}
+              />
             ) : (
-              <div className="p-8 text-center text-muted-foreground border border-border rounded-lg">
+              <div className="heatmap-empty content-panel p-8 text-center text-muted-foreground border border-border rounded-lg">
                 <p className="m-0">No plays recorded in {selectedYear}</p>
                 <p className="mt-2 text-xs m-0">
                   Plays appear automatically after each arcade session is

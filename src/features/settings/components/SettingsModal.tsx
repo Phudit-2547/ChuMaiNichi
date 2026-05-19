@@ -1,8 +1,15 @@
-import { useEffect } from "react";
-import { Settings as Gear, X } from "lucide-react";
-import useSettingsStore from "../stores/settings-store";
+import { MonitorCog, Moon, Settings as Gear, Sun, X } from "lucide-react";
+import type { ReactNode } from "react";
+import useSettingsStore, { type ThemeMode } from "../stores/settings-store";
 import useAuthStore from "@/features/auth/stores/auth-store";
 import { APP_CONFIG } from "@/global/lib/config";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/global/components/ui/dialog";
 
 interface SettingsModalProps {
   open: boolean;
@@ -14,22 +21,13 @@ export default function SettingsModal({
   onOpenChange,
 }: SettingsModalProps) {
   const {
+    themeMode,
     autoOpenChat,
     showToolCalls,
+    setThemeMode,
     setAutoOpenChat,
     setShowToolCalls,
   } = useSettingsStore();
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onOpenChange(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onOpenChange]);
-
-  if (!open) return null;
 
   const handleSignOut = () => {
     if (!confirm("Sign out of the dashboard?")) return;
@@ -38,28 +36,42 @@ export default function SettingsModal({
   };
 
   return (
-    <div className="modal-backdrop" onClick={() => onOpenChange(false)}>
-      <div
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Settings"
-        onClick={(e) => e.stopPropagation()}
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="modal glass-modal gap-0 p-0 sm:max-w-none"
+        showCloseButton={false}
       >
         <div className="modal-head">
           <Gear size={16} style={{ color: "var(--color-accent-hover)" }} />
-          <h2>Settings</h2>
-          <button
-            type="button"
-            className="modal-close"
-            onClick={() => onOpenChange(false)}
-            title="Close"
-          >
-            <X size={14} />
-          </button>
+          <DialogTitle asChild>
+            <h2>Settings</h2>
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Configure assistant display and dashboard session preferences.
+          </DialogDescription>
+          <DialogClose asChild>
+            <button
+              type="button"
+              className="modal-close glass-control glass-control--clear"
+              title="Close"
+              aria-label="Close settings"
+            >
+              <X size={14} />
+            </button>
+          </DialogClose>
         </div>
 
         <div className="modal-body">
+          <section className="modal-section">
+            <h3>Appearance</h3>
+            <Row label="Theme" sub="Auto follows system">
+              <ThemeSegmentedControl
+                value={themeMode}
+                onChange={setThemeMode}
+              />
+            </Row>
+          </section>
+
           <section className="modal-section">
             <h3>Assistant</h3>
             <Row
@@ -107,7 +119,44 @@ export default function SettingsModal({
             sign out
           </button>
         </div>
-      </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+const THEME_OPTIONS: Array<{
+  value: ThemeMode;
+  label: string;
+  icon: ReactNode;
+}> = [
+  { value: "auto", label: "Auto", icon: <MonitorCog size={13} /> },
+  { value: "light", label: "Light", icon: <Sun size={13} /> },
+  { value: "dark", label: "Dark", icon: <Moon size={13} /> },
+];
+
+function ThemeSegmentedControl({
+  value,
+  onChange,
+}: {
+  value: ThemeMode;
+  onChange: (v: ThemeMode) => void;
+}) {
+  return (
+    <div className="segmented" role="radiogroup" aria-label="Theme">
+      {THEME_OPTIONS.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="radio"
+          aria-checked={value === option.value}
+          className="segmented__option glass-control glass-control--clear"
+          data-active={value === option.value ? "true" : undefined}
+          onClick={() => onChange(option.value)}
+        >
+          {option.icon}
+          <span>{option.label}</span>
+        </button>
+      ))}
     </div>
   );
 }
@@ -119,7 +168,7 @@ function Row({
 }: {
   label: string;
   sub?: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="row">
@@ -144,7 +193,7 @@ function Toggle({
   return (
     <button
       type="button"
-      className="toggle"
+      className={`toggle glass-control glass-control--clear ${pressed ? "glass-control--active" : ""}`}
       aria-pressed={pressed}
       aria-label={label}
       onClick={() => onChange(!pressed)}

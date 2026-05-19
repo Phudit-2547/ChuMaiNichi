@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { DailyRow, Game } from "../types/types";
 import CalHeatmap from "cal-heatmap";
-import { computeStats } from "../lib/stats";
-import { COLORS, PLAY_KEY, RATING_KEY } from "../lib/constants";
+import { computeStats, toDateStr } from "../lib/stats";
+import { HEATMAP_COLORS, PLAY_KEY, RATING_KEY } from "../lib/constants";
 import Tooltip from "cal-heatmap/plugins/Tooltip";
 import CalendarLabel from "cal-heatmap/plugins/CalendarLabel";
 import { trimOverflow } from "../lib/trim-overflow";
@@ -10,6 +10,37 @@ import { StatsBar } from "./StatsBar";
 import { Legend } from "./Legend";
 
 const CELL_SIZE = 15;
+
+function formatCellText({
+  dateKey,
+  formattedDate,
+  value,
+  recordedDates,
+  ratingLookup,
+  ratingSeparator,
+  todayKey,
+}: {
+  dateKey: string;
+  formattedDate: string;
+  value: number | null | undefined;
+  recordedDates: Set<string>;
+  ratingLookup: Record<string, number>;
+  ratingSeparator: string;
+  todayKey: string;
+}) {
+  if (!recordedDates.has(dateKey)) {
+    return dateKey > todayKey
+      ? `Not recorded yet: ${formattedDate}`
+      : `No record for ${formattedDate}`;
+  }
+
+  const count = value ?? 0;
+  const label = count === 1 ? "play" : "plays";
+  const rating = ratingLookup[dateKey];
+  let line = `${count} ${label} on ${formattedDate}`;
+  if (rating != null) line += `${ratingSeparator}Rating: ${rating.toFixed(2)}`;
+  return line;
+}
 
 export function GameHeatmap({
   game,
@@ -31,17 +62,19 @@ export function GameHeatmap({
 
   useEffect(() => {
     if (!containerRef.current) return;
-
+    const container = containerRef.current;
     const wrapper = document.createElement("div");
     wrapper.style.position = "absolute";
     wrapper.style.visibility = "hidden";
-    containerRef.current.appendChild(wrapper);
+    container.appendChild(wrapper);
 
     const gameData = data.map((d) => ({
       date: d.play_date,
       value: d[PLAY_KEY[game]] as number,
     }));
 
+    const recordedDates = new Set(data.map((d) => d.play_date));
+    const todayKey = toDateStr(new Date());
     const ratingLookup: Record<string, number> = {};
     for (const d of data) {
       const r = d[RATING_KEY[game]];
@@ -87,11 +120,11 @@ export function GameHeatmap({
           scale: {
             color: {
               type: "threshold",
-              range: COLORS[game],
+              range: HEATMAP_COLORS[game],
               domain: [1, 2, 3, 5],
             },
           },
-          theme: "dark",
+          theme: "light",
         },
         [
           [
@@ -102,13 +135,16 @@ export function GameHeatmap({
                 value: number | null,
                 dayjsDate: { format: (f: string) => string },
               ) => {
-                const count = value ?? 0;
-                const label = count === 1 ? "play" : "plays";
                 const dateKey = dayjsDate.format("YYYY-MM-DD");
-                const rating = ratingLookup[dateKey];
-                let line = `${count} ${label} on ${dayjsDate.format("MMM D, YYYY")}`;
-                if (rating != null) line += `\nRating: ${rating.toFixed(2)}`;
-                return line;
+                return formatCellText({
+                  dateKey,
+                  formattedDate: dayjsDate.format("MMM D, YYYY"),
+                  value,
+                  recordedDates,
+                  ratingLookup,
+                  ratingSeparator: "\n",
+                  todayKey,
+                });
               },
             },
           ],
@@ -150,19 +186,24 @@ export function GameHeatmap({
       if (!datum?.t) return;
 
       const dateObj = new Date(datum.t);
-      const dateKey = dateObj.toISOString().slice(0, 10);
+      const dateKey = toDateStr(dateObj);
       const formatted = dateObj.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
         year: "numeric",
       });
 
-      const count = datum.v ?? 0;
-      const lbl = count === 1 ? "play" : "plays";
-      const rating = ratingLookup[dateKey];
-      let text = `${count} ${lbl} on ${formatted}`;
-      if (rating != null) text += ` · Rating: ${rating.toFixed(2)}`;
-      setTapInfo(text);
+      setTapInfo(
+        formatCellText({
+          dateKey,
+          formattedDate: formatted,
+          value: datum.v,
+          recordedDates,
+          ratingLookup,
+          ratingSeparator: " · ",
+          todayKey,
+        }),
+      );
     };
 
     wrapper.addEventListener("click", handleClick);
@@ -178,17 +219,12 @@ export function GameHeatmap({
 
   return (
     <div
-      className="w-full max-w-[1100px] rounded-2xl px-4 pt-3 pb-2"
-      style={{
-        background:
-          game === "maimai"
-            ? "rgba(255, 105, 170, 0.04)"
-            : "rgba(61, 103, 227, 0.04)",
-      }}
+      className="content-panel w-full max-w-[1100px] rounded-2xl px-4 pt-3 pb-2"
     >
       <StatsBar stats={stats} year={year} game={game} />
       <div className="relative overflow-x-auto scrollbar-thin">
         <div
+          className="heatmap-figure"
           ref={containerRef}
           role="figure"
           aria-label={`${gameName} play activity heatmap for ${year}`}

@@ -1,8 +1,8 @@
-import { COLORS } from "../lib/constants";
+import { HEATMAP_COLORS } from "../lib/constants";
 import type { Game } from "../types/types";
 
 export function Legend({ game }: { game: Game }) {
-  const colors = COLORS[game];
+  const colors = HEATMAP_COLORS[game];
   return (
     <div
       className="flex items-center gap-[3px] text-xs text-secondary-foreground ml-auto"

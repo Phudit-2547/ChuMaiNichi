@@ -1,11 +1,36 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-  <rect x="2" y="2" width="8" height="8" rx="2" fill="#4a2080"/>
-  <rect x="12" y="2" width="8" height="8" rx="2" fill="#863bff"/>
-  <rect x="22" y="2" width="8" height="8" rx="2" fill="#9d5fff"/>
-  <rect x="2" y="12" width="8" height="8" rx="2" fill="#1c2128"/>
-  <rect x="12" y="12" width="8" height="8" rx="2" fill="#4a2080"/>
-  <rect x="22" y="12" width="8" height="8" rx="2" fill="#863bff"/>
-  <rect x="2" y="22" width="8" height="8" rx="2" fill="#863bff"/>
-  <rect x="12" y="22" width="8" height="8" rx="2" fill="#9d5fff"/>
-  <rect x="22" y="22" width="8" height="8" rx="2" fill="#4a2080"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 100 100" role="img" aria-label="ChuMaiNichi">
+  <defs>
+    <linearGradient id="mark-gradient" x1="12" y1="12" x2="88" y2="88" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ff69aa"/>
+      <stop offset="52%" stop-color="#863bff"/>
+      <stop offset="100%" stop-color="#3d67e3"/>
+    </linearGradient>
+    <radialGradient id="mark-core" cx="42" cy="34" r="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#fbfbff" stop-opacity="0.92"/>
+      <stop offset="62%" stop-color="#edf1f8" stop-opacity="0.72"/>
+      <stop offset="100%" stop-color="#d7dde8" stop-opacity="0.82"/>
+    </radialGradient>
+    <filter id="mark-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#141821" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+  <g filter="url(#mark-shadow)">
+    <circle cx="50" cy="50" r="24" fill="url(#mark-core)" stroke="#ffffff" stroke-opacity="0.58" stroke-width="1.4"/>
+    <path
+      d="M 50, 50 m -38, 0 a 38,38 0 1,1 76,0 a 38,38 0 1,1 -76,0"
+      fill="none"
+      stroke="#ffffff"
+      stroke-opacity="0.5"
+      stroke-width="12"
+    />
+    <path
+      d="M 50, 50 m -38, 0 a 38,38 0 1,1 76,0 a 38,38 0 1,1 -76,0"
+      fill="none"
+      stroke="url(#mark-gradient)"
+      stroke-linecap="round"
+      stroke-width="9.5"
+    />
+    <circle cx="73" cy="30" r="5.5" fill="#ff69aa" stroke="#f8f7ff" stroke-opacity="0.82" stroke-width="1.4"/>
+    <circle cx="27" cy="70" r="4.5" fill="#3d67e3" stroke="#f8f7ff" stroke-opacity="0.82" stroke-width="1.4"/>
+  </g>
 </svg>
