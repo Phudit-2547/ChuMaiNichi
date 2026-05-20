@@ -84,19 +84,17 @@ export default function Heatmap({
       setData([]);
       const raw = err instanceof Error ? err.message : "";
       if (raw.includes("unauthorized")) {
-        setError("Session expired. Reload the page, sign in, then retry.");
+        setError("Session expired. Reload, sign in, and retry.");
       } else if (
         raw.includes("fetch") ||
         raw.includes("network") ||
         raw.includes("Failed to fetch")
       ) {
         setError(
-          "Couldn't reach the dashboard API. Check your connection, then retry.",
+          "Dashboard API unreachable. Check your connection, then retry.",
         );
       } else {
-        setError(
-          "Play data couldn't load. Retry; your saved scores are unchanged.",
-        );
+        setError("Play data did not load. Saved scores are unchanged.");
       }
     } finally {
       if (!controller.signal.aborted) setLoading(false);
@@ -117,7 +115,7 @@ export default function Heatmap({
     : null;
   const updateStatusText = lastUpdatedLabel
     ? isStale
-      ? `Last update ${lastUpdatedLabel}. Refresh scores to check for new sessions.`
+      ? `Last update ${lastUpdatedLabel}. Refresh to check for new sessions.`
       : `Last updated ${lastUpdatedLabel}`
     : null;
 
@@ -142,7 +140,7 @@ export default function Heatmap({
       </div>
 
       {loading && (
-        <div className="flex flex-col gap-8" aria-label="Loading heatmap data">
+        <div className="flex flex-col gap-8" aria-label="Loading play data">
           {games.map((game) => (
             <HeatmapSkeletonBlock key={game} />
           ))}
@@ -156,12 +154,13 @@ export default function Heatmap({
         >
           <p className="m-0 mb-3">{error}</p>
           <button
+            type="button"
             className="glass-control glass-control--primary px-4 py-1.5 text-sm cursor-pointer
                        focus:outline-none focus:ring-2 focus:ring-accent/30
                        transition-colors duration-150"
             onClick={() => loadData(selectedYear, true)}
           >
-            Retry loading
+            Retry
           </button>
         </div>
       )}
@@ -186,11 +185,10 @@ export default function Heatmap({
               />
             ) : (
               <div className="heatmap-empty content-panel p-8 text-center text-muted-foreground border border-border rounded-lg">
-                <p className="m-0">No plays recorded in {selectedYear}</p>
+                <p className="m-0">No plays in {selectedYear}</p>
                 <p className="mt-2 text-xs m-0">
-                  Choose another year, or use Refresh scores after your first
-                  scrape finishes. Future sessions will appear here
-                  automatically.
+                  Choose another year, or refresh after the first scrape
+                  finishes.
                 </p>
               </div>
             )}

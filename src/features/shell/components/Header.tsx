@@ -16,6 +16,17 @@ export default function Header({
 }: HeaderProps) {
   const { chatOpen, toggleChat } = useShellStore();
 
+  const refreshState =
+    refreshStatus === "queued" ||
+    refreshStatus === "in_progress" ||
+    refreshStatus === "syncing" ||
+    refreshStatus === "completed" ||
+    refreshStatus === "failed"
+      ? refreshStatus
+      : refreshing
+        ? "working"
+        : "idle";
+
   const refreshCopy =
     refreshStatus === "queued"
       ? {
@@ -51,6 +62,9 @@ export default function Header({
                     label: "Refresh",
                     title: "Refresh scores",
                   };
+  const assistantTitle = chatOpen
+    ? "Close Assistant (Ctrl/Cmd+K)"
+    : "Open Assistant (Ctrl/Cmd+K)";
 
   return (
     <header className="app-header">
@@ -112,43 +126,52 @@ export default function Header({
         ChuMaiNichi
       </div>
       <div className="app-header__spacer" />
-      <div className="app-header__actions">
+      <div className="app-header__actions" data-header-actions="score-controls">
         <button
           type="button"
-          className={`text-btn text-btn--refresh glass-control glass-control--primary ${refreshing ? "glass-control--active" : ""}`}
+          className={`app-header__action app-header__action--primary app-header__action--refresh text-btn text-btn--refresh glass-control glass-control--primary ${refreshing ? "glass-control--active" : ""}`}
           onClick={onRefresh}
           disabled={refreshing}
           title={refreshCopy.title}
           aria-label={refreshCopy.title}
           aria-busy={refreshing}
+          data-header-action="refresh"
+          data-priority="primary"
+          data-state={refreshState}
         >
           <RotateCw size={16} className={refreshing ? "icon-spin" : ""} />
-          <span className="text-btn__label" aria-live="polite">
+          <span className="text-btn__label text-btn__label--primary" aria-live="polite">
             {refreshCopy.label}
           </span>
         </button>
         <button
           type="button"
-          className="icon-btn glass-control glass-control--clear"
-          title="Open settings"
+          className="app-header__action app-header__action--quiet app-header__action--settings icon-btn glass-control glass-control--clear"
+          title="Settings"
           aria-label="Open settings"
           onClick={onOpenSettings}
+          data-header-action="settings"
+          data-priority="tertiary"
+          data-state="idle"
         >
           <Settings size={18} />
         </button>
         <button
           id="chat-toggle-button"
           type="button"
-          className={`icon-btn icon-btn--chat glass-control glass-control--clear ${chatOpen ? "glass-control--active" : ""}`}
-          title="Assistant (Ctrl/Cmd+K)"
+          className={`app-header__action app-header__action--stateful app-header__action--assistant icon-btn icon-btn--chat glass-control glass-control--clear ${chatOpen ? "glass-control--active" : ""}`}
+          title={assistantTitle}
           aria-label={chatOpen ? "Close Assistant" : "Open Assistant"}
           aria-pressed={chatOpen}
           aria-keyshortcuts="Control+K Meta+K"
           onClick={toggleChat}
+          data-header-action="assistant"
+          data-priority="secondary"
+          data-state={chatOpen ? "open" : "closed"}
         >
           <MessageCircle size={18} />
           {!chatOpen && (
-            <span className="icon-btn__shortcut" aria-hidden="true">
+            <span className="icon-btn__shortcut icon-btn__shortcut--desktop" aria-hidden="true">
               Ctrl/⌘ K
             </span>
           )}

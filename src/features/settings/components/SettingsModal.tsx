@@ -53,7 +53,7 @@ export default function SettingsModal({
             <h2>Settings</h2>
           </DialogTitle>
           <DialogDescription className="sr-only">
-            Change display preferences and review dashboard setup values.
+            Tune display preferences and review dashboard config.
           </DialogDescription>
           <DialogClose asChild>
             <button
@@ -70,7 +70,7 @@ export default function SettingsModal({
         <div className="modal-body">
           <section className="modal-section">
             <h3>Appearance</h3>
-            <Row label="Theme" sub="Auto follows your device">
+            <Row label="Theme" sub="Auto follows system">
               <ThemeSegmentedControl
                 value={themeMode}
                 onChange={setThemeMode}
@@ -81,23 +81,23 @@ export default function SettingsModal({
           <section className="modal-section">
             <h3>Assistant</h3>
             <Row
-              label="Open assistant on visit"
-              sub="Show the assistant panel when the dashboard opens"
+              label="Open Assistant on visit"
+              sub="Show Assistant when the dashboard opens"
             >
               <Toggle
                 pressed={autoOpenChat}
                 onChange={setAutoOpenChat}
-                label="Open assistant on visit"
+                label="Open Assistant on visit"
               />
             </Row>
             <Row
-              label="Show assistant work"
-              sub="Display SQL and song-suggestion steps while it answers"
+              label="Show Assistant work"
+              sub="Show data checks and song-pick steps"
             >
               <Toggle
                 pressed={showToolCalls}
                 onChange={setShowToolCalls}
-                label="Show assistant work"
+                label="Show Assistant work"
               />
             </Row>
           </section>
@@ -106,11 +106,11 @@ export default function SettingsModal({
             <h3>Data</h3>
             <Row
               label="Cost per play"
-              sub="Configured in config.json; redeploy to change"
+              sub="Set in config.json. Redeploy to change."
             >
               <span className="row-value">฿{APP_CONFIG.currency_per_play}</span>
             </Row>
-            <Row label="Games" sub="Configured in config.json; redeploy to change">
+            <Row label="Games" sub="Set in config.json. Redeploy to change.">
               <div className="row-badges">
                 {APP_CONFIG.games.map((g) => (
                   <span key={g} className="game-badge" data-game={g}>
@@ -127,8 +127,7 @@ export default function SettingsModal({
             <div>
               <strong>Sign out?</strong>
               <p>
-                Your saved dashboard password will be removed from this
-                browser.
+                Remove the saved dashboard password from this browser.
               </p>
             </div>
             <div className="modal-confirm__actions">
@@ -150,7 +149,7 @@ export default function SettingsModal({
           </div>
         ) : (
           <div className="modal-footer">
-            <span>Saved in this browser</span>
+            <span>Settings saved in this browser</span>
             <button
               type="button"
               className="link-btn"

@@ -38,7 +38,7 @@ export default function PasswordGate({ onAuthenticated }: Props) {
         const detail = import.meta.env.DEV ? rawDetail : null;
         switch (errorCode) {
           case "INVALID_CREDENTIALS": {
-            setError("Password didn't match. Try again.");
+            setError("Password does not match. Try again.");
             break;
           }
           case "INTERNAL_ERROR": {
@@ -50,12 +50,12 @@ export default function PasswordGate({ onAuthenticated }: Props) {
             break;
           }
           case "NETWORK_ERROR": {
-            setError("Connection failed. Check your internet, then try again.");
+            setError("Connection failed. Check your connection, then retry.");
             break;
           }
           case "UNKNOWN_ERROR": {
             setError(
-              detail ? `Error: ${detail}` : "Unexpected sign-in error. Try again.",
+              detail ? `Error: ${detail}` : "Unexpected sign-in error. Retry.",
             );
             break;
           }
