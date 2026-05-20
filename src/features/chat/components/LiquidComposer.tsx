@@ -14,7 +14,7 @@ export function GlassComposer({
   return (
     <div
       className={cn(
-        "chat-composer__box relative overflow-hidden text-foreground",
+        "chat-composer__box chat-composer__frame relative overflow-hidden",
         className,
       )}
     >
@@ -34,7 +34,7 @@ export function GlassSendButton({
     <button
       type="button"
       className={cn(
-        "chat-composer__send glass-control glass-control--primary relative overflow-hidden",
+        "chat-composer__send chat-composer__send--quiet relative overflow-hidden",
         "h-8 w-8",
         className,
       )}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import { MessageCircle, Square, Trash2, X } from "lucide-react";
 import useShellStore from "@/features/shell/stores/shell-store";
 import useSettingsStore from "@/features/settings/stores/settings-store";
@@ -542,7 +543,16 @@ export default function ChatPanel() {
   return (
     <aside
       ref={panelRef}
-      className="chat-panel glass-panel-strong"
+      className="chat-panel chat-panel--assistant"
+      data-open={chatOpen ? "true" : "false"}
+      style={
+        {
+          left: chatOpen ? "0px" : "100vw",
+          opacity: chatOpen ? 1 : 0,
+          visibility: chatOpen ? "visible" : "hidden",
+          "--chat-panel-mobile-left": chatOpen ? "0px" : "100vw",
+        } as CSSProperties
+      }
       aria-label="Assistant chat"
       aria-hidden={chatOpen ? undefined : true}
       inert={chatOpen ? undefined : true}
@@ -550,14 +560,16 @@ export default function ChatPanel() {
       <ChatResizer />
       <div className="chat-panel__header">
         <MessageCircle
+          className="chat-panel__icon"
           size={16}
-          style={{ color: "var(--color-accent-hover)" }}
+          style={{ color: "var(--color-text-muted)" }}
         />
         <div className="chat-panel__title">Assistant</div>
         <div
           className="chat-panel__sub"
           title={modelStatusDescription}
           aria-label={modelStatusDescription}
+          aria-live="polite"
         >
           {modelLabel ? (
             <span className="chat-panel__status-dot" aria-hidden="true" />
@@ -567,7 +579,7 @@ export default function ChatPanel() {
         {messages.length > 0 && (
           <button
             type="button"
-            className="chat-panel__close glass-control glass-control--clear"
+            className="chat-panel__close chat-panel__action chat-panel__action--clear"
             onClick={clear}
             title="Clear conversation"
             aria-label="Clear Assistant conversation"
@@ -577,7 +589,7 @@ export default function ChatPanel() {
         )}
         <button
           type="button"
-          className="chat-panel__close glass-control glass-control--clear"
+          className="chat-panel__close chat-panel__action chat-panel__action--close"
           onClick={() => setChatOpen(false)}
           title="Close"
           aria-label="Close Assistant"
@@ -647,11 +659,11 @@ export default function ChatPanel() {
             </div>
           </div>
         )}
-        <GlassComposer className="p-1 px-2 py-1">
+        <GlassComposer className="chat-composer__surface">
           <div className="chat-composer__row">
             <button
               type="button"
-              className="chat-composer__command glass-control glass-control--clear"
+              className="chat-composer__command chat-composer__command--slash"
               onClick={openSlashCommands}
               disabled={busy || Boolean(input && !input.startsWith("/"))}
               data-active={slashMenuOpen}
@@ -670,7 +682,7 @@ export default function ChatPanel() {
               className="chat-composer__input flex-1 bg-transparent border-none outline-none text-foreground
                          placeholder:text-muted-foreground resize-none min-h-[22px] max-h-[140px]
                          py-1 px-1 scrollbar-thin"
-              placeholder="Ask about your play history, rating, or song picks…"
+              placeholder="Ask about plays, rating, or song picks…"
               aria-expanded={slashMenuOpen}
               aria-haspopup="listbox"
               aria-autocomplete="list"
@@ -713,9 +725,8 @@ export default function ChatPanel() {
             <span className="chat-composer__draft-hint">{draftHint}</span>
           ) : (
             <span className="chat-composer__shortcut-hints">
-              <kbd>↑</kbd>/<kbd>↓</kbd> history · <kbd>Enter</kbd> send ·{" "}
-              <kbd>Esc</kbd> close · <kbd>Ctrl</kbd>/<kbd>⌘</kbd>{" "}
-              <kbd>K</kbd> toggle
+              <kbd>Enter</kbd> send · <kbd>↑</kbd> history · <kbd>/</kbd>{" "}
+              commands
             </span>
           )}
         </div>
@@ -727,8 +738,8 @@ export default function ChatPanel() {
 function MessageRow({ m }: { m: UiMessage }) {
   if (m.role === "user") {
     return (
-      <div className="chat-msg chat-msg--user">
-        <div className="chat-msg__role">you</div>
+      <div className="chat-msg chat-msg--user" data-message-role="user">
+        <div className="chat-msg__role">You</div>
         <div className="chat-msg__body">{m.content}</div>
       </div>
     );
@@ -737,12 +748,23 @@ function MessageRow({ m }: { m: UiMessage }) {
     return <ToolCall name={m.name} result={m.result} />;
   }
   if (m.role === "error") {
-    return <div className="chat-err">{m.content}</div>;
+    return (
+      <div className="chat-err" data-message-role="error">
+        {m.content}
+      </div>
+    );
   }
   return (
-    <div className="chat-msg chat-msg--assistant">
-      <div className="chat-msg__role">chumai</div>
-      <div className="chat-msg__body">
+    <div
+      className="chat-msg chat-msg--assistant"
+      data-message-role="assistant"
+      data-streaming={m.streaming ? "true" : undefined}
+    >
+      <div className="chat-msg__role">Assistant</div>
+      <div
+        className="chat-msg__body"
+        aria-live={m.streaming ? "polite" : undefined}
+      >
         {renderBody(m.content, m.streaming ?? false)}
       </div>
     </div>

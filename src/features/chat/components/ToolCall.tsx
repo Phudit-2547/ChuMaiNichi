@@ -46,21 +46,26 @@ export default function ToolCall({ name, result }: ToolCallProps) {
   const isSuggest = name === "maimai_suggest_songs";
   const r = (result ?? {}) as Record<string, unknown>;
   const hasError = typeof r.error === "string";
+  const label = getToolLabel(name);
   const meta = hasError ? "error" : buildMeta(name, r);
+  const detailAction = open ? "Hide details" : "Show details";
 
   return (
-    <div className="chat-tool" data-open={open}>
+    <div className="chat-tool" data-open={open} data-tool={name}>
       <button
         type="button"
         className="chat-tool__head"
         onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-label={`${label}${meta ? `, ${meta}` : ""}. ${detailAction}. Tool: ${name}.`}
+        title={`${label} (${name})`}
       >
         {isQuery ? (
           <Database className="chat-tool__icon" />
         ) : (
           <Wand className="chat-tool__icon" />
         )}
-        <span className="chat-tool__name">{name}</span>
+        <span className="chat-tool__name">{label}</span>
         <span className="chat-tool__meta">{meta}</span>
         <ChevronRight className="chat-tool__chev" />
       </button>
@@ -79,16 +84,36 @@ export default function ToolCall({ name, result }: ToolCallProps) {
   );
 }
 
+function getToolLabel(name: string): string {
+  if (name === "query_database") return "Checked scores";
+  if (name === "maimai_suggest_songs") return "Found song picks";
+  return "Ran assistant check";
+}
+
 function buildMeta(name: string, r: Record<string, unknown>): string {
   if (name === "query_database") {
     const rc = typeof r.rowCount === "number" ? r.rowCount : 0;
+    if (rc === 0) return "No rows";
     return `${rc} row${rc === 1 ? "" : "s"}`;
   }
   if (name === "maimai_suggest_songs") {
     const moves = Array.isArray(r.moves) ? r.moves : [];
-    const rn = r.rating_needed;
-    return typeof rn === "number" && rn > 0
-      ? `${moves.length} picks · gain +${rn}`
+    if (moves.length === 0) return "No picks";
+
+    const gain = moves.reduce((total, move) => {
+      if (
+        typeof move === "object" &&
+        move !== null &&
+        "rating_gain" in move &&
+        typeof move.rating_gain === "number"
+      ) {
+        return total + move.rating_gain;
+      }
+      return total;
+    }, 0);
+
+    return gain > 0
+      ? `${moves.length} picks · +${gain} total`
       : `${moves.length} picks`;
   }
   return "";
@@ -104,7 +129,7 @@ function ErrorBody({ result }: { result: QueryResult & SuggestResult }) {
 }
 
 function QueryBody({ result }: { result: QueryResult }) {
-  if (!result.sql) return <div className="chat-tool__meta">(no sql)</div>;
+  if (!result.sql) return <div className="chat-tool__meta">No query details</div>;
   return <pre>{renderSQL(result.sql)}</pre>;
 }
 
@@ -113,9 +138,7 @@ function SuggestBody({ result }: { result: SuggestResult }) {
   return (
     <>
       <div className="chat-tool__meta" style={{ marginBottom: "0.55rem" }}>
-        mode={result.mode ?? "?"}
-        {result.target_rating != null && ` · target=${result.target_rating}`}
-        {result.current_rating != null && ` · current=${result.current_rating}`}
+        {formatSuggestMeta(result)}
       </div>
       <div className="song-list">
         {moves.map((s, i) => (
@@ -154,6 +177,31 @@ function SuggestBody({ result }: { result: SuggestResult }) {
       )}
     </>
   );
+}
+
+function formatSuggestMeta(result: SuggestResult): string {
+  const parts = [
+    result.mode === "target"
+      ? "Target plan"
+      : result.mode === "best_effort"
+        ? "Rating picks"
+        : "Song-pick check",
+  ];
+
+  if (result.target_rating != null) {
+    parts.push(`Target ${formatRating(result.target_rating)}`);
+  }
+  if (result.current_rating != null) {
+    parts.push(`Current ${formatRating(result.current_rating)}`);
+  }
+
+  return parts.join(" · ");
+}
+
+function formatRating(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
 function shortDiff(d: string): string {
