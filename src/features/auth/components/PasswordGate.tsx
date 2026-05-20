@@ -12,6 +12,7 @@ export default function PasswordGate({ onAuthenticated }: Props) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const errorId = "password-gate-error";
 
   const { setPassword } = useAuthStore();
 
@@ -37,27 +38,31 @@ export default function PasswordGate({ onAuthenticated }: Props) {
         const detail = import.meta.env.DEV ? rawDetail : null;
         switch (errorCode) {
           case "INVALID_CREDENTIALS": {
-            setError("Wrong password");
+            setError("Password didn't match. Try again.");
             break;
           }
           case "INTERNAL_ERROR": {
             setError(
               detail
                 ? `Server error: ${detail}`
-                : "Server error. Check the dev console.",
+                : "Server is unavailable. Check environment settings, then retry.",
             );
             break;
           }
           case "NETWORK_ERROR": {
-            setError("Connection failed. Please check your network.");
+            setError("Connection failed. Check your internet, then try again.");
             break;
           }
           case "UNKNOWN_ERROR": {
-            setError(detail ? `Error: ${detail}` : "Unknown error occured.");
+            setError(
+              detail ? `Error: ${detail}` : "Unexpected sign-in error. Try again.",
+            );
             break;
           }
         }
-        if (rawDetail) console.error("PasswordGate auth failure:", rawDetail);
+        if (import.meta.env.DEV && rawDetail) {
+          console.error("PasswordGate auth failure:", rawDetail);
+        }
         setLoading(false);
         inputRef.current?.focus();
       });
@@ -74,17 +79,26 @@ export default function PasswordGate({ onAuthenticated }: Props) {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           autoFocus
+          autoComplete="current-password"
+          aria-label="Dashboard password"
+          aria-invalid={error ? "true" : undefined}
+          aria-describedby={error ? errorId : undefined}
           className="px-3 py-2 rounded-md border border-border bg-surface text-foreground text-sm
                      focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
         />
         {error && (
-          <span className="text-destructive text-sm" role="alert">
+          <span
+            id={errorId}
+            className="text-destructive text-sm"
+            role="alert"
+          >
             {error}
           </span>
         )}
         <button
           type="submit"
           disabled={loading || !value}
+          aria-busy={loading}
           className="py-2 px-4 rounded-md bg-accent text-white text-sm font-medium
                      hover:bg-accent-hover active:brightness-90
                      disabled:opacity-50 disabled:cursor-not-allowed

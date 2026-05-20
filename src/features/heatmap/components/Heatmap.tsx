@@ -84,15 +84,19 @@ export default function Heatmap({
       setData([]);
       const raw = err instanceof Error ? err.message : "";
       if (raw.includes("unauthorized")) {
-        setError("Session expired. Reload the page to sign in again.");
+        setError("Session expired. Reload the page, sign in, then retry.");
       } else if (
         raw.includes("fetch") ||
         raw.includes("network") ||
         raw.includes("Failed to fetch")
       ) {
-        setError("Couldn't connect. Check your internet and try again.");
+        setError(
+          "Couldn't reach the dashboard API. Check your connection, then retry.",
+        );
       } else {
-        setError("Something went wrong loading play data.");
+        setError(
+          "Play data couldn't load. Retry; your saved scores are unchanged.",
+        );
       }
     } finally {
       if (!controller.signal.aborted) setLoading(false);
@@ -108,6 +112,15 @@ export default function Heatmap({
     };
   }, [selectedYear, years, loadData, refreshNonce]);
 
+  const lastUpdatedLabel = lastUpdated
+    ? formatLastUpdated(lastUpdated)
+    : null;
+  const updateStatusText = lastUpdatedLabel
+    ? isStale
+      ? `Last update ${lastUpdatedLabel}. Refresh scores to check for new sessions.`
+      : `Last updated ${lastUpdatedLabel}`
+    : null;
+
   return (
     <div>
       <div className="heatmap-toolbar flex flex-wrap items-center gap-2 mb-4">
@@ -120,8 +133,10 @@ export default function Heatmap({
         {lastUpdated && (
           <span
             className={`w-full sm:w-auto sm:ml-auto text-xs ${isStale ? "text-destructive" : "text-muted-foreground"}`}
+            title={updateStatusText ?? undefined}
+            aria-live="polite"
           >
-            Updated {formatLastUpdated(lastUpdated)}
+            {updateStatusText}
           </span>
         )}
       </div>
@@ -146,7 +161,7 @@ export default function Heatmap({
                        transition-colors duration-150"
             onClick={() => loadData(selectedYear, true)}
           >
-            Retry
+            Retry loading
           </button>
         </div>
       )}
@@ -173,8 +188,9 @@ export default function Heatmap({
               <div className="heatmap-empty content-panel p-8 text-center text-muted-foreground border border-border rounded-lg">
                 <p className="m-0">No plays recorded in {selectedYear}</p>
                 <p className="mt-2 text-xs m-0">
-                  Plays appear automatically after each arcade session is
-                  recorded.
+                  Choose another year, or use Refresh scores after your first
+                  scrape finishes. Future sessions will appear here
+                  automatically.
                 </p>
               </div>
             )}

@@ -1,5 +1,6 @@
 import { MonitorCog, Moon, Settings as Gear, Sun, X } from "lucide-react";
 import type { ReactNode } from "react";
+import { useState } from "react";
 import useSettingsStore, { type ThemeMode } from "../stores/settings-store";
 import useAuthStore from "@/features/auth/stores/auth-store";
 import { APP_CONFIG } from "@/global/lib/config";
@@ -20,6 +21,7 @@ export default function SettingsModal({
   open,
   onOpenChange,
 }: SettingsModalProps) {
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
   const {
     themeMode,
     autoOpenChat,
@@ -30,13 +32,17 @@ export default function SettingsModal({
   } = useSettingsStore();
 
   const handleSignOut = () => {
-    if (!confirm("Sign out of the dashboard?")) return;
     useAuthStore.getState().clearPassword();
     window.location.reload();
   };
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) setConfirmSignOut(false);
+    onOpenChange(nextOpen);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className="modal glass-modal gap-0 p-0 sm:max-w-none"
         showCloseButton={false}
@@ -47,7 +53,7 @@ export default function SettingsModal({
             <h2>Settings</h2>
           </DialogTitle>
           <DialogDescription className="sr-only">
-            Configure assistant display and dashboard session preferences.
+            Change display preferences and review dashboard setup values.
           </DialogDescription>
           <DialogClose asChild>
             <button
@@ -64,7 +70,7 @@ export default function SettingsModal({
         <div className="modal-body">
           <section className="modal-section">
             <h3>Appearance</h3>
-            <Row label="Theme" sub="Auto follows system">
+            <Row label="Theme" sub="Auto follows your device">
               <ThemeSegmentedControl
                 value={themeMode}
                 onChange={setThemeMode}
@@ -75,33 +81,36 @@ export default function SettingsModal({
           <section className="modal-section">
             <h3>Assistant</h3>
             <Row
-              label="Auto-open on load"
-              sub="Show the chat panel every visit"
+              label="Open assistant on visit"
+              sub="Show the assistant panel when the dashboard opens"
             >
               <Toggle
                 pressed={autoOpenChat}
                 onChange={setAutoOpenChat}
-                label="Auto-open chat"
+                label="Open assistant on visit"
               />
             </Row>
             <Row
-              label="Stream tool calls"
-              sub="Show SQL + suggestion cards inline"
+              label="Show assistant work"
+              sub="Display SQL and song-suggestion steps while it answers"
             >
               <Toggle
                 pressed={showToolCalls}
                 onChange={setShowToolCalls}
-                label="Stream tool calls"
+                label="Show assistant work"
               />
             </Row>
           </section>
 
           <section className="modal-section">
             <h3>Data</h3>
-            <Row label="Currency per play" sub="From config.json · deploy-time">
+            <Row
+              label="Cost per play"
+              sub="Configured in config.json; redeploy to change"
+            >
               <span className="row-value">฿{APP_CONFIG.currency_per_play}</span>
             </Row>
-            <Row label="Games" sub="From config.json">
+            <Row label="Games" sub="Configured in config.json; redeploy to change">
               <div className="row-badges">
                 {APP_CONFIG.games.map((g) => (
                   <span key={g} className="game-badge" data-game={g}>
@@ -113,12 +122,44 @@ export default function SettingsModal({
           </section>
         </div>
 
-        <div className="modal-footer">
-          <span>stored in localStorage</span>
-          <button type="button" className="link-btn" onClick={handleSignOut}>
-            sign out
-          </button>
-        </div>
+        {confirmSignOut ? (
+          <div className="modal-confirm" role="alert">
+            <div>
+              <strong>Sign out?</strong>
+              <p>
+                Your saved dashboard password will be removed from this
+                browser.
+              </p>
+            </div>
+            <div className="modal-confirm__actions">
+              <button
+                type="button"
+                className="quiet-btn"
+                onClick={() => setConfirmSignOut(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="danger-btn"
+                onClick={handleSignOut}
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="modal-footer">
+            <span>Saved in this browser</span>
+            <button
+              type="button"
+              className="link-btn"
+              onClick={() => setConfirmSignOut(true)}
+            >
+              Sign out
+            </button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -195,7 +236,8 @@ function Toggle({
       type="button"
       className={`toggle glass-control glass-control--clear ${pressed ? "glass-control--active" : ""}`}
       aria-pressed={pressed}
-      aria-label={label}
+      aria-label={`${label}: ${pressed ? "on" : "off"}`}
+      title={`${label}: ${pressed ? "on" : "off"}`}
       onClick={() => onChange(!pressed)}
     />
   );
