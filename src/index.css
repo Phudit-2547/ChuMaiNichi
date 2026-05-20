@@ -144,51 +144,51 @@
   --sql-string: oklch(0.78 0.13 145);
   --sql-number: oklch(0.83 0.13 82);
 
-  --glass-radius-panel: 16px;
-  --glass-radius-control: 11px;
-  --glass-stroke: oklch(1 0 0 / 0.58);
-  --glass-stroke-strong: oklch(1 0 0 / 0.76);
-  --glass-hairline: oklch(0.72 0.018 270 / 0.26);
-  --liquid-glass-bg: oklch(1 0 0 / 0.25);
-  --liquid-glass-bg-strong: oklch(1 0 0 / 0.34);
-  --liquid-glass-highlight: oklch(1 0 0 / 0.75);
-  --liquid-glass-highlight-soft: oklch(1 0 0 / 0.42);
-  --liquid-glass-shadow: 0 6px 6px oklch(0.16 0.012 265 / 0.16), 0 0 20px oklch(0.16 0.012 265 / 0.08);
-  --liquid-glass-shadow-hover: 0 8px 10px oklch(0.16 0.012 265 / 0.18), 0 0 24px oklch(0.16 0.012 265 / 0.1);
-  --liquid-glass-filter: blur(4px) saturate(120%) brightness(1.15);
-  --liquid-glass-surface-filter: saturate(120%) brightness(1.08);
-  --liquid-glass-lens-filter: saturate(120%) brightness(1.15);
+  --glass-radius-panel: 12px;
+  --glass-radius-control: 9px;
+  --glass-stroke: oklch(0.78 0.014 270 / 0.46);
+  --glass-stroke-strong: oklch(0.67 0.02 270 / 0.6);
+  --glass-hairline: oklch(0.82 0.012 270 / 0.5);
+  --liquid-glass-bg: var(--surface-elevated);
+  --liquid-glass-bg-strong: var(--surface-elevated);
+  --liquid-glass-highlight: transparent;
+  --liquid-glass-highlight-soft: transparent;
+  --liquid-glass-shadow: 0 10px 24px oklch(0.2 0.014 265 / 0.07);
+  --liquid-glass-shadow-hover: 0 12px 28px oklch(0.2 0.014 265 / 0.09);
+  --liquid-glass-filter: none;
+  --liquid-glass-surface-filter: none;
+  --liquid-glass-lens-filter: none;
   --liquid-tint: oklch(0.9 0.006 270);
   --liquid-tint-maimai: var(--maimai);
   --liquid-tint-chunithm: var(--chunithm);
-  --liquid-regular-bg: oklch(1 0 0 / 0.56);
-  --liquid-clear-bg: oklch(1 0 0 / 0.32);
-  --liquid-control-bg: oklch(1 0 0 / 0.4);
-  --liquid-control-hover-bg: oklch(1 0 0 / 0.62);
-  --liquid-control-active-bg: oklch(1 0 0 / 0.52);
-  --liquid-primary-bg: oklch(1 0 0 / 0.5);
-  --liquid-primary-hover-bg: oklch(1 0 0 / 0.68);
-  --liquid-modal-bg: oklch(0.998 0.002 280 / 0.88);
+  --liquid-regular-bg: var(--surface-elevated);
+  --liquid-clear-bg: var(--surface);
+  --liquid-control-bg: color-mix(in oklch, var(--surface-elevated) 88%, var(--background));
+  --liquid-control-hover-bg: color-mix(in oklch, var(--surface-muted) 36%, var(--surface-elevated));
+  --liquid-control-active-bg: color-mix(in oklch, var(--accent-soft) 58%, var(--surface-elevated));
+  --liquid-primary-bg: color-mix(in oklch, var(--accent) 11%, var(--surface-elevated));
+  --liquid-primary-hover-bg: color-mix(in oklch, var(--accent) 17%, var(--surface-elevated));
+  --liquid-modal-bg: var(--surface-elevated);
   --liquid-content-bg: var(--surface);
-  --liquid-content-border: oklch(0.78 0.018 270 / 0.32);
-  --liquid-border: oklch(1 0 0 / 0.58);
-  --liquid-border-strong: oklch(1 0 0 / 0.76);
-  --liquid-control-border: oklch(0.72 0.018 270 / 0.3);
-  --liquid-primary-border: oklch(1 0 0 / 0.54);
-  --liquid-rim-top: oklch(1 0 0 / 0.72);
-  --liquid-rim-side: oklch(1 0 0 / 0.26);
-  --liquid-rim-bottom: oklch(0.28 0.012 265 / 0.12);
-  --liquid-specular: oklch(1 0 0 / 0.38);
-  --liquid-caustic: oklch(1 0 0 / 0.18);
-  --liquid-shadow: 0 16px 42px oklch(0.2 0.014 265 / 0.1), 0 1px 0 oklch(1 0 0 / 0.38) inset;
-  --liquid-shadow-strong: 0 24px 64px oklch(0.18 0.014 265 / 0.14), 0 1px 0 oklch(1 0 0 / 0.45) inset;
-  --liquid-shadow-control: 0 7px 20px oklch(0.2 0.014 265 / 0.07), 0 1px 0 oklch(1 0 0 / 0.34) inset;
-  --liquid-shadow-control-hover: 0 11px 28px oklch(0.2 0.014 265 / 0.1), 0 1px 0 oklch(1 0 0 / 0.42) inset;
-  --liquid-filter-regular: blur(16px) saturate(122%) contrast(1.02);
-  --liquid-filter-control: blur(12px) saturate(118%) contrast(1.03);
-  --liquid-filter-modal: blur(24px) saturate(118%) contrast(1.03);
-  --liquid-backdrop-bg: oklch(0.18 0.012 265 / 0.42);
-  --liquid-backdrop-filter: blur(10px) saturate(110%);
+  --liquid-content-border: oklch(0.78 0.018 270 / 0.34);
+  --liquid-border: var(--glass-stroke);
+  --liquid-border-strong: var(--glass-stroke-strong);
+  --liquid-control-border: oklch(0.76 0.015 270 / 0.45);
+  --liquid-primary-border: color-mix(in oklch, var(--accent) 28%, var(--liquid-control-border));
+  --liquid-rim-top: color-mix(in oklch, var(--surface-elevated) 68%, transparent);
+  --liquid-rim-side: transparent;
+  --liquid-rim-bottom: oklch(0.28 0.012 265 / 0.08);
+  --liquid-specular: transparent;
+  --liquid-caustic: transparent;
+  --liquid-shadow: 0 12px 28px oklch(0.2 0.014 265 / 0.08);
+  --liquid-shadow-strong: 0 18px 44px oklch(0.18 0.014 265 / 0.12);
+  --liquid-shadow-control: 0 3px 10px oklch(0.2 0.014 265 / 0.06);
+  --liquid-shadow-control-hover: 0 5px 14px oklch(0.2 0.014 265 / 0.08);
+  --liquid-filter-regular: none;
+  --liquid-filter-control: none;
+  --liquid-filter-modal: none;
+  --liquid-backdrop-bg: oklch(0.18 0.012 265 / 0.36);
+  --liquid-backdrop-filter: none;
   --glass-shell-bg: var(--liquid-regular-bg);
   --glass-panel-bg: var(--liquid-regular-bg);
   --glass-panel-strong-bg: var(--liquid-modal-bg);
@@ -288,47 +288,47 @@
   --sql-string: oklch(0.81 0.13 145);
   --sql-number: oklch(0.86 0.13 82);
 
-  --glass-stroke: oklch(1 0 0 / 0.08);
-  --glass-stroke-strong: oklch(1 0 0 / 0.16);
-  --glass-hairline: oklch(1 0 0 / 0.08);
-  --liquid-glass-bg: oklch(1 0 0 / 0.08);
-  --liquid-glass-bg-strong: oklch(1 0 0 / 0.12);
-  --liquid-glass-highlight: oklch(1 0 0 / 0.42);
-  --liquid-glass-highlight-soft: oklch(1 0 0 / 0.18);
-  --liquid-glass-shadow: 0 6px 6px oklch(0 0 0 / 0.22), 0 0 20px oklch(0 0 0 / 0.14);
-  --liquid-glass-shadow-hover: 0 8px 10px oklch(0 0 0 / 0.28), 0 0 24px oklch(0 0 0 / 0.16);
-  --liquid-glass-filter: blur(4px) saturate(118%) brightness(1.1);
-  --liquid-glass-surface-filter: saturate(118%) brightness(1.06);
-  --liquid-glass-lens-filter: saturate(118%) brightness(1.1);
+  --glass-stroke: oklch(1 0 0 / 0.1);
+  --glass-stroke-strong: oklch(1 0 0 / 0.18);
+  --glass-hairline: oklch(1 0 0 / 0.1);
+  --liquid-glass-bg: var(--surface-elevated);
+  --liquid-glass-bg-strong: var(--surface-elevated);
+  --liquid-glass-highlight: transparent;
+  --liquid-glass-highlight-soft: transparent;
+  --liquid-glass-shadow: 0 12px 30px oklch(0.08 0.012 265 / 0.28);
+  --liquid-glass-shadow-hover: 0 14px 34px oklch(0.08 0.012 265 / 0.32);
+  --liquid-glass-filter: none;
+  --liquid-glass-surface-filter: none;
+  --liquid-glass-lens-filter: none;
   --liquid-tint: oklch(0.78 0.006 270);
-  --liquid-regular-bg: oklch(0.24 0.014 265 / 0.42);
-  --liquid-clear-bg: oklch(0.32 0.014 265 / 0.24);
-  --liquid-control-bg: oklch(0.34 0.014 265 / 0.26);
-  --liquid-control-hover-bg: oklch(0.42 0.014 265 / 0.34);
-  --liquid-control-active-bg: oklch(0.38 0.014 265 / 0.32);
-  --liquid-primary-bg: oklch(0.38 0.014 265 / 0.3);
-  --liquid-primary-hover-bg: oklch(0.46 0.014 265 / 0.36);
-  --liquid-modal-bg: oklch(0.28 0.014 265 / 0.74);
+  --liquid-regular-bg: var(--surface);
+  --liquid-clear-bg: color-mix(in oklch, var(--surface) 74%, var(--background));
+  --liquid-control-bg: color-mix(in oklch, var(--surface-elevated) 84%, var(--background));
+  --liquid-control-hover-bg: color-mix(in oklch, var(--surface-muted) 42%, var(--surface-elevated));
+  --liquid-control-active-bg: color-mix(in oklch, var(--accent-soft) 54%, var(--surface-elevated));
+  --liquid-primary-bg: color-mix(in oklch, var(--accent) 14%, var(--surface-elevated));
+  --liquid-primary-hover-bg: color-mix(in oklch, var(--accent) 19%, var(--surface-elevated));
+  --liquid-modal-bg: var(--surface-elevated);
   --liquid-content-bg: var(--surface);
   --liquid-content-border: oklch(1 0 0 / 0.08);
-  --liquid-border: oklch(1 0 0 / 0.08);
-  --liquid-border-strong: oklch(1 0 0 / 0.16);
-  --liquid-control-border: oklch(1 0 0 / 0.08);
-  --liquid-primary-border: oklch(1 0 0 / 0.13);
-  --liquid-rim-top: oklch(1 0 0 / 0.18);
-  --liquid-rim-side: oklch(1 0 0 / 0.08);
-  --liquid-rim-bottom: oklch(0.04 0.012 265 / 0.24);
-  --liquid-specular: oklch(1 0 0 / 0.2);
-  --liquid-caustic: oklch(1 0 0 / 0.12);
-  --liquid-shadow: 0 18px 48px oklch(0.08 0.012 265 / 0.3), 0 1px 0 oklch(1 0 0 / 0.06) inset;
-  --liquid-shadow-strong: 0 24px 62px oklch(0.06 0.012 265 / 0.38), 0 1px 0 oklch(1 0 0 / 0.08) inset;
-  --liquid-shadow-control: 0 8px 20px oklch(0.08 0.012 265 / 0.2), 0 1px 0 oklch(1 0 0 / 0.04) inset;
-  --liquid-shadow-control-hover: 0 10px 26px oklch(0.08 0.012 265 / 0.26), 0 1px 0 oklch(1 0 0 / 0.06) inset;
-  --liquid-filter-regular: blur(16px) saturate(116%) contrast(1.03);
-  --liquid-filter-control: blur(12px) saturate(112%) contrast(1.04);
-  --liquid-filter-modal: blur(24px) saturate(116%) contrast(1.04);
-  --liquid-backdrop-bg: oklch(0.08 0.01 265 / 0.68);
-  --liquid-backdrop-filter: blur(10px) saturate(105%);
+  --liquid-border: var(--glass-stroke);
+  --liquid-border-strong: var(--glass-stroke-strong);
+  --liquid-control-border: oklch(1 0 0 / 0.1);
+  --liquid-primary-border: color-mix(in oklch, var(--accent) 32%, var(--liquid-control-border));
+  --liquid-rim-top: oklch(1 0 0 / 0.06);
+  --liquid-rim-side: transparent;
+  --liquid-rim-bottom: oklch(0.04 0.012 265 / 0.18);
+  --liquid-specular: transparent;
+  --liquid-caustic: transparent;
+  --liquid-shadow: 0 14px 34px oklch(0.08 0.012 265 / 0.28);
+  --liquid-shadow-strong: 0 20px 48px oklch(0.06 0.012 265 / 0.36);
+  --liquid-shadow-control: 0 4px 12px oklch(0.08 0.012 265 / 0.18);
+  --liquid-shadow-control-hover: 0 6px 16px oklch(0.08 0.012 265 / 0.22);
+  --liquid-filter-regular: none;
+  --liquid-filter-control: none;
+  --liquid-filter-modal: none;
+  --liquid-backdrop-bg: oklch(0.08 0.01 265 / 0.62);
+  --liquid-backdrop-filter: none;
   --glass-shell-bg: var(--liquid-regular-bg);
   --glass-panel-bg: var(--liquid-regular-bg);
   --glass-panel-strong-bg: var(--liquid-modal-bg);
@@ -1226,17 +1226,17 @@ rect.heatmap-today {
   animation: icon-spin 0.8s linear infinite;
 }
 
-/* ── Chat panel (premium glass) ───────────────── */
+/* Chat panel */
 .chat-panel {
   position: relative;
   width: 100%;
   min-width: 0;
   height: 100%;
-  border-left: 1px solid var(--glass-hairline);
-  background: var(--glass-shell-bg);
-  box-shadow: var(--shadow-glass);
-  backdrop-filter: var(--glass-shell-filter);
-  -webkit-backdrop-filter: var(--glass-shell-filter);
+  border-left: 1px solid var(--color-border-subtle);
+  background: var(--surface-elevated);
+  box-shadow: -10px 0 26px oklch(0.16 0.012 265 / 0.06);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -1274,20 +1274,20 @@ rect.heatmap-today {
 
 .chat-panel__header {
   position: relative;
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--glass-hairline);
+  padding: 0.9rem 1.05rem;
+  border-bottom: 0;
   display: flex;
   align-items: center;
   gap: 0.75rem;
   flex-shrink: 0;
-  background: var(--glass-panel-strong-bg);
+  background: transparent;
 }
 
 
 .chat-panel__title {
   font-size: 0.88rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  font-weight: 650;
+  letter-spacing: 0;
 }
 
 .chat-panel__sub {
@@ -1295,7 +1295,8 @@ rect.heatmap-today {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  font-family: var(--font-mono);
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
   font-size: 0.7rem;
   color: var(--color-text-muted);
 }
@@ -1727,15 +1728,14 @@ rect.heatmap-today {
 
 [data-slot="dialog-content"].modal {
   position: fixed;
-  top: 50%;
-  left: 50%;
+  inset: 50% auto auto 50%;
   right: auto;
   bottom: auto;
   width: min(480px, calc(100vw - 2rem));
   max-height: min(720px, calc(100dvh - 2rem));
-  translate: 0 0;
+  translate: -50% -50%;
   scale: 1;
-  transform: translate(-50%, -50%);
+  transform: none;
   transform-origin: center;
   margin: 0;
 }
@@ -1827,7 +1827,8 @@ rect.heatmap-today {
   font-size: 0.72rem;
   color: var(--color-text-muted);
   margin-top: 2px;
-  font-family: var(--font-mono);
+  font-family: inherit;
+  line-height: 1.45;
 }
 
 .row-value {
@@ -1945,20 +1946,96 @@ rect.heatmap-today {
   align-items: center;
   font-size: 0.75rem;
   color: var(--color-text-muted);
-  font-family: var(--font-mono);
+  font-family: inherit;
+  line-height: 1.45;
 }
 
 .link-btn {
   background: none;
-  border: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
   color: var(--color-destructive);
   font: inherit;
   cursor: pointer;
-  padding: 0;
+  padding: 0.2rem 0.35rem;
 }
 
 .link-btn:hover {
-  text-decoration: underline;
+  background: color-mix(in oklch, var(--destructive) 12%, transparent);
+}
+
+.link-btn:focus-visible {
+  outline: none;
+  border-color: color-mix(in oklch, var(--destructive) 30%, transparent);
+  box-shadow: var(--glass-focus-ring);
+}
+
+.modal-confirm {
+  border-top: 1px solid var(--glass-hairline);
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.modal-confirm strong {
+  display: block;
+  font-size: 0.86rem;
+  color: var(--foreground);
+  margin-bottom: 0.15rem;
+}
+
+.modal-confirm p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.modal-confirm__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.quiet-btn,
+.danger-btn {
+  min-height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--glass-control-border);
+  padding: 0 0.75rem;
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.quiet-btn {
+  background: var(--glass-control-bg);
+  color: var(--muted-foreground);
+}
+
+.quiet-btn:hover {
+  background: var(--glass-control-hover-bg);
+  color: var(--foreground);
+}
+
+.danger-btn {
+  background: color-mix(in oklch, var(--destructive) 14%, transparent);
+  color: var(--error-text);
+  border-color: color-mix(in oklch, var(--destructive) 34%, transparent);
+}
+
+.danger-btn:hover {
+  background: color-mix(in oklch, var(--destructive) 20%, transparent);
+}
+
+.quiet-btn:focus-visible,
+.danger-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--glass-focus-ring);
 }
 
 /* Tool calls */
@@ -2144,26 +2221,18 @@ rect.heatmap-today {
   max-height: min(330px, calc(100dvh - 9rem));
   padding: 0.45rem;
   overflow-y: auto;
-  background:
-    linear-gradient(180deg, oklch(1 0 0 / 0.16), transparent 34%),
-    color-mix(in oklch, var(--surface-elevated) 95%, transparent);
-  border: 1px solid color-mix(in oklch, var(--foreground) 12%, var(--glass-hairline));
-  border-radius: 14px;
-  box-shadow:
-    0 18px 40px oklch(0.16 0.012 265 / 0.16),
-    inset 0 1px 0 oklch(1 0 0 / 0.64);
-  backdrop-filter: blur(12px) saturate(112%);
-  -webkit-backdrop-filter: blur(12px) saturate(112%);
+  background: var(--surface-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  box-shadow: var(--shadow-menu);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .dark .slash-menu {
-  background:
-    linear-gradient(180deg, oklch(1 0 0 / 0.08), transparent 36%),
-    color-mix(in oklch, var(--surface-elevated) 96%, transparent);
-  border-color: color-mix(in oklch, var(--foreground) 16%, transparent);
-  box-shadow:
-    0 20px 44px oklch(0 0 0 / 0.32),
-    inset 0 1px 0 oklch(1 0 0 / 0.16);
+  background: var(--surface-elevated);
+  border-color: var(--color-border-subtle);
+  box-shadow: var(--shadow-menu);
 }
 
 .slash-menu__header {
@@ -2173,7 +2242,7 @@ rect.heatmap-today {
   gap: 0.75rem;
   padding: 0.1rem 0.35rem 0.18rem;
   color: var(--color-text-muted);
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: 0.64rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -2282,7 +2351,7 @@ rect.heatmap-today {
 .slash-menu__footer {
   padding: 0.12rem 0.35rem 0.02rem;
   color: var(--color-text-muted);
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: 0.64rem;
 }
 
@@ -2291,7 +2360,7 @@ rect.heatmap-today {
   border: 1px solid var(--color-border-subtle);
   border-radius: 3px;
   padding: 0 4px;
-  font-family: inherit;
+  font-family: var(--font-mono);
   font-size: 0.62rem;
 }
 
@@ -2301,14 +2370,12 @@ rect.heatmap-today {
   align-items: end;
   justify-content: stretch;
   width: 100%;
-  background: var(--glass-control-bg);
-  border: 1px solid var(--glass-control-border);
-  border-radius: 14px;
-  padding: 0.42rem 0.5rem;
-  transition: border-color 150ms ease, box-shadow 150ms ease;
-  box-shadow:
-    0 8px 20px oklch(0.16 0.012 265 / 0.1),
-    inset 0 1px 0 oklch(1 0 0 / 0.18);
+  background: var(--surface-elevated);
+  border: 1px solid color-mix(in oklch, var(--foreground) 14%, var(--glass-control-border));
+  border-radius: 12px;
+  padding: 0.46rem 0.52rem;
+  transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+  box-shadow: var(--shadow-card);
 }
 
 .chat-composer__row {
@@ -2321,7 +2388,7 @@ rect.heatmap-today {
 
 .chat-composer__box:focus-within {
   border-color: var(--accent-border);
-  box-shadow: var(--glass-focus-ring), var(--card-shadow);
+  box-shadow: var(--glass-focus-ring), var(--shadow-card-hover);
 }
 
 .chat-composer__input {
@@ -2408,45 +2475,24 @@ rect.heatmap-today {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  position: relative;
   background: var(--glass-primary-bg);
-  color: var(--foreground);
+  color: var(--accent-hover);
   cursor: pointer;
-  transition: background 150ms ease, transform 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
-  box-shadow:
-    0 7px 18px oklch(0.16 0.012 265 / 0.12),
-    inset 0 1px 0 oklch(1 0 0 / 0.22);
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease, transform 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
+  box-shadow: none;
 }
 
 .chat-composer__send::before,
 .chat-composer__send::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-}
-
-.chat-composer__send::before {
-  z-index: 0;
-  background:
-    linear-gradient(135deg, oklch(1 0 0 / 0.14), transparent 44%),
-    var(--glass-primary-bg);
-  backdrop-filter: blur(8px) saturate(112%);
-  -webkit-backdrop-filter: blur(8px) saturate(112%);
-}
-
-.chat-composer__send::after {
-  z-index: 1;
-  box-shadow:
-    inset 0.5px 0.5px 0.5px oklch(1 0 0 / 0.38),
-    inset -0.5px -0.5px 0.5px oklch(0.12 0.02 265 / 0.18);
+  content: none;
 }
 
 .chat-composer__send:hover:not(:disabled) {
   background: var(--glass-primary-hover-bg);
-  box-shadow:
-    0 9px 22px oklch(0.16 0.012 265 / 0.15),
-    inset 0 1px 0 oklch(1 0 0 / 0.28);
+  border-color: var(--accent-border);
+  color: var(--foreground);
+  box-shadow: var(--shadow-card);
 }
 
 .chat-composer__send:active:not(:disabled) {
@@ -2459,13 +2505,23 @@ rect.heatmap-today {
   box-shadow: none;
 }
 
+.chat-composer__send[data-busy="true"] {
+  background: var(--glass-control-bg);
+  color: var(--foreground);
+  opacity: 1;
+}
+
+.chat-composer__send[data-busy="true"] svg {
+  color: var(--foreground);
+}
+
 .chat-composer__hints {
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
   gap: 0.4rem 0.6rem;
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: 0.68rem;
   color: var(--color-text-muted);
   margin-top: 0.5rem;
@@ -2489,7 +2545,7 @@ rect.heatmap-today {
   border: 1px solid var(--color-border-subtle);
   border-radius: 3px;
   padding: 0 5px;
-  font-family: inherit;
+  font-family: var(--font-mono);
   font-size: 0.65rem;
   color: var(--muted-foreground);
 }
@@ -2525,11 +2581,11 @@ rect.heatmap-today {
 .glass-panel-strong,
 .glass-menu,
 .glass-modal,
-.glass-control,
+.glass-control:not(.toggle),
 .chat-composer__box {
-  background: transparent;
-  border-color: transparent;
-  box-shadow: var(--liquid-glass-shadow);
+  background: var(--glass-panel-bg);
+  border-color: var(--glass-stroke);
+  box-shadow: var(--shadow-card);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
@@ -2541,13 +2597,7 @@ rect.heatmap-today {
 .glass-modal::before,
 .glass-control::before,
 .chat-composer__box::before {
-  z-index: 0;
-  background: transparent;
-  opacity: 1;
-  backdrop-filter: var(--liquid-glass-filter);
-  -webkit-backdrop-filter: var(--liquid-glass-filter);
-  filter: var(--liquid-glass-lens-filter);
-  -webkit-filter: var(--liquid-glass-lens-filter);
+  content: none;
 }
 
 .glass-shell::after,
@@ -2558,49 +2608,40 @@ rect.heatmap-today {
 .glass-control::after,
 .chat-composer__box::after {
   z-index: 1;
-  background: var(--liquid-glass-bg);
-  box-shadow:
-    inset 1px 1px 0 var(--liquid-glass-highlight),
-    inset 0 0 5px var(--liquid-glass-highlight-soft);
+  background: transparent;
+  box-shadow: inset 0 1px 0 var(--liquid-rim-top);
 }
 
 .glass-panel-strong,
 .glass-menu,
 .glass-modal {
-  box-shadow: var(--liquid-shadow-strong);
+  background: var(--glass-panel-strong-bg);
+  border-color: var(--glass-stroke-strong);
+  box-shadow: var(--shadow-elevated);
 }
 
-.glass-panel-strong::after,
-.glass-menu::after,
-.glass-modal::after {
-  background: var(--liquid-glass-bg-strong);
+.glass-shell {
+  background: var(--glass-shell-bg);
 }
 
-.glass-shell::before,
-.glass-panel::before,
-.glass-panel-strong::before,
-.glass-menu::before,
-.glass-modal::before,
-.chat-composer__box::before {
-  filter: var(--liquid-glass-surface-filter);
-  -webkit-filter: var(--liquid-glass-surface-filter);
+.glass-menu {
+  background: var(--glass-menu-bg);
+  box-shadow: var(--shadow-menu);
 }
 
-.glass-control::before {
-  filter: var(--liquid-glass-lens-filter);
-  -webkit-filter: var(--liquid-glass-lens-filter);
+.glass-modal {
+  background: var(--glass-modal-bg);
 }
 
 .glass-control:not(.toggle),
-.chat-composer__send,
 .chat-composer__command {
-  border: 1px solid transparent;
+  background: var(--glass-control-bg);
+  border: 1px solid var(--glass-control-border);
   color: var(--muted-foreground);
-  box-shadow:
-    0 4px 10px oklch(0.16 0.012 265 / 0.1),
-    inset 0 1px 0 oklch(1 0 0 / 0.16);
+  box-shadow: var(--shadow-card);
   text-shadow: none;
   transition:
+    background 160ms ease,
     color 160ms ease,
     border-color 160ms ease,
     box-shadow 180ms ease,
@@ -2609,38 +2650,28 @@ rect.heatmap-today {
 
 .glass-control:not(.toggle):hover:not(:disabled),
 .glass-control:not(.toggle):focus-visible,
-.chat-composer__send:hover:not(:disabled),
-.chat-composer__send:focus-visible,
 .chat-composer__command:hover:not(:disabled),
 .chat-composer__command:focus-visible {
   color: var(--foreground);
-  transform: translateY(-1px);
-  background: transparent;
-  border-color: color-mix(in oklch, var(--foreground) 16%, transparent);
-  box-shadow:
-    0 6px 14px oklch(0.16 0.012 265 / 0.12),
-    inset 0 1px 0 oklch(1 0 0 / 0.2);
+  transform: none;
+  background: var(--glass-control-hover-bg);
+  border-color: var(--glass-stroke-strong);
+  box-shadow: var(--shadow-card-hover);
 }
 
 .glass-control:not(.toggle):active:not(:disabled),
-.chat-composer__send:active:not(:disabled),
 .chat-composer__command:active:not(:disabled) {
-  transform: translateY(0);
+  transform: translateY(1px);
 }
 
 .glass-control:not(.toggle):focus-visible,
-.chat-composer__send:focus-visible,
 .chat-composer__command:focus-visible {
   outline: none;
-  box-shadow:
-    var(--glass-focus-ring),
-    0 6px 14px oklch(0.16 0.012 265 / 0.12),
-    inset 0 1px 0 oklch(1 0 0 / 0.2);
+  box-shadow: var(--glass-focus-ring), var(--shadow-card-hover);
 }
 
 .glass-control:not(.toggle):disabled,
 .glass-control:not(.toggle)[aria-disabled="true"],
-.chat-composer__send:disabled,
 .chat-composer__command:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -2651,12 +2682,30 @@ rect.heatmap-today {
 .glass-control--active:not(.toggle),
 .glass-control:not(.toggle)[aria-pressed="true"],
 .chat-composer__command[data-active="true"] {
+  background: var(--glass-control-active-bg);
+  border-color: var(--accent-border);
   color: var(--accent-hover);
 }
 
-.glass-control--primary:not(.toggle) svg,
-.chat-composer__send svg {
+.glass-control--primary:not(.toggle) {
+  background: var(--glass-primary-bg);
+  border-color: var(--glass-primary-border);
+  color: var(--foreground);
+}
+
+.glass-control--primary:not(.toggle):hover:not(:disabled),
+.glass-control--primary:not(.toggle):focus-visible {
+  background: var(--glass-primary-hover-bg);
+}
+
+.glass-control--primary:not(.toggle) svg {
   color: var(--accent-hover);
+}
+
+.chat-composer__box {
+  background: var(--surface-elevated);
+  border-color: color-mix(in oklch, var(--foreground) 14%, var(--glass-control-border));
+  box-shadow: var(--shadow-card);
 }
 
 .chat-composer__command {
@@ -2666,37 +2715,53 @@ rect.heatmap-today {
 
 .chat-composer__send {
   border-radius: 10px;
-  border-color: var(--glass-control-border);
+  border-color: var(--accent-border);
+  background: var(--glass-primary-bg);
+  color: var(--accent-hover);
+  box-shadow: none;
+}
+
+.chat-composer__send:hover:not(:disabled),
+.chat-composer__send:focus-visible {
+  background: var(--glass-primary-hover-bg);
+  border-color: var(--accent-border);
+  color: var(--foreground);
+  box-shadow: var(--shadow-card);
+}
+
+.chat-composer__send:focus-visible {
+  outline: none;
+  box-shadow: var(--glass-focus-ring), var(--shadow-card);
+}
+
+.chat-composer__send svg {
+  color: currentColor;
 }
 
 .chat-panel.glass-panel-strong::before {
-  backdrop-filter: blur(18px) saturate(116%) brightness(1.04);
-  -webkit-backdrop-filter: blur(18px) saturate(116%) brightness(1.04);
-  filter: none;
-  -webkit-filter: none;
+  content: none;
 }
 
 .chat-panel.glass-panel-strong::after {
-  background: color-mix(in oklch, var(--surface-elevated) 84%, transparent);
+  background: transparent;
+  box-shadow: none;
 }
 
 .dark .chat-panel.glass-panel-strong::after {
-  background: color-mix(in oklch, var(--surface-elevated) 88%, transparent);
+  background: transparent;
 }
 
 .modal.glass-modal::before {
-  backdrop-filter: blur(20px) saturate(110%) brightness(1.02);
-  -webkit-backdrop-filter: blur(20px) saturate(110%) brightness(1.02);
-  filter: none;
-  -webkit-filter: none;
+  content: none;
 }
 
 .modal.glass-modal::after {
-  background: color-mix(in oklch, var(--surface-elevated) 96%, transparent);
+  background: transparent;
+  box-shadow: inset 0 1px 0 var(--liquid-rim-top);
 }
 
 .dark .modal.glass-modal::after {
-  background: color-mix(in oklch, var(--surface-elevated) 94%, transparent);
+  background: transparent;
 }
 
 @layer utilities {
@@ -2839,6 +2904,21 @@ rect.heatmap-today {
     top: 0;
     z-index: 10;
   }
+  .icon-btn,
+  .text-btn {
+    height: 40px;
+  }
+  .icon-btn {
+    width: 40px;
+  }
+  .icon-btn__shortcut {
+    display: none;
+  }
+  .icon-btn--chat {
+    width: 40px;
+    min-width: 40px;
+    padding: 0;
+  }
 
   .chat-panel {
     position: fixed;
@@ -2847,16 +2927,17 @@ rect.heatmap-today {
     width: 100vw;
     max-width: 100vw;
     border-left: none;
+    background: var(--surface-elevated);
     transform: translateX(100%);
     transition: transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
     will-change: transform;
     display: flex;
   }
   .chat-panel.glass-panel-strong::after {
-    background: color-mix(in oklch, var(--surface-elevated) 92%, transparent);
+    background: transparent;
   }
   .dark .chat-panel.glass-panel-strong::after {
-    background: color-mix(in oklch, var(--surface-elevated) 94%, transparent);
+    background: transparent;
   }
   .app-shell[data-chat-open="true"] .chat-panel {
     transform: translateX(0);
@@ -2877,11 +2958,6 @@ rect.heatmap-today {
   .app-main { padding: 1rem 1rem 2.5rem; }
   .app-header { padding: 0.6rem 0.85rem 0.4rem; gap: 0.4rem; }
   .app-header__actions { gap: 0.3rem; }
-  .icon-btn__shortcut { display: none; }
-  .icon-btn--chat {
-    width: 36px;
-    padding: 0;
-  }
 
   .chat-panel__scroll { padding: 0.85rem 0.85rem 0.35rem; }
   .chat-composer { padding: 0.55rem 0.7rem 0.75rem; }
@@ -2913,42 +2989,75 @@ rect.heatmap-today {
   }
 
   [data-slot="dialog-content"].modal {
-    width: calc(100vw - 1rem);
+    width: min(480px, calc(100vw - 2rem));
     max-height: calc(100dvh - 1rem);
     border-radius: 10px;
   }
 }
 
-@media (max-width: 480px) {
-  .app-shell { grid-template-rows: 56px 1fr; }
-  .app-header {
-    padding: 0.45rem 0.75rem 0.3rem;
-    gap: 0.3rem;
+@media (max-width: 640px) {
+  .text-btn--refresh .text-btn__label {
+    display: none;
   }
-  .app-header__brand { font-size: 0.95rem; }
+  .text-btn--refresh {
+    width: 40px;
+    padding: 0;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-shell { grid-template-rows: 60px 1fr; }
+  .app-header {
+    padding: 0.5rem 0.65rem 0.35rem;
+    gap: 0.28rem;
+  }
+  .app-header__brand {
+    flex: 1 1 auto;
+    font-size: 0.92rem;
+    min-height: 40px;
+  }
   .app-header__logo {
-    width: 21px;
-    height: 21px;
+    width: 22px;
+    height: 22px;
   }
   .app-header__actions {
-    gap: 0.22rem;
+    flex: 0 0 auto;
+    gap: 0.24rem;
     padding: 0;
     border-radius: 0;
   }
-  .icon-btn { width: 32px; height: 32px; }
-  .icon-btn--chat { width: 32px; }
+  .icon-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 9px;
+  }
+  .icon-btn--chat { width: 40px; }
   .chat-composer__box {
-    padding: 0.38rem 0.44rem;
+    padding: 0.42rem 0.46rem;
+    border-radius: 11px;
   }
   .chat-composer__row {
-    gap: 0.42rem;
+    gap: 0.4rem;
+  }
+  .chat-composer__command,
+  .chat-composer__send {
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+  }
+  .slash-menu {
+    left: 0.55rem;
+    right: 0.55rem;
+    gap: 0.28rem;
   }
   .slash-menu__main code {
     display: none;
   }
-  .text-btn__label { display: none; }
+  .text-btn--refresh .text-btn__label { display: none; }
   .text-btn--refresh {
-    width: 32px;
+    width: 40px;
+    height: 40px;
     padding: 0;
     justify-content: center;
   }
@@ -2994,7 +3103,7 @@ rect.heatmap-today {
     border-radius: 12px;
   }
   [data-slot="dialog-content"].modal {
-    width: calc(100vw - 1rem);
+    width: calc(100vw - 2rem);
   }
   .modal-head {
     padding: 0.9rem 1rem;
@@ -3046,6 +3155,7 @@ rect.heatmap-today {
     gap: 0.22rem;
   }
   .app-header__brand { font-size: 0.9rem; }
-  .icon-btn { width: 30px; height: 30px; }
-  .text-btn--refresh { width: 30px; }
+  .icon-btn { width: 38px; height: 38px; }
+  .icon-btn--chat { width: 38px; }
+  .text-btn--refresh { width: 38px; height: 38px; }
 }
