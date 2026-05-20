@@ -1,4 +1,4 @@
-import { Calendar, Coins, Sparkles, TrendingUp } from "lucide-react";
+import { Calendar, Coins, Target, TrendingUp } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 
 interface Suggestion {
@@ -8,9 +8,9 @@ interface Suggestion {
 
 const SUGGESTIONS: Suggestion[] = [
   { icon: Calendar, text: "How many times did I play this week?" },
-  { icon: Sparkles, text: "Suggest songs I should grind to improve my rating" },
+  { icon: Target, text: "Find efficient maimai songs for rating" },
   { icon: TrendingUp, text: "Show my rating progress this month" },
-  { icon: Coins, text: "How much have I spent on arcade this year?" },
+  { icon: Coins, text: "How much have I spent this year?" },
 ];
 
 interface EmptyStateProps {
@@ -20,11 +20,10 @@ interface EmptyStateProps {
 export default function EmptyState({ onPick }: EmptyStateProps) {
   return (
     <div className="chat-empty">
-      <div className="chat-empty__hello">ChuMaiNichi assistant</div>
+      <div className="chat-empty__hello">Assistant</div>
       <p className="chat-empty__desc">
-        Ask about play counts, ratings, spending, or request maimai song picks
-        to improve your rating. I query your Neon snapshots in read-only mode —
-        nothing is written.
+        Ask about play counts, rating movement, spending, or maimai song picks.
+        Responses use your read-only play data and history.
       </p>
       <div className="chat-empty__section">Try asking</div>
       <div className="chat-suggested">

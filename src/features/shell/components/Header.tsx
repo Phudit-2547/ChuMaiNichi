@@ -16,20 +16,41 @@ export default function Header({
 }: HeaderProps) {
   const { chatOpen, toggleChat } = useShellStore();
 
-  const statusLabel =
+  const refreshCopy =
     refreshStatus === "queued"
-      ? "Queued…"
+      ? {
+          label: "Queued",
+          title: "Refresh queued. Waiting for the scrape to start.",
+        }
       : refreshStatus === "in_progress"
-        ? "Scraping…"
+        ? {
+            label: "Running",
+            title: "Refresh running. New score data is being collected.",
+          }
         : refreshStatus === "syncing"
-          ? "Updating…"
+          ? {
+              label: "Syncing",
+              title: "Refresh finished. Updating the dashboard data.",
+            }
           : refreshStatus === "completed"
-            ? "Done!"
+            ? {
+                label: "Done",
+                title: "Refresh complete. Scores are up to date.",
+              }
             : refreshStatus === "failed"
-              ? "Failed"
+              ? {
+                  label: "Retry",
+                  title: "Refresh failed. Try again.",
+                }
               : refreshing
-                ? "Please wait…"
-                : "Refresh scores";
+                ? {
+                    label: "Working",
+                    title: "Refresh in progress. Please wait.",
+                  }
+                : {
+                    label: "Refresh",
+                    title: "Refresh scores",
+                  };
 
   return (
     <header className="app-header">
@@ -97,16 +118,20 @@ export default function Header({
           className={`text-btn text-btn--refresh glass-control glass-control--primary ${refreshing ? "glass-control--active" : ""}`}
           onClick={onRefresh}
           disabled={refreshing}
-          title={statusLabel}
-          aria-label={statusLabel}
+          title={refreshCopy.title}
+          aria-label={refreshCopy.title}
+          aria-busy={refreshing}
         >
           <RotateCw size={16} className={refreshing ? "icon-spin" : ""} />
-          <span className="text-btn__label">{statusLabel}</span>
+          <span className="text-btn__label" aria-live="polite">
+            {refreshCopy.label}
+          </span>
         </button>
         <button
           type="button"
           className="icon-btn glass-control glass-control--clear"
-          title="Settings"
+          title="Open settings"
+          aria-label="Open settings"
           onClick={onOpenSettings}
         >
           <Settings size={18} />
@@ -115,8 +140,8 @@ export default function Header({
           id="chat-toggle-button"
           type="button"
           className={`icon-btn icon-btn--chat glass-control glass-control--clear ${chatOpen ? "glass-control--active" : ""}`}
-          title="Toggle chat (Ctrl/Cmd+K)"
-          aria-label={chatOpen ? "Close chat" : "Open chat"}
+          title="Assistant (Ctrl/Cmd+K)"
+          aria-label={chatOpen ? "Close Assistant" : "Open Assistant"}
           aria-pressed={chatOpen}
           aria-keyshortcuts="Control+K Meta+K"
           onClick={toggleChat}

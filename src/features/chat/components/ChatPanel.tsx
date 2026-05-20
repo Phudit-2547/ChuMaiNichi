@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MessageCircle, X } from "lucide-react";
+import { MessageCircle, Square, Trash2, X } from "lucide-react";
 import useShellStore from "@/features/shell/stores/shell-store";
 import useSettingsStore from "@/features/settings/stores/settings-store";
 import { fetchModel } from "@/global/lib/api";
@@ -36,10 +36,10 @@ const SLASH_COMMANDS = [
           id: "chuni-rating-target",
           title: "CHUNITHM target table",
           label: "CHUNITHM",
-          description: "Score table for a target play rating.",
+          description: "Build a target play-rating table.",
           draft: "/chuni rating ",
           example: "/chuni rating 15.00",
-          hint: "Enter a target play rating, e.g. 15.00.",
+          hint: "Add a target play rating, e.g. 15.00.",
           keywords: ["chuni", "chunithm", "target", "table", "score"],
         },
       ]
@@ -50,20 +50,20 @@ const SLASH_COMMANDS = [
           id: "mai-rating-target",
           title: "maimai target table",
           label: "maimai",
-          description: "Achievement table for a target song rating.",
+          description: "Build a target song-rating table.",
           draft: "/mai rating ",
           example: "/mai rating 300",
-          hint: "Enter a target song rating, e.g. 300.",
+          hint: "Add a target song rating, e.g. 300.",
           keywords: ["mai", "maimai", "target", "song", "table"],
         },
         {
           id: "mai-rating-chart",
           title: "maimai chart rating",
           label: "maimai",
-          description: "Calculate one chart from constant and achievement.",
+          description: "Calculate one chart rating.",
           draft: "/mai rating ",
           example: "/mai rating 14.0 100.0000%",
-          hint: "Enter chart constant and achievement, e.g. 14.0 100.0000%.",
+          hint: "Add chart constant and achievement, e.g. 14.0 100.0000%.",
           keywords: ["mai", "maimai", "chart", "constant", "achievement"],
         },
       ]
@@ -185,6 +185,48 @@ function dropEmptyStreaming(prev: UiMessage[]): UiMessage[] {
   return next;
 }
 
+function settleStreaming(prev: UiMessage[]): UiMessage[] {
+  const next = [...prev];
+  for (let i = next.length - 1; i >= 0; i--) {
+    const m = next[i];
+    if (m.role === "assistant" && m.streaming) {
+      if (!m.content) {
+        next.splice(i, 1);
+      } else {
+        next[i] = { ...m, streaming: false };
+      }
+      break;
+    }
+  }
+  return next;
+}
+
+function friendlyStreamError(error: unknown): string {
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return "Response stopped.";
+  }
+
+  const retryPath =
+    "Press ↑ to restore your last question, then send it again.";
+  const message =
+    typeof error === "string"
+      ? error.trim()
+      : error instanceof Error
+        ? error.message.trim()
+        : "";
+
+  if (message.includes("401") || message.includes("Unauthorized")) {
+    return `The Assistant could not authenticate. Check the dashboard password, then retry. ${retryPath}`;
+  }
+  if (message.includes("429") || /rate limit/i.test(message)) {
+    return `The AI provider is busy or rate-limited. Wait a moment, then retry. ${retryPath}`;
+  }
+  if (message) {
+    return `${message} ${retryPath}`;
+  }
+  return `The response could not finish. ${retryPath}`;
+}
+
 export default function ChatPanel() {
   const { chatOpen, setChatOpen } = useShellStore();
   const { showToolCalls } = useSettingsStore();
@@ -216,6 +258,10 @@ export default function ChatPanel() {
     selectedSlashCommand && input.startsWith(selectedSlashCommand.draft)
       ? selectedSlashCommand.hint
       : null;
+  const modelStatusText = modelLabel ?? "Checking...";
+  const modelStatusDescription = modelLabel
+    ? `Assistant ready. Current model: ${modelLabel}.`
+    : "Assistant is checking model availability.";
 
   useEffect(() => {
     setSlashIndex(0);
@@ -318,25 +364,11 @@ export default function ChatPanel() {
         return next;
       });
     } else if (ev.type === "done") {
-      setMessages((prev) => {
-        const next = [...prev];
-        for (let i = next.length - 1; i >= 0; i--) {
-          const m = next[i];
-          if (m.role === "assistant" && m.streaming) {
-            if (!m.content) {
-              next.splice(i, 1);
-            } else {
-              next[i] = { ...m, streaming: false };
-            }
-            break;
-          }
-        }
-        return next;
-      });
+      setMessages(settleStreaming);
     } else if (ev.type === "error") {
       setMessages((prev) => {
         const next = dropEmptyStreaming(prev);
-        next.push({ role: "error", content: ev.error });
+        next.push({ role: "error", content: friendlyStreamError(ev.error) });
         return next;
       });
     }
@@ -390,31 +422,14 @@ export default function ChatPanel() {
 
       try {
         await streamChat(apiHistory, handleEvent, ctrl.signal);
-        setMessages((prev) => {
-          const next = [...prev];
-          for (let i = next.length - 1; i >= 0; i--) {
-            const m = next[i];
-            if (m.role === "assistant" && m.streaming) {
-              if (!m.content) {
-                next.splice(i, 1);
-              } else {
-                next[i] = { ...m, streaming: false };
-              }
-              break;
-            }
-          }
-          return next;
-        });
+        setMessages(settleStreaming);
       } catch (err) {
         if (!ctrl.signal.aborted) {
           setMessages((prev) => {
             const next = dropEmptyStreaming(prev);
             next.push({
               role: "error",
-              content:
-                err instanceof Error
-                  ? `Stream failed: ${err.message}`
-                  : "Stream failed — please retry.",
+              content: friendlyStreamError(err),
             });
             return next;
           });
@@ -426,6 +441,13 @@ export default function ChatPanel() {
     },
     [input, busy, messages, handleEvent],
   );
+
+  const stop = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setMessages(settleStreaming);
+    setBusy(false);
+  }, []);
 
   const applySlashCommand = (command: SlashCommand) => {
     const nextInput = input.startsWith(command.draft) ? input : command.draft;
@@ -526,22 +548,39 @@ export default function ChatPanel() {
       inert={chatOpen ? undefined : true}
     >
       <ChatResizer />
-      <div className="chat-panel__header glass-scroll-edge">
+      <div className="chat-panel__header">
         <MessageCircle
           size={16}
           style={{ color: "var(--color-accent-hover)" }}
         />
         <div className="chat-panel__title">Assistant</div>
-        <div className="chat-panel__sub">
-          <span className="chat-panel__status-dot" />
-          {modelLabel ?? "…"}
+        <div
+          className="chat-panel__sub"
+          title={modelStatusDescription}
+          aria-label={modelStatusDescription}
+        >
+          {modelLabel ? (
+            <span className="chat-panel__status-dot" aria-hidden="true" />
+          ) : null}
+          <span aria-hidden="true">{modelStatusText}</span>
         </div>
+        {messages.length > 0 && (
+          <button
+            type="button"
+            className="chat-panel__close glass-control glass-control--clear"
+            onClick={clear}
+            title="Clear conversation"
+            aria-label="Clear Assistant conversation"
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
         <button
           type="button"
           className="chat-panel__close glass-control glass-control--clear"
           onClick={() => setChatOpen(false)}
           title="Close"
-          aria-label="Close chat"
+          aria-label="Close Assistant"
         >
           <X size={14} />
         </button>
@@ -570,8 +609,8 @@ export default function ChatPanel() {
             aria-label="Slash commands"
           >
             <div className="slash-menu__header">
-              <span>Choose command</span>
-              <span>editable draft</span>
+              <span>Commands</span>
+              <span>draft</span>
             </div>
             <div className="slash-menu__list">
               {slashMatches.map((command, index) => (
@@ -604,7 +643,7 @@ export default function ChatPanel() {
               ))}
             </div>
             <div className="slash-menu__footer">
-              <kbd>↑</kbd>/<kbd>↓</kbd> move · <kbd>Tab</kbd> select
+              <kbd>↑</kbd>/<kbd>↓</kbd> move · <kbd>Tab</kbd> insert
             </div>
           </div>
         )}
@@ -659,10 +698,14 @@ export default function ChatPanel() {
               disabled={busy}
             />
             <GlassSendButton
-              disabled={!input.trim() || busy}
-              onClick={() => send()}
-              title="Send"
-            />
+              disabled={!busy && !input.trim()}
+              onClick={() => (busy ? stop() : send())}
+              title={busy ? "Stop response" : "Send"}
+              aria-label={busy ? "Stop response" : "Send message"}
+              data-busy={busy}
+            >
+              {busy ? <Square size={12} fill="currentColor" /> : undefined}
+            </GlassSendButton>
           </div>
         </GlassComposer>
         <div className="chat-composer__hints">
@@ -674,15 +717,6 @@ export default function ChatPanel() {
               <kbd>Esc</kbd> close · <kbd>Ctrl</kbd>/<kbd>⌘</kbd>{" "}
               <kbd>K</kbd> toggle
             </span>
-          )}
-          {messages.length > 0 && (
-            <button
-              type="button"
-              className="chat-composer__clear glass-control glass-control--clear"
-              onClick={clear}
-            >
-              clear
-            </button>
           )}
         </div>
       </div>
