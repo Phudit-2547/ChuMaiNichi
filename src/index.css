@@ -144,6 +144,11 @@
   --sql-string: oklch(0.78 0.13 145);
   --sql-number: oklch(0.83 0.13 82);
 
+  /*
+   * Liquid glass is intentionally preserved as dormant future runway.
+   * Default tokens resolve to premium-flat surfaces; actual liquid effects
+   * are enabled only by html[data-surface-mode="liquid"] below.
+   */
   --glass-radius-panel: 12px;
   --glass-radius-control: 9px;
   --glass-stroke: oklch(0.78 0.014 270 / 0.46);
@@ -262,8 +267,8 @@
   --border-subtle: oklch(0.32 0.018 265);
   --text-muted: oklch(0.61 0.018 260);
   --accent-hover: oklch(0.72 0.22 296);
-  --accent-soft: oklch(0.67 0.22 296 / 0.16);
-  --accent-border: oklch(0.67 0.22 296 / 0.24);
+  --accent-soft: oklch(0.67 0.2 296 / 0.11);
+  --accent-border: oklch(0.67 0.2 296 / 0.18);
   --success: oklch(0.62 0.16 150);
   --maimai: oklch(0.75 0.19 350);
   --chunithm: oklch(0.68 0.19 268);
@@ -306,8 +311,8 @@
   --liquid-control-bg: color-mix(in oklch, var(--surface-elevated) 84%, var(--background));
   --liquid-control-hover-bg: color-mix(in oklch, var(--surface-muted) 42%, var(--surface-elevated));
   --liquid-control-active-bg: color-mix(in oklch, var(--accent-soft) 54%, var(--surface-elevated));
-  --liquid-primary-bg: color-mix(in oklch, var(--accent) 14%, var(--surface-elevated));
-  --liquid-primary-hover-bg: color-mix(in oklch, var(--accent) 19%, var(--surface-elevated));
+  --liquid-primary-bg: color-mix(in oklch, var(--accent) 9%, var(--surface-elevated));
+  --liquid-primary-hover-bg: color-mix(in oklch, var(--accent) 14%, var(--surface-elevated));
   --liquid-modal-bg: var(--surface-elevated);
   --liquid-content-bg: var(--surface);
   --liquid-content-border: oklch(1 0 0 / 0.08);
@@ -320,10 +325,10 @@
   --liquid-rim-bottom: oklch(0.04 0.012 265 / 0.18);
   --liquid-specular: transparent;
   --liquid-caustic: transparent;
-  --liquid-shadow: 0 14px 34px oklch(0.08 0.012 265 / 0.28);
-  --liquid-shadow-strong: 0 20px 48px oklch(0.06 0.012 265 / 0.36);
-  --liquid-shadow-control: 0 4px 12px oklch(0.08 0.012 265 / 0.18);
-  --liquid-shadow-control-hover: 0 6px 16px oklch(0.08 0.012 265 / 0.22);
+  --liquid-shadow: 0 10px 24px oklch(0.08 0.012 265 / 0.2);
+  --liquid-shadow-strong: 0 14px 34px oklch(0.06 0.012 265 / 0.26);
+  --liquid-shadow-control: 0 2px 8px oklch(0.08 0.012 265 / 0.12);
+  --liquid-shadow-control-hover: 0 4px 12px oklch(0.08 0.012 265 / 0.16);
   --liquid-filter-regular: none;
   --liquid-filter-control: none;
   --liquid-filter-modal: none;
@@ -348,8 +353,8 @@
   --shadow-glass: var(--liquid-shadow);
   --shadow-card: var(--liquid-shadow-control);
   --shadow-card-hover: var(--liquid-shadow-control-hover);
-  --shadow-elevated: 0 16px 36px oklch(0.08 0.012 265 / 0.34);
-  --shadow-menu: 0 22px 52px oklch(0.08 0.012 265 / 0.44);
+  --shadow-elevated: 0 12px 30px oklch(0.08 0.012 265 / 0.24);
+  --shadow-menu: 0 16px 40px oklch(0.08 0.012 265 / 0.34);
   --shadow-quiet: 0 1px 0 oklch(1 0 0 / 0.04) inset;
   --brand-mark-shadow: oklch(0.04 0.012 265 / 0.42);
   --app-vignette-top: oklch(0.28 0.012 265 / 0.08);
@@ -472,6 +477,7 @@ h1 {
 .glass-modal,
 .glass-control,
 .chat-composer__box {
+  /* Compatibility shell only. Liquid visuals are opt-in, not the default UI. */
   --liquid-pointer-x: 50%;
   --liquid-pointer-y: 0%;
   --liquid-highlight-strength: 0;
@@ -479,15 +485,8 @@ h1 {
   --liquid-border-color: var(--liquid-border);
   --liquid-filter: var(--liquid-filter-regular);
   --liquid-shadow-current: var(--liquid-shadow);
-  --liquid-highlight-opacity: 0.24;
-  --liquid-background-stack:
-    radial-gradient(
-      120% 90% at var(--liquid-pointer-x) var(--liquid-pointer-y),
-      color-mix(in oklch, var(--liquid-caustic) calc(16% * var(--liquid-highlight-strength)), transparent) 0%,
-      transparent 40%
-    ),
-    linear-gradient(135deg, oklch(1 0 0 / 0.05), transparent 34%, oklch(1 0 0 / 0.025)),
-    var(--liquid-bg);
+  --liquid-highlight-opacity: 0;
+  --liquid-background-stack: var(--liquid-bg);
   position: relative;
   isolation: isolate;
   overflow: hidden;
@@ -509,11 +508,7 @@ h1 {
 .glass-modal::after,
 .glass-control::after,
 .chat-composer__box::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
+  content: none;
 }
 
 .glass-shell::before,
@@ -524,14 +519,8 @@ h1 {
 .glass-control::before,
 .chat-composer__box::before {
   z-index: 0;
-  background:
-    radial-gradient(
-      circle at var(--liquid-pointer-x) var(--liquid-pointer-y),
-      color-mix(in oklch, var(--liquid-specular) calc(42% * var(--liquid-highlight-strength)), transparent) 0 10%,
-      transparent 38%
-    ),
-    linear-gradient(120deg, oklch(1 0 0 / 0.08), transparent 28%, oklch(1 0 0 / 0.035) 62%, transparent);
-  opacity: calc(0.26 + (0.24 * var(--liquid-highlight-strength)));
+  background: transparent;
+  opacity: 0;
   transition: opacity 180ms ease;
 }
 
@@ -543,18 +532,8 @@ h1 {
 .glass-control::after,
 .chat-composer__box::after {
   z-index: 1;
-  box-shadow:
-    inset 0 1px 0 var(--liquid-rim-top),
-    inset 1px 0 0 var(--liquid-rim-side),
-    inset -1px 0 0 oklch(1 0 0 / 0.08),
-    inset 0 -1px 0 var(--liquid-rim-bottom);
-  background:
-    radial-gradient(
-      120% 80% at var(--liquid-pointer-x) calc(var(--liquid-pointer-y) - 18%),
-      color-mix(in oklch, var(--liquid-specular) calc(22% * var(--liquid-highlight-strength)), transparent),
-      transparent 48%
-    ),
-    linear-gradient(180deg, oklch(1 0 0 / 0.055), transparent 38%, oklch(0 0 0 / 0.055));
+  box-shadow: none;
+  background: transparent;
 }
 
 .glass-shell > *,
@@ -739,7 +718,7 @@ h1 {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 1.25rem;
+  gap: 0.45rem 1.05rem;
   margin-bottom: 0.75rem;
 }
 
@@ -752,29 +731,40 @@ h1 {
 }
 
 .stats-bar__today-value {
-  font-size: 1.875rem;
+  font-size: 1.55rem;
   line-height: 1;
-  font-weight: 700;
+  font-weight: 650;
   letter-spacing: 0;
 }
 
 .stats-bar__today-label {
-  font-size: 0.75rem;
+  font-size: 0.68rem;
   color: var(--muted-foreground);
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.06em;
 }
 
 .stats-bar__item-value {
-  font-size: 0.875rem;
-  font-weight: 650;
+  font-size: 0.82rem;
+  font-weight: 600;
   color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.stats-bar__item[data-state="zero"] .stats-bar__item-value {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.stats-bar__item[data-prominence="primary"] .stats-bar__item-value {
+  color: var(--foreground);
+  font-weight: 650;
 }
 
 .stats-bar__item-label,
 .stats-bar__dot {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: var(--muted-foreground);
 }
 
@@ -1016,6 +1006,36 @@ h1 {
   box-shadow: var(--shadow-card);
 }
 
+.app-header .icon-btn:not(.icon-btn--chat) {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.app-header .icon-btn:not(.icon-btn--chat):hover,
+.app-header .icon-btn:not(.icon-btn--chat):focus-visible {
+  background: var(--glass-control-bg);
+  border-color: var(--glass-control-border);
+}
+
+.app-header__action--primary {
+  border-color: var(--glass-primary-border);
+}
+
+.app-header__action--quiet {
+  color: var(--color-text-muted);
+}
+
+.app-header__action--stateful[data-state="closed"] {
+  background: transparent;
+  border-color: color-mix(in oklch, var(--glass-control-border) 72%, transparent);
+}
+
+.app-header__action--stateful[data-state="open"] {
+  background: var(--glass-control-active-bg);
+  border-color: var(--accent-border);
+}
+
 .icon-btn--chat {
   width: auto;
   min-width: 36px;
@@ -1232,9 +1252,9 @@ rect.heatmap-today {
   width: 100%;
   min-width: 0;
   height: 100%;
-  border-left: 1px solid var(--color-border-subtle);
-  background: var(--surface-elevated);
-  box-shadow: -10px 0 26px oklch(0.16 0.012 265 / 0.06);
+  border-left: 1px solid color-mix(in oklch, var(--color-border-subtle) 72%, transparent);
+  background: color-mix(in oklch, var(--surface) 88%, var(--background));
+  box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   display: flex;
@@ -1274,7 +1294,7 @@ rect.heatmap-today {
 
 .chat-panel__header {
   position: relative;
-  padding: 0.9rem 1.05rem;
+  padding: 0.85rem 1rem 0.7rem;
   border-bottom: 0;
   display: flex;
   align-items: center;
@@ -1297,21 +1317,21 @@ rect.heatmap-today {
   gap: 0.35rem;
   font-family: inherit;
   font-variant-numeric: tabular-nums;
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   color: var(--color-text-muted);
 }
 
 .chat-panel__status-dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: var(--color-success);
   /* no glow — premium flat indicator */
 }
 
 .chat-panel__close {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1339,7 +1359,7 @@ rect.heatmap-today {
 .chat-panel__scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 1rem 1rem 0.5rem;
+  padding: 0.8rem 0.95rem 0.45rem;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
   min-height: 0;
@@ -1433,7 +1453,7 @@ rect.heatmap-today {
 
 /* Messages */
 .chat-msg {
-  margin-bottom: 0.9rem;
+  margin-bottom: 0.75rem;
   max-width: 100%;
 }
 
@@ -1586,6 +1606,51 @@ rect.heatmap-today {
   background: var(--color-surface-muted, oklch(1 0 0 / 0.04));
 }
 
+.chat-answer-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0.28rem 0.55rem;
+  margin: 0.55rem 0 0.65rem;
+  padding: 0.58rem 0.68rem;
+  border: 1px solid color-mix(in oklch, var(--accent-border) 58%, var(--color-border-subtle));
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--accent-soft) 42%, var(--surface));
+}
+
+.chat-answer-summary__label {
+  color: var(--color-accent-hover);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.chat-answer-summary__title {
+  min-width: 0;
+  color: var(--foreground);
+  font-size: 0.9rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.chat-answer-summary__score,
+.chat-answer-summary__gain {
+  color: var(--color-text-muted);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.chat-answer-summary__score {
+  grid-column: 2;
+}
+
+.chat-answer-summary__gain {
+  grid-column: 2;
+  color: var(--foreground);
+  font-weight: 650;
+}
+
 @container chatpanel (min-width: 440px) {
   .chat-msg__body table { font-size: 0.82rem; }
   .chat-msg__body td img {
@@ -1611,8 +1676,8 @@ rect.heatmap-today {
 }
 
 .chat-msg--user .chat-msg__body {
-  background: color-mix(in oklch, var(--accent) 18%, transparent);
-  border: 1px solid color-mix(in oklch, var(--accent) 30%, transparent);
+  background: color-mix(in oklch, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in oklch, var(--accent) 22%, transparent);
   padding: 0.55rem 0.8rem;
   border-radius: 12px;
   border-bottom-left-radius: 4px;
@@ -1648,8 +1713,8 @@ rect.heatmap-today {
 /* Thought blocks (for <think>...</think> reasoning models) */
 .chat-thought {
   margin: 0.55rem 0;
-  background: var(--color-elevated);
-  border: 1px solid var(--color-border-subtle);
+  background: color-mix(in oklch, var(--surface) 78%, transparent);
+  border: 1px solid color-mix(in oklch, var(--color-border-subtle) 72%, transparent);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -2041,8 +2106,8 @@ rect.heatmap-today {
 /* Tool calls */
 .chat-tool {
   margin: 0.5rem 0 0.9rem;
-  border: 1px solid var(--border);
-  background: var(--color-elevated);
+  border: 1px solid color-mix(in oklch, var(--border) 72%, transparent);
+  background: color-mix(in oklch, var(--surface) 78%, transparent);
   border-radius: 8px;
   overflow: hidden;
   font-size: 0.8rem;
@@ -2055,7 +2120,7 @@ rect.heatmap-today {
   gap: 0.5rem;
   cursor: pointer;
   user-select: none;
-  background: var(--surface-subtle-tint);
+  background: transparent;
   border: none;
   width: 100%;
   color: inherit;
@@ -2205,7 +2270,7 @@ rect.heatmap-today {
 .chat-composer {
   z-index: 100;
   position: relative;
-  padding: 0.7rem 0.8rem 0.9rem;
+  padding: 0.55rem 0.75rem 0.75rem;
   flex-shrink: 0;
 }
 
@@ -2370,12 +2435,12 @@ rect.heatmap-today {
   align-items: end;
   justify-content: stretch;
   width: 100%;
-  background: var(--surface-elevated);
-  border: 1px solid color-mix(in oklch, var(--foreground) 14%, var(--glass-control-border));
-  border-radius: 12px;
+  background: color-mix(in oklch, var(--surface-elevated) 72%, var(--surface));
+  border: 1px solid color-mix(in oklch, var(--foreground) 10%, var(--glass-control-border));
+  border-radius: 10px;
   padding: 0.46rem 0.52rem;
   transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
-  box-shadow: var(--shadow-card);
+  box-shadow: none;
 }
 
 .chat-composer__row {
@@ -2388,7 +2453,7 @@ rect.heatmap-today {
 
 .chat-composer__box:focus-within {
   border-color: var(--accent-border);
-  box-shadow: var(--glass-focus-ring), var(--shadow-card-hover);
+  box-shadow: var(--glass-focus-ring);
 }
 
 .chat-composer__input {
@@ -2471,7 +2536,7 @@ rect.heatmap-today {
   height: 32px;
   flex-shrink: 0;
   border: 1px solid var(--glass-control-border);
-  border-radius: 10px;
+  border-radius: 9px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2492,7 +2557,7 @@ rect.heatmap-today {
   background: var(--glass-primary-hover-bg);
   border-color: var(--accent-border);
   color: var(--foreground);
-  box-shadow: var(--shadow-card);
+  box-shadow: none;
 }
 
 .chat-composer__send:active:not(:disabled) {
@@ -2703,19 +2768,28 @@ rect.heatmap-today {
 }
 
 .chat-composer__box {
-  background: var(--surface-elevated);
-  border-color: color-mix(in oklch, var(--foreground) 14%, var(--glass-control-border));
-  box-shadow: var(--shadow-card);
+  background: color-mix(in oklch, var(--surface-elevated) 72%, var(--surface));
+  border-color: color-mix(in oklch, var(--foreground) 10%, var(--glass-control-border));
+  box-shadow: none;
 }
 
 .chat-composer__command {
   border-radius: 9px;
+  background: transparent;
+  border-color: transparent;
   box-shadow: none;
 }
 
+.chat-composer__command--slash:hover:not(:disabled),
+.chat-composer__command--slash:focus-visible,
+.chat-composer__command--slash[data-active="true"] {
+  background: color-mix(in oklch, var(--surface-muted) 38%, transparent);
+  border-color: color-mix(in oklch, var(--color-border-subtle) 68%, transparent);
+}
+
 .chat-composer__send {
-  border-radius: 10px;
-  border-color: var(--accent-border);
+  border-radius: 9px;
+  border-color: color-mix(in oklch, var(--accent-border) 78%, var(--glass-control-border));
   background: var(--glass-primary-bg);
   color: var(--accent-hover);
   box-shadow: none;
@@ -2726,12 +2800,12 @@ rect.heatmap-today {
   background: var(--glass-primary-hover-bg);
   border-color: var(--accent-border);
   color: var(--foreground);
-  box-shadow: var(--shadow-card);
+  box-shadow: none;
 }
 
 .chat-composer__send:focus-visible {
   outline: none;
-  box-shadow: var(--glass-focus-ring), var(--shadow-card);
+  box-shadow: var(--glass-focus-ring);
 }
 
 .chat-composer__send svg {
@@ -2762,6 +2836,135 @@ rect.heatmap-today {
 
 .dark .modal.glass-modal::after {
   background: transparent;
+}
+
+/*
+ * Dormant liquid glass mode.
+ * Keep public glass classes and --liquid-* tokens compatible, but require an
+ * explicit surface-mode flag before blur, saturation, caustics, or specular
+ * pseudo highlights can affect the shipped flat UI.
+ */
+html[data-surface-mode="liquid"] {
+  --liquid-glass-bg: color-mix(in oklch, var(--surface-elevated) 78%, transparent);
+  --liquid-glass-bg-strong: color-mix(in oklch, var(--surface-elevated) 84%, transparent);
+  --liquid-glass-highlight: color-mix(in oklch, var(--foreground) 18%, transparent);
+  --liquid-glass-highlight-soft: color-mix(in oklch, var(--foreground) 10%, transparent);
+  --liquid-glass-shadow: 0 16px 42px oklch(0.2 0.014 265 / 0.14);
+  --liquid-glass-shadow-hover: 0 20px 54px oklch(0.2 0.014 265 / 0.18);
+  --liquid-glass-filter: saturate(150%) blur(18px);
+  --liquid-glass-surface-filter: saturate(145%) blur(14px);
+  --liquid-glass-lens-filter: saturate(160%) blur(22px);
+  --liquid-regular-bg: var(--liquid-glass-bg);
+  --liquid-clear-bg: color-mix(in oklch, var(--surface-elevated) 64%, transparent);
+  --liquid-control-bg: color-mix(in oklch, var(--surface-elevated) 70%, transparent);
+  --liquid-control-hover-bg: color-mix(in oklch, var(--surface-muted) 58%, transparent);
+  --liquid-control-active-bg: color-mix(in oklch, var(--accent-soft) 62%, transparent);
+  --liquid-modal-bg: var(--liquid-glass-bg-strong);
+  --liquid-rim-top: color-mix(in oklch, var(--foreground) 16%, transparent);
+  --liquid-rim-side: color-mix(in oklch, var(--foreground) 7%, transparent);
+  --liquid-rim-bottom: color-mix(in oklch, var(--background) 26%, transparent);
+  --liquid-specular: var(--liquid-glass-highlight);
+  --liquid-caustic: var(--liquid-glass-highlight-soft);
+  --liquid-shadow: var(--liquid-glass-shadow);
+  --liquid-shadow-strong: 0 24px 70px oklch(0.16 0.014 265 / 0.22);
+  --liquid-shadow-control: 0 8px 24px oklch(0.2 0.014 265 / 0.12);
+  --liquid-shadow-control-hover: var(--liquid-glass-shadow-hover);
+  --liquid-filter-regular: var(--liquid-glass-surface-filter);
+  --liquid-filter-control: saturate(150%) blur(12px);
+  --liquid-filter-modal: var(--liquid-glass-lens-filter);
+  --liquid-backdrop-filter: saturate(120%) blur(16px);
+}
+
+html[data-surface-mode="liquid"].dark {
+  --liquid-glass-shadow: 0 18px 50px oklch(0.05 0.014 265 / 0.42);
+  --liquid-glass-shadow-hover: 0 22px 62px oklch(0.04 0.014 265 / 0.5);
+  --liquid-shadow-strong: 0 28px 78px oklch(0.04 0.014 265 / 0.54);
+  --liquid-rim-top: color-mix(in oklch, var(--foreground) 12%, transparent);
+  --liquid-rim-bottom: oklch(0.02 0.012 265 / 0.32);
+}
+
+html[data-surface-mode="liquid"] .glass-shell,
+html[data-surface-mode="liquid"] .glass-panel,
+html[data-surface-mode="liquid"] .glass-panel-strong,
+html[data-surface-mode="liquid"] .glass-menu,
+html[data-surface-mode="liquid"] .glass-modal,
+html[data-surface-mode="liquid"] .glass-control:not(.toggle),
+html[data-surface-mode="liquid"] .chat-composer__box {
+  --liquid-highlight-opacity: 0.24;
+  --liquid-background-stack:
+    radial-gradient(
+      120% 90% at var(--liquid-pointer-x) var(--liquid-pointer-y),
+      color-mix(in oklch, var(--liquid-caustic) calc(16% * var(--liquid-highlight-strength)), transparent) 0%,
+      transparent 40%
+    ),
+    linear-gradient(135deg, oklch(1 0 0 / 0.055), transparent 34%, oklch(1 0 0 / 0.026)),
+    var(--liquid-bg);
+  background: var(--liquid-background-stack);
+  border-color: var(--liquid-border-color);
+  box-shadow: var(--liquid-shadow-current);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
+}
+
+html[data-surface-mode="liquid"] .glass-shell::before,
+html[data-surface-mode="liquid"] .glass-panel::before,
+html[data-surface-mode="liquid"] .glass-panel-strong::before,
+html[data-surface-mode="liquid"] .glass-menu::before,
+html[data-surface-mode="liquid"] .glass-modal::before,
+html[data-surface-mode="liquid"] .glass-control::before,
+html[data-surface-mode="liquid"] .chat-composer__box::before,
+html[data-surface-mode="liquid"] .glass-shell::after,
+html[data-surface-mode="liquid"] .glass-panel::after,
+html[data-surface-mode="liquid"] .glass-panel-strong::after,
+html[data-surface-mode="liquid"] .glass-menu::after,
+html[data-surface-mode="liquid"] .glass-modal::after,
+html[data-surface-mode="liquid"] .glass-control::after,
+html[data-surface-mode="liquid"] .chat-composer__box::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+html[data-surface-mode="liquid"] .glass-shell::before,
+html[data-surface-mode="liquid"] .glass-panel::before,
+html[data-surface-mode="liquid"] .glass-panel-strong::before,
+html[data-surface-mode="liquid"] .glass-menu::before,
+html[data-surface-mode="liquid"] .glass-modal::before,
+html[data-surface-mode="liquid"] .glass-control::before,
+html[data-surface-mode="liquid"] .chat-composer__box::before {
+  z-index: 0;
+  background:
+    radial-gradient(
+      circle at var(--liquid-pointer-x) var(--liquid-pointer-y),
+      color-mix(in oklch, var(--liquid-specular) calc(42% * var(--liquid-highlight-strength)), transparent) 0 10%,
+      transparent 38%
+    ),
+    linear-gradient(120deg, oklch(1 0 0 / 0.08), transparent 28%, oklch(1 0 0 / 0.035) 62%, transparent);
+  opacity: calc(var(--liquid-highlight-opacity) + (0.24 * var(--liquid-highlight-strength)));
+}
+
+html[data-surface-mode="liquid"] .glass-shell::after,
+html[data-surface-mode="liquid"] .glass-panel::after,
+html[data-surface-mode="liquid"] .glass-panel-strong::after,
+html[data-surface-mode="liquid"] .glass-menu::after,
+html[data-surface-mode="liquid"] .glass-modal::after,
+html[data-surface-mode="liquid"] .glass-control::after,
+html[data-surface-mode="liquid"] .chat-composer__box::after {
+  z-index: 1;
+  box-shadow:
+    inset 0 1px 0 var(--liquid-rim-top),
+    inset 1px 0 0 var(--liquid-rim-side),
+    inset -1px 0 0 oklch(1 0 0 / 0.08),
+    inset 0 -1px 0 var(--liquid-rim-bottom);
+  background:
+    radial-gradient(
+      120% 80% at var(--liquid-pointer-x) calc(var(--liquid-pointer-y) - 18%),
+      color-mix(in oklch, var(--liquid-specular) calc(22% * var(--liquid-highlight-strength)), transparent),
+      transparent 48%
+    ),
+    linear-gradient(180deg, oklch(1 0 0 / 0.055), transparent 38%, oklch(0 0 0 / 0.055));
 }
 
 @layer utilities {
@@ -2803,11 +3006,13 @@ rect.heatmap-today {
 
 @media (prefers-reduced-transparency: reduce) {
   :root,
-  .dark {
+  .dark,
+  html[data-surface-mode="liquid"],
+  html[data-surface-mode="liquid"].dark {
     --liquid-glass-bg: var(--surface-elevated);
     --liquid-glass-bg-strong: var(--surface-elevated);
-    --liquid-glass-highlight: color-mix(in oklch, var(--foreground) 18%, transparent);
-    --liquid-glass-highlight-soft: color-mix(in oklch, var(--foreground) 10%, transparent);
+    --liquid-glass-highlight: transparent;
+    --liquid-glass-highlight-soft: transparent;
     --liquid-glass-filter: none;
     --liquid-glass-surface-filter: none;
     --liquid-glass-lens-filter: none;
@@ -2817,20 +3022,22 @@ rect.heatmap-today {
     --liquid-control-hover-bg: var(--surface-muted);
     --liquid-control-active-bg: var(--surface-muted);
     --liquid-modal-bg: var(--surface-elevated);
-    --liquid-filter-regular: saturate(120%);
-    --liquid-filter-control: saturate(125%);
-    --liquid-filter-modal: saturate(120%);
-    --liquid-backdrop-filter: saturate(100%);
+    --liquid-specular: transparent;
+    --liquid-caustic: transparent;
+    --liquid-filter-regular: none;
+    --liquid-filter-control: none;
+    --liquid-filter-modal: none;
+    --liquid-backdrop-filter: none;
   }
 
-  .glass-shell::before,
-  .glass-panel::before,
-  .glass-panel-strong::before,
-  .glass-menu::before,
-  .glass-modal::before,
-  .glass-control::before,
-  .chat-composer__box::before {
-    opacity: 0.16;
+  html[data-surface-mode="liquid"] .glass-shell::before,
+  html[data-surface-mode="liquid"] .glass-panel::before,
+  html[data-surface-mode="liquid"] .glass-panel-strong::before,
+  html[data-surface-mode="liquid"] .glass-menu::before,
+  html[data-surface-mode="liquid"] .glass-modal::before,
+  html[data-surface-mode="liquid"] .glass-control::before,
+  html[data-surface-mode="liquid"] .chat-composer__box::before {
+    content: none;
   }
 }
 
@@ -2920,18 +3127,45 @@ rect.heatmap-today {
     padding: 0;
   }
 
-  .chat-panel {
+  .app-shell > .overflow-hidden {
     position: fixed;
     inset: 0;
+    z-index: 90;
+    width: 100vw;
+    height: 100dvh;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .app-shell[data-chat-open="true"] > .overflow-hidden {
+    pointer-events: auto;
+  }
+
+  .chat-panel {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--chat-panel-mobile-left, 100vw);
+    right: auto;
     z-index: 90;
     width: 100vw;
     max-width: 100vw;
     border-left: none;
     background: var(--surface-elevated);
-    transform: translateX(100%);
-    transition: transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
-    will-change: transform;
+    transform: none;
+    translate: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 140ms ease;
+    will-change: opacity;
     display: flex;
+  }
+  .chat-panel.chat-panel--assistant[data-open="false"] {
+    left: var(--chat-panel-mobile-left, 100vw) !important;
+    transform: none !important;
+    translate: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
   }
   .chat-panel.glass-panel-strong::after {
     background: transparent;
@@ -2940,7 +3174,23 @@ rect.heatmap-today {
     background: transparent;
   }
   .app-shell[data-chat-open="true"] .chat-panel {
-    transform: translateX(0);
+    left: var(--chat-panel-mobile-left, 0px);
+  }
+  .app-shell[data-chat-open="true"] .chat-panel.chat-panel--assistant {
+    left: var(--chat-panel-mobile-left, 0px) !important;
+    transform: none !important;
+    translate: none !important;
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 140ms ease;
+  }
+  .chat-panel.chat-panel--assistant[data-open="true"] {
+    left: var(--chat-panel-mobile-left, 0px) !important;
+    transform: none !important;
+    translate: none !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    transition: opacity 140ms ease;
   }
   .chat-resizer { display: none; }
 
