@@ -22,28 +22,39 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
-      - name: Read config.json
-        id: config
-        uses: juliangruber/read-file-action@v1
-        with:
-          path: config.json
-
       - name: Determine which games to scrape
         id: games
+        env:
+          REQUESTED_GAMES: ${{ github.event.inputs.games }}
         run: |
-          if [ -n "${{ github.event.inputs.games }}" ]; then
-            GAMES="${{ github.event.inputs.games }}"
+          if [ -n "$REQUESTED_GAMES" ]; then
+            GAMES_JSON=$(printf '%s' "$REQUESTED_GAMES" | jq -R -c 'split(",") | map(ascii_downcase | gsub("^\\s+|\\s+$"; "")) | map(select(. != "")) | unique')
           else
-            GAMES=$(echo '${{ steps.config.outputs.content }}' | jq -r '.games | join(",")')
+            GAMES_JSON=$(jq -c '[.games[]? | tostring | ascii_downcase | gsub("^\\s+|\\s+$"; "") | select(. != "")] | unique' config.json)
           fi
+
+          INVALID_GAMES=$(printf '%s' "$GAMES_JSON" | jq -r '[.[] | select(. != "maimai" and . != "chunithm")] | join(",")')
+          if [ -n "$INVALID_GAMES" ]; then
+            echo "::error::Unsupported game(s): $INVALID_GAMES"
+            exit 1
+          fi
+
+          if [ "$(printf '%s' "$GAMES_JSON" | jq 'length')" -eq 0 ]; then
+            echo "::error::No games configured to scrape"
+            exit 1
+          fi
+
+          GAMES=$(printf '%s' "$GAMES_JSON" | jq -r 'join(",")')
           echo "games=$GAMES" >> $GITHUB_OUTPUT
+          echo "maimai=$(printf '%s' "$GAMES_JSON" | jq -r 'index("maimai") != null')" >> $GITHUB_OUTPUT
+          echo "chunithm=$(printf '%s' "$GAMES_JSON" | jq -r 'index("chunithm") != null')" >> $GITHUB_OUTPUT
           echo "games: $GAMES"
 
       - name: Create outputs directory
         run: mkdir -p outputs
 
       - name: Scrape maimai
-        if: contains(steps.games.outputs.games, 'maimai')
+        if: steps.games.outputs.maimai == 'true'
         env:
           MAIMAI_SERVICE_URL: ${{ secrets.MAIMAI_SERVICE_URL || 'https://maimai.wonderhoy.me' }}
           MAIMAI_SERVICE_API_KEY: ${{ secrets.MAIMAI_SERVICE_API_KEY }}
@@ -59,7 +70,7 @@ jobs:
             ghcr.io/leomotors/maimai-scraper:v1
 
       - name: Scrape chunithm
-        if: contains(steps.games.outputs.games, 'chunithm')
+        if: steps.games.outputs.chunithm == 'true'
         env:
           CHUNI_SERVICE_URL: ${{ secrets.CHUNI_SERVICE_URL || 'https://chuni.wonderhoy.me' }}
           CHUNI_SERVICE_API_KEY: ${{ secrets.CHUNI_SERVICE_API_KEY }}

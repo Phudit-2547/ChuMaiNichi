@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { checkAuth } from "../src/api/auth.js";
+import { loadConfig } from "../src/api/config.js";
 
 type WorkflowStatus =
   | "queued"
@@ -20,6 +21,9 @@ type WorkflowConclusion =
 const GITHUB_API = "https://api.github.com";
 const WORKFLOW_FILE = "scrape-user-data.yml";
 const DEFAULT_WORKFLOW_REF = "main";
+const VALID_WORKFLOW_GAMES = new Set(["maimai", "chunithm"]);
+
+type WorkflowGame = "maimai" | "chunithm";
 
 type WorkflowRun = {
   id: number | string;
@@ -63,6 +67,36 @@ function parseRepo(value: string) {
     .map((part) => part.trim());
   if (!owner || !repo || extra) return null;
   return { owner, repo };
+}
+
+function isWorkflowGame(value: string): value is WorkflowGame {
+  return VALID_WORKFLOW_GAMES.has(value);
+}
+
+function getConfiguredWorkflowGames() {
+  const config = loadConfig();
+  const games = Array.isArray(config.games) ? config.games : [];
+  const normalizedGames = new Set<WorkflowGame>();
+  const invalidGames: string[] = [];
+
+  for (const rawGame of games) {
+    const game = String(rawGame).trim().toLowerCase();
+    if (isWorkflowGame(game)) {
+      normalizedGames.add(game);
+    } else if (game) {
+      invalidGames.push(String(rawGame));
+    }
+  }
+
+  if (invalidGames.length > 0) {
+    throw new Error(`Invalid game(s) in config.json: ${invalidGames.join(", ")}`);
+  }
+
+  if (normalizedGames.size === 0) {
+    throw new Error("config.json must enable at least one game");
+  }
+
+  return Array.from(normalizedGames);
 }
 
 function formatGithubError(status: number, body: string, action: string) {
@@ -147,6 +181,7 @@ async function triggerWorkflow(
   owner: string,
   repo: string,
   ref: string,
+  games: WorkflowGame[],
 ) {
   const dispatchUrl = `/repos/${owner}/${repo}/actions/workflows/${WORKFLOW_FILE}/dispatches`;
   const seenRunIds = new Set(
@@ -158,7 +193,7 @@ async function triggerWorkflow(
   const response = await githubFetch(dispatchUrl, pat, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ref }),
+    body: JSON.stringify({ ref, inputs: { games: games.join(",") } }),
   });
   await assertOk(response, `dispatching ${WORKFLOW_FILE}`);
   return findTriggeredRun(pat, owner, repo, ref, seenRunIds, dispatchStartedAt);
@@ -234,7 +269,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // POST /api/refresh — trigger workflow
   if (req.method === "POST") {
     try {
-      const result = await triggerWorkflow(githubPat, owner, repo, workflowRef);
+      const games = getConfiguredWorkflowGames();
+      const result = await triggerWorkflow(githubPat, owner, repo, workflowRef, games);
       return res.status(200).json(result);
     } catch (err) {
       console.error("[refresh] trigger error:", err);

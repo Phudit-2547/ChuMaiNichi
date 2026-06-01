@@ -8,6 +8,17 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
+const mockConfig = vi.hoisted(() => ({
+  games: ["maimai", "chunithm"],
+}));
+
+vi.mock("../src/api/config.js", () => ({
+  loadConfig: () => ({
+    games: mockConfig.games,
+    currency_per_play: 40,
+  }),
+}));
+
 // Mock environment
 const originalEnv = { ...process.env };
 
@@ -38,6 +49,7 @@ function createMockResponse(): VercelResponse {
 describe("api/refresh.ts", () => {
   beforeEach(() => {
     resetEnv();
+    mockConfig.games = ["maimai", "chunithm"];
     mockFetch.mockReset();
   });
 
@@ -168,6 +180,7 @@ describe("api/refresh.ts", () => {
     it("calls GitHub API with correct parameters", async () => {
       process.env.GITHUB_PAT = "test-pat";
       process.env.GITHUB_REPO = "owner/repo";
+      mockConfig.games = ["maimai"];
 
       mockFetch
         .mockResolvedValueOnce({
@@ -218,6 +231,9 @@ describe("api/refresh.ts", () => {
           },
           body: JSON.stringify({
             ref: "main",
+            inputs: {
+              games: "maimai",
+            },
           }),
         }
       );
