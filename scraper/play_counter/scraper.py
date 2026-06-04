@@ -278,13 +278,14 @@ async def fetch_player_data(game: str, target_date: date | datetime | str | None
             "failure_reason": "credentials_not_configured",
         }
 
-    cookies_loaded = False
     last_failure_reason = None
     last_trace_path = None
 
     for attempt in range(1, MAX_RETRIES + 1):
         browser = None
         context = None
+        page = None
+        cookies_loaded = False
         try:
             async with async_playwright() as p:
                 browser = await p.firefox.launch(headless=True)
@@ -309,6 +310,7 @@ async def fetch_player_data(game: str, target_date: date | datetime | str | None
                             await login_with_sega(page, game)
                             await save_cookies(context, game)
                 else:
+                    cookies_loaded = False
                     using_cached_session = False
                     print("[RETRY] No cached cookies found, logging in...")
                     await login_with_sega(page, game)
@@ -318,7 +320,7 @@ async def fetch_player_data(game: str, target_date: date | datetime | str | None
 
                 print(f"[RETRY] Waiting for {game} home page...")
                 try:
-                    await page.wait_for_url(lambda url: url.startswith(HOME_URLS[game]), timeout=10000)
+                    await page.wait_for_url(lambda url: url.startswith(HOME_URLS[game]), timeout=30000)
                 except Exception:
                     failure_reason = await capture_failure_details(page)
                     print(f"[ERROR] Failed to load {game} home page: {failure_reason}")
@@ -328,7 +330,6 @@ async def fetch_player_data(game: str, target_date: date | datetime | str | None
                         msg = f"New {game} version detected — go play {game} at the arcade to register your Aime card!"
                         print(f"[SKIP] {msg}")
                         send_discord_notification(game, msg)
-                        await browser.close()
                         return {
                             "rating": 0 if game == "maimai" else 0.0,
                             "cumulative": 0,
@@ -338,17 +339,15 @@ async def fetch_player_data(game: str, target_date: date | datetime | str | None
                             "failure_reason": msg,
                         }
                     if cookies_loaded:
-                        print("[RETRY] Cached session failed, retrying with fresh login...")
+                        print("[RETRY] Cached session failed; closing browser and retrying from scratch...")
                         cookies_path = get_cookies_path(game)
                         cookies_path.unlink(missing_ok=True)
-                        using_cached_session = False
-                        await login_with_sega(page, game)
-                        await save_cookies(context, game)
-                        await page.wait_for_url(HOME_URLS[game], timeout=10000)
+                        last_failure_reason = f"cached_session_failed | {failure_reason}"
+                        last_trace_path = await save_failure_trace(context, game)
+                        raise RuntimeError(last_failure_reason)
                     else:
                         last_failure_reason = f"wait_for_url_timeout | {failure_reason}"
                         last_trace_path = await save_failure_trace(context, game)
-                        await browser.close()
                         raise
 
                 # === Get rating ===
@@ -426,7 +425,6 @@ async def fetch_player_data(game: str, target_date: date | datetime | str | None
                         )
 
                 await save_cookies(context, game)
-                await browser.close()
 
                 total_time = time.perf_counter() - start_time
                 session_type = "cached" if using_cached_session else "fresh login"
@@ -453,6 +451,16 @@ async def fetch_player_data(game: str, target_date: date | datetime | str | None
             print(f"[WARN] Attempt {attempt} failed: {e}")
             print(f"   Details: {failure_reason}")
 
+            # Bad/half-authenticated sessions are risky. Force the next retry
+            # to start with a clean browser and fresh SEGA login.
+            try:
+                get_cookies_path(game).unlink(missing_ok=True)
+            except Exception:
+                pass
+
+            if context and not last_trace_path:
+                last_trace_path = await save_failure_trace(context, game)
+
             if attempt < MAX_RETRIES:
                 print(f"[WAIT] Retrying in {RETRY_DELAY} seconds...")
                 await asyncio.sleep(RETRY_DELAY)
@@ -469,6 +477,12 @@ async def fetch_player_data(game: str, target_date: date | datetime | str | None
                     "failure_reason": last_failure_reason
                 }
         finally:
+            if context:
+                try:
+                    await context.close()
+                except Exception:
+                    pass
+
             if browser:
                 try:
                     await browser.close()
