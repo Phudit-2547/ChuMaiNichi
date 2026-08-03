@@ -2,6 +2,19 @@ import axios from "axios";
 import useAuthStore from "../../features/auth/stores/auth-store";
 import { SharedErrorHandler } from "./error-handling";
 
+export async function verifyAuth(signal?: AbortSignal): Promise<void> {
+  const { getAuthHeaders } = useAuthStore.getState();
+
+  try {
+    await axios.get("/api/auth", {
+      headers: { ...getAuthHeaders() },
+      signal,
+    });
+  } catch (err) {
+    throw SharedErrorHandler.wrapError(err);
+  }
+}
+
 export async function queryDB<T = Record<string, unknown>>(
   sql: string,
   params: unknown[] = [],
