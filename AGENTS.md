@@ -16,17 +16,20 @@ This repo merges two previous repos:
 ```
 Browser (React SPA on Vercel)
     │
-    ├── POST /api/query   → Neon PostgreSQL (read-only SQL)
+    ├── GET  /api/auth    → password check only (no DB) — the login gate
+    ├── POST /api/query   → Neon PostgreSQL (read-only SQL; client retries cold starts)
     ├── POST /api/chat    → OpenAI-compatible API (tool-use, streaming)
-    └── POST /api/refresh → GitHub API (trigger workflow_dispatch)
+    ├── POST /api/refresh → GitHub API (trigger workflow_dispatch) + GET poll
+    └── GET  /api/model, /api/rating-image, /api/cover
 
 GitHub Actions (cron + manual trigger)
     ├── scrape-daily.yml        → Playwright scraper → Neon → Discord webhook
     └── scrape-user-data.yml    → chuumai-tools Docker → Neon (no git commit)
 
-Neon PostgreSQL (free tier, serverless)
-    ├── daily_play       — one row per date, both games combined
-    └── user_scores      — JSONB snapshots from chuumai-tools scraper
+Neon PostgreSQL (free tier, serverless — scales to zero, so first query pays a warmup cost)
+    ├── daily_play         — one row per date, both games combined
+    ├── user_scores        — JSONB snapshots from chuumai-tools scraper
+    └── user_rating_images — rendered rating-frame images (served by /api/rating-image)
 ```
 
 **Key constraint:** All secrets (DATABASE_URL, OPENAI_API_KEY, OPENAI_BASE_URL, GITHUB_PAT) live exclusively in Vercel env vars and GitHub repo secrets. The browser NEVER sees connection strings or API keys. This is why we use Vercel (serverless functions) instead of GitHub Pages (static-only).
@@ -72,28 +75,51 @@ ChuMaiNichi/
 │   ├── pyproject.toml
 │   ├── uv.lock
 │   └── init.sql                  # Schema: daily_play + user_scores
-├── api/                          # Vercel serverless functions
-│   ├── query.ts                  # DB proxy (read-only SQL only)
+├── api/                          # Vercel serverless functions (thin handlers)
+│   ├── query.ts                  # DB proxy (read-only SELECT only)
+│   ├── auth.ts                   # Login probe — password check ONLY, no DB
 │   ├── chat.ts                   # AI agent proxy (streaming, tool-use)
-│   └── refresh.ts                # Trigger GitHub Actions workflow
+│   ├── refresh.ts                # Trigger + poll GitHub Actions workflow
+│   ├── model.ts                  # Returns the active AI model name
+│   ├── rating-image.ts           # Serves stored rating-frame image from Neon
+│   ├── cover.ts                  # Proxies maimai song cover art (public upstream)
+│   └── *.test.ts                 # Vitest suites for auth + refresh
 ├── src/                          # React frontend (single-page app, NO router)
-│   ├── components/
-│   │   ├── Heatmap.tsx           # Cal-heatmap play count visualization
-│   │   ├── ChatPanel.tsx         # AI chat — collapsible right sidebar
-│   │   └── SettingsModal.tsx     # Theme toggle, display preferences — modal overlay
-│   ├── lib/
-│   │   └── api.ts                # Fetch wrappers for /api/* routes
-│   ├── App.tsx                   # Single page: main view + sidebar + modal
+│   ├── api/                      # Server-side logic imported by api/*.ts handlers
+│   │   ├── auth.ts               # checkAuth(): sha256 + timingSafeEqual
+│   │   ├── query.ts              # handleRequest/runQuery, SELECT-only guard
+│   │   ├── query/errors.ts       # QueryException + status-code mapping
+│   │   ├── config.ts             # loadConfig() reads config.json (server)
+│   │   ├── error-handling.ts     # Vite/Vercel error responders
+│   │   ├── vite-adapter.ts       # Emulates Vercel functions in `vite dev`
+│   │   └── chat/                 # system-prompt, tools, client, slash-commands
+│   ├── features/                 # Feature-first UI (components + stores + lib)
+│   │   ├── auth/                 # PasswordGate, AuthLoading, auth-store (zustand)
+│   │   ├── heatmap/              # Heatmap, GameHeatmap, stats, fetch
+│   │   ├── chat/                 # ChatPanel, composer, streaming render
+│   │   ├── settings/            # SettingsModal, settings-store
+│   │   ├── shell/                # Header, shell-store
+│   │   └── rating-image/         # RatingImage component
+│   ├── global/
+│   │   ├── lib/                  # api.ts (fetch wrappers), auth.ts, config.ts,
+│   │   │                         #   maimai-rating.ts, maimai-suggest.ts,
+│   │   │                         #   chunithm-rating.ts, error-handling.ts, games.ts
+│   │   └── components/ui/        # shadcn primitives
+│   ├── App.tsx                   # Single page: gate → main view + sidebar + modal
+│   ├── index.css
 │   └── main.tsx
 ├── public/
 │   └── maimai-songs.json         # Cached from maimai.wonderhoy.me/api/musicData (weekly refresh)
 ├── config.json                   # USER EDITS THIS: games, currency (see "Config" section)
 ├── package.json
-├── tsconfig.json
-├── vite.config.ts
+├── tsconfig*.json
+├── vite.config.ts                # Also wires the dev API proxy (see src/api/vite-adapter.ts)
 ├── vercel.json
-└── AGENTS.md
+├── AGENTS.md                     # Mirror of this file for non-Claude agents — keep in sync
+└── CLAUDE.md
 ```
+
+> **Structure note:** the frontend is organized **feature-first** (`src/features/*`) with cross-cutting code in `src/global/*`; server logic lives in `src/api/*` and is imported by the thin `api/*.ts` Vercel handlers. There is no flat `src/components/` or `src/lib/` directory.
 
 ## config.json
 
@@ -157,7 +183,7 @@ Single config file at repo root. Friends edit this once after forking.
 **Who reads it:**
 - GitHub Actions workflows: decides which Docker scrapers to run and which Playwright portals to scrape
 - Vercel API routes: `api/chat.ts` reads it to configure available tools (`maimai_suggest_songs` only when `"maimai"` is in `games`)
-- React frontend: imports `config.json` at build time via `src/lib/config.ts` to decide which UI components to render (heatmap columns). Baked into the bundle, so editing requires a redeploy.
+- React frontend: imports `config.json` at build time via `src/global/lib/config.ts` to decide which UI components to render (heatmap columns). Baked into the bundle, so editing requires a redeploy.
 
 **Do NOT put secrets in config.json** — it is committed to git and served publicly.
 
@@ -184,7 +210,20 @@ CREATE TABLE IF NOT EXISTS user_scores (
     scraped_at TIMESTAMP NOT NULL,      -- naive Asia/Bangkok wall-clock
     data       JSONB NOT NULL           -- Full chuumai-tools output
 );
+-- One snapshot per game per day (newest wins); enforced by:
+CREATE UNIQUE INDEX IF NOT EXISTS user_scores_game_day_key
+    ON user_scores (game, (scraped_at::date));
+
+-- Table 3: Rendered rating-frame images (served by /api/rating-image)
+CREATE TABLE IF NOT EXISTS user_rating_images (
+    game         TEXT PRIMARY KEY,      -- 'maimai' or 'chunithm'
+    image_data   BYTEA NOT NULL,        -- binary image blob
+    content_type TEXT NOT NULL,         -- e.g. 'image/webp'
+    updated_at   TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'Asia/Bangkok')
+);
 ```
+
+All three tables are created idempotently by `scraper/init.sql`, which runs during a scraper invocation (not on Vercel). Before the first scrape they may not exist yet — `/api/rating-image` treats a missing `user_rating_images` table as a 404 so the UI hides cleanly.
 
 **Critical schema rule:** `daily_play` has ONE row per date with columns for BOTH games. Do NOT create separate rows per game. Any upsert logic that loops per-game and inserts twice is a bug.
 
@@ -221,11 +260,38 @@ Achievement is score / 10000 (e.g., 1005000 = 100.5%).
 
 ## Vercel API routes specification
 
+Every route validates the dashboard password with `checkAuth` (`src/api/auth.ts`,
+sha256 + `timingSafeEqual`) except `/api/cover`, which proxies public art. When
+`DASHBOARD_PASSWORD` is unset, `checkAuth` returns `true` (auth disabled).
+
+### GET /api/auth
+- Login probe. Validates `DASHBOARD_PASSWORD` **only** — no database, no AI provider.
+- Returns `200 { ok: true }` on match, `401` otherwise.
+- **Why it exists:** the frontend `authenticate()` calls this, so a correct
+  password signs in even when the database is cold, unreachable, or
+  `DATABASE_URL` is unset. Login is decoupled from database availability;
+  DB errors surface in the data panels instead of blocking the gate.
+
 ### POST /api/query
 - Body: `{ sql: string, params?: any[] }`
-- Read-only guard: reject any SQL that is not a SELECT statement
+- Read-only guard: reject any SQL that is not a SELECT statement (plus a
+  forbidden-pattern regex blocking `;`, comments, and write keywords)
 - Uses `DATABASE_URL` env var → `@neondatabase/serverless`
 - Returns: `{ rows: any[], rowCount: number }`
+- **Cold-start retry (client-side):** the `queryDB` wrapper in
+  `src/global/lib/api.ts` retries 5xx/network failures with exponential backoff
+  (4 attempts total) so a waking Neon instance resolves transparently. It never
+  retries 4xx (auth/bad-query) or caller-aborted requests.
+
+### GET /api/model
+- Returns `{ model: string }` — the active AI model name (`defaultModel()`), for the chat UI.
+
+### GET /api/rating-image?game=maimai|chunithm
+- Streams the stored rating-frame image (BYTEA) from `user_rating_images`.
+- `404` when the row/table is absent (pre-first-scrape); `200` with the image bytes otherwise.
+
+### GET /api/cover?img=<16-hex>.png
+- Proxies maimai song cover art from `maimai.wonderhoy.me` (public, no auth). Filename is regex-validated; response cached 7 days.
 
 ### POST /api/chat
 - Body: `{ messages: { role: string, content: string }[], model?: string }`
@@ -238,9 +304,13 @@ Achievement is score / 10000 (e.g., 1005000 = 100.5%).
 - **60-second timeout on Vercel Hobby** — use streaming to keep connection alive
 
 ### POST /api/refresh
-- Uses `GITHUB_PAT` env var
-- Triggers `workflow_dispatch` on `scrape-user-data.yml`
-- Returns: `{ run_url: string }`
+- Uses `GITHUB_PAT` + `GITHUB_REPO` env vars
+- Triggers `workflow_dispatch` on `scrape-user-data.yml` (passes configured `games`)
+- Returns: `{ run_id: string, run_url: string }`
+
+### GET /api/refresh?run_id=<id>
+- Polls the dispatched run's status. Returns `{ status, conclusion?, run_url? }`.
+- The frontend (`pollRefreshStatus`) polls this until `status === "completed"`, then reloads score data.
 
 ## GitHub Actions workflows
 
@@ -330,7 +400,7 @@ The tool itself does not clamp. Instead the staging guard lives in `src/api/chat
 | `AI_MODEL` | Override default model name (default: `gemini-2.5-flash` for Gemini, `gpt-4o-mini` for OpenAI) |
 | `GITHUB_PAT` | Fine-grained PAT for triggering workflow_dispatch |
 | `GITHUB_REPO` | `Phudit-2547/ChuMaiNichi` |
-| `DASHBOARD_PASSWORD` | **Required.** All `/api/*` routes require `Authorization: Bearer <password>`. Frontend prompts for password on first visit and stores it in `localStorage`. Without this, anyone can use your AI proxy and query your database. |
+| `DASHBOARD_PASSWORD` | **Required.** Authenticated `/api/*` routes require `Authorization: Bearer <password>`. The `PasswordGate` prompts on first visit; the password is stored via a zustand `persist` store (localStorage key `user-state`) and sent as the Bearer token. Login is verified against `/api/auth` (password only — no DB round-trip). Without this, anyone can use your AI proxy and query your database. |
 
 **AI provider detection:** `api/chat.ts` checks `GEMINI_API_KEY` first, then `OPENAI_API_KEY`. Gemini is accessed via its OpenAI-compatible endpoint using the same `openai` SDK — no additional dependencies. Set exactly one of the two API keys.
 

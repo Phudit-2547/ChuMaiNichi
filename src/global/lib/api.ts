@@ -2,29 +2,91 @@ import axios from "axios";
 import useAuthStore from "../../features/auth/stores/auth-store";
 import { SharedErrorHandler } from "./error-handling";
 
+export async function verifyAuth(signal?: AbortSignal): Promise<void> {
+  const { getAuthHeaders } = useAuthStore.getState();
+
+  try {
+    await axios.get("/api/auth", {
+      headers: { ...getAuthHeaders() },
+      signal,
+    });
+  } catch (err) {
+    throw SharedErrorHandler.wrapError(err);
+  }
+}
+
+// Neon (free tier) scales to zero after idle, so the first query following a
+// cold period pays a warmup penalty and can transiently fail or time out. Retry
+// those failures with exponential backoff so a waking database resolves
+// transparently instead of surfacing an error on the first data load.
+const COLD_START_RETRIES = 3; // retries after the first try -> 4 attempts total
+const COLD_START_BASE_DELAY_MS = 400; // backoff: 400ms, 800ms, 1600ms
+
+export function isColdStartError(err: unknown): boolean {
+  if (axios.isCancel(err)) return false; // caller aborted — never retry
+  if (!axios.isAxiosError(err)) return false;
+  // No response → connection reset / timeout while the database wakes.
+  if (!err.response) return true;
+  // 5xx → server-side failure, including a cold Neon connection surfaced as 500.
+  return err.response.status >= 500;
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("Aborted", "AbortError"));
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        reject(new DOMException("Aborted", "AbortError"));
+      },
+      { once: true },
+    );
+  });
+}
+
 export async function queryDB<T = Record<string, unknown>>(
   sql: string,
   params: unknown[] = [],
   signal?: AbortSignal,
 ): Promise<T[]> {
   const { getAuthHeaders } = useAuthStore.getState();
+  let lastErr: unknown;
 
-  try {
-    const res = await axios.post(
-      "/api/query",
-      { sql, params },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
+  for (let attempt = 0; attempt <= COLD_START_RETRIES; attempt++) {
+    try {
+      const res = await axios.post(
+        "/api/query",
+        { sql, params },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeaders(),
+          },
+          signal,
         },
-        signal,
-      },
-    );
-    return res.data.rows;
-  } catch (err) {
-    throw SharedErrorHandler.wrapError(err);
+      );
+      return res.data.rows;
+    } catch (err) {
+      lastErr = err;
+      const canRetry =
+        attempt < COLD_START_RETRIES &&
+        !signal?.aborted &&
+        isColdStartError(err);
+      if (!canRetry) break;
+      try {
+        await sleep(COLD_START_BASE_DELAY_MS * 2 ** attempt, signal);
+      } catch {
+        break; // aborted during backoff — surface the query error below
+      }
+    }
   }
+
+  throw SharedErrorHandler.wrapError(lastErr);
 }
 
 export async function fetchModel(signal?: AbortSignal): Promise<string> {

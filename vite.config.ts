@@ -5,6 +5,7 @@ import type { Plugin } from "vite";
 import path from "path";
 
 import { viteHandler as queryViteHandler } from "./api/query";
+import authHandler from "./api/auth";
 import chatHandler from "./api/chat";
 import refreshHandler from "./api/refresh";
 import modelHandler from "./api/model";
@@ -21,6 +22,10 @@ function devApiProxy(): Plugin {
     name: "dev-api-proxy",
     configureServer(server) {
       server.middlewares.use("/api/query", queryViteHandler);
+      server.middlewares.use(
+        "/api/auth",
+        toViteMiddleware(authHandler, { skipAuth: true }),
+      );
       server.middlewares.use(
         "/api/chat",
         toViteMiddleware(chatHandler, { skipAuth: true }),
