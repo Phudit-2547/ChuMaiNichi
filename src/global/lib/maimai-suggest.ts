@@ -14,6 +14,7 @@
  *    Each replacement targets the min rank that achieves threshold.
  * 5. Display actions sorted by score_gap ascending (easiest grind first).
  */
+import { APP_CONFIG } from "./config.js";
 import {
   RANK_FACTORS,
   getCoverUrl,
@@ -84,10 +85,10 @@ export type SuggestResult = TargetResult | BestEffortResult;
 
 // --- Helpers ---
 
-const LATEST_VERSIONS = ["CiRCLE", "PRiSM+"];
+const CURRENT_RATING_VERSIONS = APP_CONFIG.game_versions.maimai.rating_current;
 
 function isNewVersion(version: string | undefined): boolean {
-  return LATEST_VERSIONS.includes(version || "");
+  return CURRENT_RATING_VERSIONS.includes(version || "");
 }
 
 interface SongInfo {
@@ -412,8 +413,8 @@ function buildTargetMode(
     score: number;
     minRank: { score: number; rankName: string };
   }
-  const oldCandidates: Candidate[] = [];  // for "best" bucket (non-CiRCLE/PRiSM+)
-  const newCandidates: Candidate[] = [];  // for "current" bucket (CiRCLE/PRiSM+)
+  const oldCandidates: Candidate[] = [];  // for "best" bucket (not current-version songs)
+  const newCandidates: Candidate[] = [];  // for "current" bucket (configured rating_current versions)
 
   for (const r of playerData.allRecords || []) {
     const key = makeKey(r.title, r.chartType, r.difficulty);

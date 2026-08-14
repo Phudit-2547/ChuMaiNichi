@@ -1,5 +1,14 @@
 {
   "games": ["maimai", "chunithm"],
+  "game_versions": {
+    "maimai": {
+      "scraper": "CiRCLE+",
+      "rating_current": ["CiRCLE", "CiRCLE+"]
+    },
+    "chunithm": {
+      "scraper": "XVRSX"
+    }
+  },
   "currency_per_play": 40,
   "discord_notification": {
     "default": {
