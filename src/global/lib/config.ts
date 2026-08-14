@@ -5,6 +5,15 @@ export type { Game };
 
 export interface AppConfig {
   games: Game[];
+  game_versions: {
+    maimai: {
+      scraper: string;
+      rating_current: string[];
+    };
+    chunithm: {
+      scraper: string;
+    };
+  };
   currency_per_play: number;
 }
 

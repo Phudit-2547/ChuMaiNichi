@@ -44,10 +44,24 @@ jobs:
             exit 1
           fi
 
+          MAIMAI_VERSION=$(jq -r '.game_versions.maimai.scraper // empty' config.json)
+          CHUNITHM_VERSION=$(jq -r '.game_versions.chunithm.scraper // empty' config.json)
+
+          if printf '%s' "$GAMES_JSON" | jq -e 'index("maimai") != null' >/dev/null && [ -z "$MAIMAI_VERSION" ]; then
+            echo "::error::config.json is missing game_versions.maimai.scraper"
+            exit 1
+          fi
+          if printf '%s' "$GAMES_JSON" | jq -e 'index("chunithm") != null' >/dev/null && [ -z "$CHUNITHM_VERSION" ]; then
+            echo "::error::config.json is missing game_versions.chunithm.scraper"
+            exit 1
+          fi
+
           GAMES=$(printf '%s' "$GAMES_JSON" | jq -r 'join(",")')
-          echo "games=$GAMES" >> $GITHUB_OUTPUT
-          echo "maimai=$(printf '%s' "$GAMES_JSON" | jq -r 'index("maimai") != null')" >> $GITHUB_OUTPUT
-          echo "chunithm=$(printf '%s' "$GAMES_JSON" | jq -r 'index("chunithm") != null')" >> $GITHUB_OUTPUT
+          echo "games=$GAMES" >> "$GITHUB_OUTPUT"
+          echo "maimai=$(printf '%s' "$GAMES_JSON" | jq -r 'index("maimai") != null')" >> "$GITHUB_OUTPUT"
+          echo "chunithm=$(printf '%s' "$GAMES_JSON" | jq -r 'index("chunithm") != null')" >> "$GITHUB_OUTPUT"
+          echo "maimai_version=$MAIMAI_VERSION" >> "$GITHUB_OUTPUT"
+          echo "chunithm_version=$CHUNITHM_VERSION" >> "$GITHUB_OUTPUT"
           echo "games: $GAMES"
 
       - name: Create outputs directory
@@ -62,7 +76,7 @@ jobs:
           docker run \
             --rm \
             -v ${{ github.workspace }}/outputs:/app/outputs \
-            -e VERSION=CiRCLE \
+            -e VERSION="${{ steps.games.outputs.maimai_version }}" \
             -e USERNAME=${{ secrets.SEGA_USERNAME }} \
             -e PASSWORD=${{ secrets.SEGA_PASSWORD }} \
             -e MAIMAI_SERVICE_URL="$MAIMAI_SERVICE_URL" \
@@ -78,7 +92,7 @@ jobs:
           docker run \
             --rm \
             -v ${{ github.workspace }}/outputs:/app/outputs \
-            -e VERSION=XVRSX \
+            -e VERSION="${{ steps.games.outputs.chunithm_version }}" \
             -e USERNAME=${{ secrets.SEGA_USERNAME }} \
             -e PASSWORD=${{ secrets.SEGA_PASSWORD }} \
             -e CHUNI_SERVICE_URL="$CHUNI_SERVICE_URL" \
