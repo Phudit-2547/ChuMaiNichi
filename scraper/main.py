@@ -159,8 +159,17 @@ async def main():
         failure_reason=failure_reason if scrape_failed else None,
     )
 
-    send_notification("chunithm", new_plays.get("chunithm", 0))
-    send_notification("maimai", new_plays.get("maimai", 0))
+    for game in ("chunithm", "maimai"):
+        data = player_data.get(game)
+        if data is not None and not data.get("failed", False):
+            send_notification(game, new_plays.get(game, 0))
+
+    if scrape_failed:
+        print(
+            "[ERROR] One or more game scrapers failed after database "
+            "carry-forward; failing the workflow."
+        )
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
