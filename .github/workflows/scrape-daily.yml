@@ -2,7 +2,7 @@ name: Run Scraper
 
 on:
   schedule:
-     - cron: "0 14 * * *" # Runs daily at 22:00 Thailand time (UTC+7)
+    - cron: "0 15 * * *" # Runs daily at 22:00 Thailand time (UTC+7)
   workflow_dispatch:
     inputs:
       backfill_date:
@@ -34,11 +34,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-playwright-
 
-      - name: Cache session cookies
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+      - name: Restore session cookies
+        id: sega-cookie-cache
+        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: scraper/cookies
-          key: ${{ runner.os }}-sega-cookies
+          key: ${{ runner.os }}-sega-cookies-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             ${{ runner.os }}-sega-cookies-
 
@@ -63,16 +64,18 @@ jobs:
             uv run python main.py
           fi
 
-      - name: Upload cookies cache
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+      - name: Save session cookies
+        if: always()
+        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: scraper/cookies
-          key: ${{ runner.os }}-sega-cookies
+          key: ${{ steps.sega-cookie-cache.outputs.cache-primary-key }}
 
-      - name: Upload trace for debugging
-        if: failure() # Only upload on failure for debugging
+      - name: Upload scraper diagnostics
+        if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: playwright-trace-${{ github.run_number }}
-          path: scraper/trace.zip
+          name: scraper-diagnostics-${{ github.run_number }}-${{ github.run_attempt }}
+          path: scraper/traces/*
+          if-no-files-found: ignore
           retention-days: 7
