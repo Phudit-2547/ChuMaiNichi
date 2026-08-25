@@ -235,14 +235,12 @@ async def capture_failure_details(page, response=None) -> str:
     return f"url: {url} | status: {status} | body: {page_text}"
 
 
-async def save_failure_diagnostics(
-    context,
+def save_failure_diagnostics(
     game: str,
     attempt: int,
     failure_reason: str,
-    tracing_started: bool,
 ) -> str | None:
-    """Persist sanitized failure details and a post-auth trace when available."""
+    """Persist sanitized failure details without browser session material."""
     timestamp = datetime.now(BKK).strftime("%Y%m%d_%H%M%S_%f")
     stem = f"{game}_failure_{timestamp}_attempt{attempt}"
     report_path = TRACES_DIR / f"{stem}.txt"
@@ -257,30 +255,7 @@ async def save_failure_diagnostics(
         )
         return None
 
-    if tracing_started and context is not None:
-        trace_path = TRACES_DIR / f"{stem}.zip"
-        try:
-            await context.tracing.stop(path=str(trace_path))
-        except Exception as e:
-            print(
-                "[WARN] Failed to save post-auth trace: "
-                f"{redact_sensitive_text(str(e))}"
-            )
-
     return str(report_path)
-
-
-async def stop_success_trace(context, tracing_started: bool) -> None:
-    """Stop and discard a successful post-auth trace."""
-    if not tracing_started:
-        return
-    try:
-        await context.tracing.stop()
-    except Exception as e:
-        print(
-            "[WARN] Failed to stop successful trace: "
-            f"{redact_sensitive_text(str(e))}"
-        )
 
 
 def _coerce_bkk_date(target_date: date | datetime | str | None) -> date:
@@ -387,7 +362,6 @@ async def fetch_player_data(
         browser = None
         context = None
         page = None
-        tracing_started = False
         attempt_failure_reason = None
         attempt_diagnostic_path = None
         last_response = None
@@ -444,22 +418,6 @@ async def fetch_player_data(
 
                     # Persist only a confirmed authenticated session.
                     await save_cookies(context, game)
-
-                    # Login traces can contain entered credentials. Trace only the
-                    # authenticated scraping phase; auth failures use the sanitized
-                    # text diagnostic written below.
-                    try:
-                        await context.tracing.start(
-                            screenshots=True,
-                            snapshots=True,
-                            sources=False,
-                        )
-                        tracing_started = True
-                    except Exception as e:
-                        print(
-                            "[WARN] Failed to start post-auth trace: "
-                            f"{redact_sensitive_text(str(e))}"
-                        )
 
                     print(f"[RETRY] Extracting {game} rating from home page...")
 
@@ -540,8 +498,6 @@ async def fetch_player_data(
                             )
 
                     await save_cookies(context, game)
-                    await stop_success_trace(context, tracing_started)
-                    tracing_started = False
 
                     total_time = time.perf_counter() - start_time
                     session_type = "cached" if using_cached_session else "fresh login"
@@ -570,14 +526,11 @@ async def fetch_player_data(
                     if details not in attempt_failure_reason:
                         attempt_failure_reason += f" | {details}"
 
-                    attempt_diagnostic_path = await save_failure_diagnostics(
-                        context,
+                    attempt_diagnostic_path = save_failure_diagnostics(
                         game,
                         attempt,
                         attempt_failure_reason,
-                        tracing_started,
                     )
-                    tracing_started = False
 
                     if "100106" in attempt_failure_reason:
                         msg = (
@@ -603,6 +556,12 @@ async def fetch_player_data(
             last_failure_reason = attempt_failure_reason or (
                 f"{type(e).__name__}: {redact_sensitive_text(str(e))}"
             )
+            if attempt_diagnostic_path is None:
+                attempt_diagnostic_path = save_failure_diagnostics(
+                    game,
+                    attempt,
+                    last_failure_reason,
+                )
             if attempt_diagnostic_path:
                 last_diagnostic_path = attempt_diagnostic_path
 
