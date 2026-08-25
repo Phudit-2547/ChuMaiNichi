@@ -76,6 +76,6 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: scraper-diagnostics-${{ github.run_number }}-${{ github.run_attempt }}
-          path: scraper/traces/*
+          path: scraper/traces/*.txt
           if-no-files-found: ignore
           retention-days: 7
