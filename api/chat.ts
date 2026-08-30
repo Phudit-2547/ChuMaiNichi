@@ -3,25 +3,27 @@ import OpenAI from "openai";
 import type {
   ChatCompletionCreateParamsStreaming,
   ChatCompletionMessageParam,
-  ChatCompletionTool,
 } from "openai/resources/chat/completions";
+import {
+  isDataRegion,
+  type DataRegion,
+} from "../src/global/lib/regions.js";
 import { checkAuth } from "../src/api/auth.js";
 import { loadConfig } from "../src/api/config.js";
 import { createClient, defaultModel } from "../src/api/chat/client.js";
 import { loadSongs } from "../src/api/chat/songs-cache.js";
 import {
   getMaimaiMaxConstant,
-  runSlashCommand,
+  runSlashCommandForRegion,
 } from "../src/api/chat/slash-commands.js";
 import { buildSystemPrompt } from "../src/api/chat/system-prompt.js";
 import {
-  QUERY_TOOL,
-  SUGGEST_SONGS_TOOL,
   executeTool,
+  getChatTools,
 } from "../src/api/chat/tools.js";
 
-// Force query_database on round 0 when the user's message looks like a data
-// lookup, so the model can't skip the tool and answer from priors. Three-tier
+// Force the region's data tool on round 0 when the user's message looks like a
+// data lookup, so the model can't skip the tool and answer from priors. Three-tier
 // heuristic over the last user message:
 //   1. STRONG_DATA_SIGNAL → force (possessives, "show me", "how many", any digit)
 //   2. KNOWLEDGE_INTENT   → leave auto ("how does X work?", "explain", "formula")
@@ -33,12 +35,17 @@ const STRONG_DATA_SIGNAL =
 const KNOWLEDGE_INTENT =
   /\b(how (do|does|is|are)|what (is|are|does|do)|explain|why|formula|mean(ing|s)?|difference between|describe|tell me about|walk me through|break down)\b/i;
 const DATA_INTENT =
-  /\b(play(ed|s|ing)?|score(s|d)?|rating(s)?|rank(s|ed)?|song(s)?|chart(s)?|day(s)?|week(s|ly)?|month(s|ly)?|year(s)?|today|yesterday|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may|jun(e)?|jul(y)?|aug(ust)?|sep(tember|t)?|oct(ober)?|nov(ember)?|dec(ember)?|best|top|worst|most|more|fewer|less|avg|average|total|sum|count|streak|maimai|chunithm|sss\+?|ss\+?|aaa?)\b/i;
+  /\b(play(ed|s|ing)?|score(s|d)?|rating(s)?|rank(s|ed)?|song(s)?|chart(s)?|day(s)?|week(s|ly)?|month(s|ly)?|year(s)?|today|yesterday|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may|jun(e)?|jul(y)?|aug(ust)?|sep(tember|t)?|oct(ober)?|nov(ember)?|dec(ember)?|best|top|worst|most|more|fewer|less|avg|average|total|sum|count|streak|maimai|chunithm|ongeki|japan|international|sss\+?|ss\+?|aaa?)\b/i;
 
 function shouldForceQuery(text: string): boolean {
   if (STRONG_DATA_SIGNAL.test(text)) return true;
   if (KNOWLEDGE_INTENT.test(text)) return false;
   return DATA_INTENT.test(text);
+}
+
+function parseRegion(value: unknown): DataRegion | null {
+  if (value == null) return "international";
+  return isDataRegion(value) ? value : null;
 }
 
 // --- Handler ---
@@ -52,7 +59,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  const { messages: userMessages, model: requestModel } = req.body ?? {};
+  const {
+    messages: userMessages,
+    model: requestModel,
+    region: requestedRegion,
+  } = req.body ?? {};
+  const dataRegion = parseRegion(requestedRegion);
+  if (!dataRegion) {
+    return res.status(400).json({
+      error: "region must be 'international' or 'japan'",
+    });
+  }
   if (!Array.isArray(userMessages) || userMessages.length === 0) {
     return res.status(400).json({ error: "messages array is required" });
   }
@@ -82,11 +99,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  const slashCommandResult = runSlashCommand(lastUserText, config.games, {
-    maimaiMaxConstant: config.games.includes("maimai")
-      ? getMaimaiMaxConstant(loadSongs())
-      : null,
-  });
+  const slashCommandResult = runSlashCommandForRegion(
+    lastUserText,
+    config.games,
+    dataRegion,
+    {
+      maimaiMaxConstant: config.games.includes("maimai")
+        ? getMaimaiMaxConstant(loadSongs())
+        : null,
+    },
+  );
   if (slashCommandResult != null) {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -106,13 +128,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const model = requestModel || defaultModel();
-  const tools: ChatCompletionTool[] = [QUERY_TOOL];
-  if (config.games.includes("maimai")) {
-    tools.push(SUGGEST_SONGS_TOOL);
-  }
+  const tools = getChatTools(dataRegion, config.games);
+  const dataToolName =
+    dataRegion === "japan" ? "query_japan_activity" : "query_database";
 
   const messages: ChatCompletionMessageParam[] = [
-    { role: "system", content: buildSystemPrompt(config) },
+    { role: "system", content: buildSystemPrompt(config, dataRegion) },
     ...userMessages,
   ];
 
@@ -135,7 +156,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (round === 0 && forceQuery) {
         completionOpts.tool_choice = {
           type: "function",
-          function: { name: "query_database" },
+          function: { name: dataToolName },
         };
       }
       // Gemini 2.5 Flash thinks by default. Unbounded thinking can starve
@@ -211,7 +232,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         } catch {
           args = {};
         }
-        const result = await executeTool(tc.function.name, args);
+        const result = await executeTool(tc.function.name, args, dataRegion);
         messages.push({
           role: "tool",
           tool_call_id: tc.id,

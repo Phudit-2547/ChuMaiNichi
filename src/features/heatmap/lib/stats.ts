@@ -1,4 +1,4 @@
-import type { DailyRow, Game, HeatmapStats } from "../types/types";
+import type { DailyRow, HeatmapGame, HeatmapStats } from "../types/types";
 import { PLAY_KEY } from "./constants";
 
 export function toDateStr(d: Date): string {
@@ -7,7 +7,7 @@ export function toDateStr(d: Date): string {
 
 export function computeStats(
   data: DailyRow[],
-  game: Game,
+  game: HeatmapGame,
   year: number,
 ): HeatmapStats {
   const key = PLAY_KEY[game];
@@ -16,12 +16,12 @@ export function computeStats(
     .filter((d) => d.play_date.startsWith(yearPrefix))
     .sort((a, b) => a.play_date.localeCompare(b.play_date));
 
-  const total = yearData.reduce((sum, d) => sum + (d[key] as number), 0);
+  const total = yearData.reduce((sum, d) => sum + Number(d[key] ?? 0), 0);
 
   const now = new Date();
   const todayStr = toDateStr(now);
   const todayData = yearData.find((d) => d.play_date === todayStr);
-  const today = todayData ? (todayData[key] as number) : 0;
+  const today = todayData ? Number(todayData[key] ?? 0) : 0;
 
   // This week (Sunday start)
   const weekStart = new Date(now);
@@ -29,11 +29,11 @@ export function computeStats(
   const weekStartStr = toDateStr(weekStart);
   const thisWeek = yearData
     .filter((d) => d.play_date >= weekStartStr && d.play_date <= todayStr)
-    .reduce((sum, d) => sum + (d[key] as number), 0);
+    .reduce((sum, d) => sum + Number(d[key] ?? 0), 0);
 
   // Build play-date set
   const playDates = new Set(
-    yearData.filter((d) => (d[key] as number) > 0).map((d) => d.play_date),
+    yearData.filter((d) => Number(d[key] ?? 0) > 0).map((d) => d.play_date),
   );
 
   // Longest streak

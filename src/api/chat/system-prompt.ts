@@ -18,6 +18,47 @@ CREATE TABLE user_scores (
   data       JSONB NOT NULL
 );`.trim();
 
+const JAPAN_ACTIVITY_FIELDS = `
+query_japan_activity returns daily rows with these fields:
+  play_date                 DATE PRIMARY KEY,
+  maimai_play_count         INTEGER NOT NULL,
+  chunithm_play_count       INTEGER NOT NULL,
+  ongeki_track_count        INTEGER NOT NULL,
+  maimai_cumulative         INTEGER NOT NULL,
+  chunithm_cumulative       INTEGER NOT NULL,
+  ongeki_cumulative_tracks  INTEGER NOT NULL,
+  inferred_games            TEXT[] NOT NULL,
+  source                    TEXT NOT NULL,
+  source_paths              TEXT[] NOT NULL,
+  source_hashes             TEXT[] NOT NULL
+`.trim();
+
+function buildJapanSystemPrompt(): string {
+  return `You are the ChuMaiNichi assistant in the Japan activity view.
+
+User messages are prefixed with [YYYY-MM-DD HH:MM ICT, AGO] where AGO is the elapsed time since the message was sent. The most recent user message with AGO = "just now" is the current time. Never echo the bracket in your reply.
+
+AVAILABLE ACTIVITY FIELDS:
+${JAPAN_ACTIVITY_FIELDS}
+
+RULES:
+- Use query_japan_activity for every Japan activity lookup. It accepts optional inclusive start_date and end_date values in YYYY-MM-DD format; omit both to read the full history.
+- This view has no free-form SQL tool. Never request query_database and never attempt to access daily_play, user_scores, user_rating_images, or any International data.
+- The data is a historical Japan activity record imported from the user's Obsidian Journal. play_date is the local calendar date in Japan.
+- maimai_play_count and chunithm_play_count are daily plays.
+- ongeki_track_count is daily TRACKS, not credits or plays. Always label ONGEKI values as tracks.
+- The cumulative columns are separate Japan totals. A dash in the original Journal was carried forward from the previous day, so that day's derived activity is zero.
+- There are no Japan ratings, per-song scores, spending amounts, or currency data in this table. Never invent them and never apply the International 40 THB cost.
+- source, source_paths, and source_hashes preserve provenance. Use them only when the user asks where a value came from.
+- inferred_games lists games whose daily count uses a user-estimated ambiguous split. Mark those values with an asterisk and explain the estimate when relevant.
+- Dates with zero values are recorded zero-activity days, not missing or unknown data.
+
+Use query_japan_activity for questions about Japan activity. Be concise and helpful.
+
+RESPONSE LANGUAGE:
+- Always respond in English. Keep game names as maimai, CHUNITHM, and ONGEKI.`;
+}
+
 function displayGameName(game: string): string {
   return game === "chunithm" ? "CHUNITHM" : "maimai";
 }
@@ -25,7 +66,9 @@ function displayGameName(game: string): string {
 export function buildSystemPrompt(config: {
   games: string[];
   currency_per_play: number;
-}): string {
+}, region: "international" | "japan" = "international"): string {
+  if (region === "japan") return buildJapanSystemPrompt();
+
   const gameList = config.games.map(displayGameName).join(" and ");
   const hasMaimai = config.games.includes("maimai");
   const hasChunithm = config.games.includes("chunithm");

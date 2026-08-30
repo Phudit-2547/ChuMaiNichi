@@ -11,6 +11,34 @@ CREATE TABLE IF NOT EXISTS public.daily_play (
     failure_reason       TEXT
 );
 
+-- Japan play history is journal-derived and intentionally isolated from the
+-- International scraper table above.  ONGEKI is measured in tracks, not plays.
+-- BEGIN JAPAN_DAILY_PLAY
+CREATE TABLE IF NOT EXISTS public.japan_daily_play (
+    play_date                   DATE PRIMARY KEY,
+    maimai_play_count           INTEGER NOT NULL CHECK (maimai_play_count >= 0),
+    chunithm_play_count         INTEGER NOT NULL CHECK (chunithm_play_count >= 0),
+    ongeki_track_count          INTEGER NOT NULL CHECK (ongeki_track_count >= 0),
+    maimai_cumulative           INTEGER NOT NULL CHECK (maimai_cumulative >= 0),
+    chunithm_cumulative         INTEGER NOT NULL CHECK (chunithm_cumulative >= 0),
+    ongeki_cumulative_tracks    INTEGER NOT NULL CHECK (ongeki_cumulative_tracks >= 0),
+    source                      TEXT NOT NULL DEFAULT 'obsidian_journal'
+                                CHECK (source = 'obsidian_journal'),
+    source_paths                TEXT[] NOT NULL CHECK (cardinality(source_paths) > 0),
+    source_hashes               TEXT[] NOT NULL,
+    inferred_games              TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    CHECK (cardinality(source_paths) = cardinality(source_hashes)),
+    CHECK (inferred_games <@ ARRAY['maimai', 'chunithm', 'ongeki']::TEXT[]),
+    CHECK (array_position(inferred_games, NULL) IS NULL),
+    CHECK (maimai_play_count <= maimai_cumulative),
+    CHECK (chunithm_play_count <= chunithm_cumulative),
+    CHECK (ongeki_track_count <= ongeki_cumulative_tracks)
+);
+
+ALTER TABLE public.japan_daily_play
+    ADD COLUMN IF NOT EXISTS inferred_games TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
+-- END JAPAN_DAILY_PLAY
+
 -- Per-song score snapshots (JSONB from chuumai-tools). scraped_at is naive
 -- Asia/Bangkok wall-clock, matching daily_play.play_date semantics.
 CREATE TABLE IF NOT EXISTS public.user_scores (

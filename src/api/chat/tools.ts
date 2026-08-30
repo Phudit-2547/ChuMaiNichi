@@ -2,6 +2,7 @@ import { neon } from "@neondatabase/serverless";
 import { suggestSongs } from "../../global/lib/maimai-suggest.js";
 import type { PlayerData } from "../../global/lib/maimai-rating.js";
 import type { ChatCompletionTool } from "openai/resources/chat/completions";
+import type { DataRegion } from "../../global/lib/regions.js";
 import { loadSongs } from "./songs-cache.js";
 
 export const QUERY_TOOL: ChatCompletionTool = {
@@ -9,7 +10,7 @@ export const QUERY_TOOL: ChatCompletionTool = {
   function: {
     name: "query_database",
     description:
-      "Execute a read-only SQL SELECT query against the PostgreSQL database.",
+      "Execute a read-only SQL SELECT query against the International database tables.",
     parameters: {
       type: "object",
       properties: {
@@ -21,6 +22,29 @@ export const QUERY_TOOL: ChatCompletionTool = {
         },
       },
       required: ["sql"],
+    },
+  },
+};
+
+export const JAPAN_ACTIVITY_TOOL: ChatCompletionTool = {
+  type: "function",
+  function: {
+    name: "query_japan_activity",
+    description:
+      "Read Japan Journal activity rows. Optionally filter the inclusive play_date range. ONGEKI values are tracks, not plays.",
+    parameters: {
+      type: "object",
+      properties: {
+        start_date: {
+          type: "string",
+          description: "Optional inclusive start date in YYYY-MM-DD format.",
+        },
+        end_date: {
+          type: "string",
+          description: "Optional inclusive end date in YYYY-MM-DD format.",
+        },
+      },
+      additionalProperties: false,
     },
   },
 };
@@ -56,15 +80,110 @@ export const SUGGEST_SONGS_TOOL: ChatCompletionTool = {
 
 const FORBIDDEN_SQL =
   /;|--|\/\*|\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|EXEC|EXECUTE|CALL|COPY|INTO)\b/i;
-
 const GAME_LITERAL = /\bgame\s*=\s*'([^']+)'/gi;
 const VALID_GAMES = new Set(["maimai", "chunithm"]);
+const JAPAN_TABLE = /\b(?:public\s*\.\s*)?japan_daily_play\b/i;
+const UNICODE_ESCAPED_IDENTIFIER = /\bU\s*&\s*"/i;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+const JAPAN_ACTIVITY_SQL = `
+SELECT
+  play_date,
+  maimai_play_count,
+  chunithm_play_count,
+  ongeki_track_count,
+  maimai_cumulative,
+  chunithm_cumulative,
+  ongeki_cumulative_tracks,
+  inferred_games,
+  source,
+  source_paths,
+  source_hashes
+FROM public.japan_daily_play
+WHERE ($1::date IS NULL OR play_date >= $1::date)
+  AND ($2::date IS NULL OR play_date <= $2::date)
+ORDER BY play_date ASC`.trim();
+
+export function getChatTools(
+  region: DataRegion,
+  enabledGames: readonly string[],
+): ChatCompletionTool[] {
+  if (region === "japan") return [JAPAN_ACTIVITY_TOOL];
+  return enabledGames.includes("maimai")
+    ? [QUERY_TOOL, SUGGEST_SONGS_TOOL]
+    : [QUERY_TOOL];
+}
+
+function readOptionalIsoDate(
+  args: Record<string, unknown>,
+  key: "start_date" | "end_date",
+): { value: string | null; error?: string } {
+  const value = args[key];
+  if (value === undefined) return { value: null };
+  if (typeof value !== "string" || !ISO_DATE.test(value)) {
+    return { value: null, error: `${key} must use YYYY-MM-DD format.` };
+  }
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    value.startsWith("0000-") ||
+    parsed.toISOString().slice(0, 10) !== value
+  ) {
+    return { value: null, error: `${key} must be a valid calendar date.` };
+  }
+  return { value };
+}
+
+async function queryJapanActivity(
+  args: Record<string, unknown>,
+  region: DataRegion,
+): Promise<unknown> {
+  if (region !== "japan") {
+    return {
+      error:
+        "query_japan_activity is available only in the Japan Journal view.",
+    };
+  }
+
+  const start = readOptionalIsoDate(args, "start_date");
+  if (start.error) return { error: start.error };
+  const end = readOptionalIsoDate(args, "end_date");
+  if (end.error) return { error: end.error };
+  if (start.value && end.value && start.value > end.value) {
+    return { error: "start_date must be on or before end_date." };
+  }
+
+  try {
+    const db = neon(process.env.DATABASE_URL!);
+    const rows = await db.query(JAPAN_ACTIVITY_SQL, [start.value, end.value]);
+    return {
+      start_date: start.value,
+      end_date: end.value,
+      rows,
+      rowCount: rows.length,
+    };
+  } catch {
+    return { error: "Japan activity query failed" };
+  }
+}
 
 export async function executeTool(
   name: string,
   args: Record<string, unknown>,
+  region: DataRegion = "international",
 ): Promise<unknown> {
+  if (name === "query_japan_activity") {
+    return queryJapanActivity(args, region);
+  }
+
   if (name === "query_database") {
+    if (region === "japan") {
+      return {
+        error:
+          "Free-form SQL is unavailable in the Japan Journal view. Use query_japan_activity.",
+      };
+    }
+
     const sql = args.sql as string;
     const normalized = sql.trim().replace(/\s*;+\s*$/, "");
     const upper = normalized.toUpperCase();
@@ -78,8 +197,21 @@ export async function executeTool(
         sql,
       };
     }
+    if (UNICODE_ESCAPED_IDENTIFIER.test(normalized)) {
+      return {
+        error:
+          "Unicode-escaped identifiers are unavailable in dashboard queries.",
+        sql,
+      };
+    }
+    if (JAPAN_TABLE.test(normalized)) {
+      return {
+        error: "The International dashboard cannot query Japan Journal data.",
+        sql,
+      };
+    }
     const badGame = [...normalized.matchAll(GAME_LITERAL)]
-      .map((m) => m[1])
+      .map((match) => match[1])
       .find((literal) => !VALID_GAMES.has(literal));
     if (badGame !== undefined) {
       return {
@@ -95,7 +227,14 @@ export async function executeTool(
       return { error: "Query execution failed", sql };
     }
   }
+
   if (name === "maimai_suggest_songs") {
+    if (region === "japan") {
+      return {
+        error:
+          "Song suggestions are unavailable in the Japan Journal view because it contains play counts only, not per-song score data.",
+      };
+    }
     try {
       const db = neon(process.env.DATABASE_URL!);
       const rows = await db.query(

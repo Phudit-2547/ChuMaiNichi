@@ -1,4 +1,5 @@
 import useAuthStore from "@/features/auth/stores/auth-store";
+import type { DataRegion } from "@/global/lib/regions";
 
 export type ChatMessage = { role: "user" | "assistant"; content: string };
 
@@ -12,6 +13,7 @@ export async function streamChat(
   messages: ChatMessage[],
   onEvent: (e: StreamEvent) => void,
   signal: AbortSignal,
+  region: DataRegion = "international",
 ): Promise<void> {
   const { getAuthHeaders } = useAuthStore.getState();
   const res = await fetch("/api/chat", {
@@ -20,7 +22,7 @@ export async function streamChat(
       "Content-Type": "application/json",
       ...getAuthHeaders(),
     },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ messages, region }),
     signal,
   });
 

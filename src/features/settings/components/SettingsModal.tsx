@@ -4,6 +4,7 @@ import { useState } from "react";
 import useSettingsStore, { type ThemeMode } from "../stores/settings-store";
 import useAuthStore from "@/features/auth/stores/auth-store";
 import { APP_CONFIG } from "@/global/lib/config";
+import type { DataRegion } from "@/global/lib/regions";
 import {
   Dialog,
   DialogClose,
@@ -15,11 +16,13 @@ import {
 interface SettingsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  region: DataRegion;
 }
 
 export default function SettingsModal({
   open,
   onOpenChange,
+  region,
 }: SettingsModalProps) {
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const {
@@ -104,17 +107,35 @@ export default function SettingsModal({
 
           <section className="modal-section">
             <h3>Data</h3>
+            {region === "international" ? (
+              <Row
+                label="Cost per play"
+                sub="Set in config.json. Redeploy to change."
+              >
+                <span className="row-value">฿{APP_CONFIG.currency_per_play}</span>
+              </Row>
+            ) : (
+              <Row label="Source" sub="Historical activity imported locally">
+                <span className="row-value">Obsidian Journal</span>
+              </Row>
+            )}
             <Row
-              label="Cost per play"
-              sub="Set in config.json. Redeploy to change."
+              label="Games"
+              sub={
+                region === "international"
+                  ? "Set in config.json. Redeploy to change."
+                  : "ONGEKI is measured in tracks."
+              }
             >
-              <span className="row-value">฿{APP_CONFIG.currency_per_play}</span>
-            </Row>
-            <Row label="Games" sub="Set in config.json. Redeploy to change.">
               <div className="row-badges">
-                {APP_CONFIG.games.map((g) => (
+                {(region === "international"
+                  ? APP_CONFIG.games
+                  : (["maimai", "chunithm", "ongeki"] as const)
+                ).map((g) => (
                   <span key={g} className="game-badge" data-game={g}>
-                    {g}
+                    {g === "chunithm" || g === "ongeki"
+                      ? g.toUpperCase()
+                      : g}
                   </span>
                 ))}
               </div>

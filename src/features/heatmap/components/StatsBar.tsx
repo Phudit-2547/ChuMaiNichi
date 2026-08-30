@@ -1,4 +1,4 @@
-import type { HeatmapStats, Game } from "../types/types";
+import type { HeatmapStats, HeatmapGame } from "../types/types";
 import { GAME_ACCENT } from "../lib/constants";
 
 type StatKey = "today" | "this-week" | "total-year" | "current-streak" | "longest-streak";
@@ -50,7 +50,7 @@ export function StatsBar({
 }: {
   stats: HeatmapStats;
   year: number;
-  game: Game;
+  game: HeatmapGame;
 }) {
   const accent = GAME_ACCENT[game];
   const hasPlaysToday = stats.today > 0;

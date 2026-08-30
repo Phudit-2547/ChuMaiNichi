@@ -6,6 +6,7 @@ interface HeaderProps {
   onOpenSettings: () => void;
   refreshing?: boolean;
   refreshStatus?: string;
+  refreshAvailable?: boolean;
 }
 
 export default function Header({
@@ -13,6 +14,7 @@ export default function Header({
   onOpenSettings,
   refreshing = false,
   refreshStatus = "",
+  refreshAvailable = true,
 }: HeaderProps) {
   const { chatOpen, toggleChat } = useShellStore();
 
@@ -127,23 +129,25 @@ export default function Header({
       </div>
       <div className="app-header__spacer" />
       <div className="app-header__actions" data-header-actions="score-controls">
-        <button
-          type="button"
-          className={`app-header__action app-header__action--primary app-header__action--refresh text-btn text-btn--refresh glass-control glass-control--primary ${refreshing ? "glass-control--active" : ""}`}
-          onClick={onRefresh}
-          disabled={refreshing}
-          title={refreshCopy.title}
-          aria-label={refreshCopy.title}
-          aria-busy={refreshing}
-          data-header-action="refresh"
-          data-priority="primary"
-          data-state={refreshState}
-        >
-          <RotateCw size={16} className={refreshing ? "icon-spin" : ""} />
-          <span className="text-btn__label text-btn__label--primary" aria-live="polite">
-            {refreshCopy.label}
-          </span>
-        </button>
+        {refreshAvailable && (
+          <button
+            type="button"
+            className={`app-header__action app-header__action--primary app-header__action--refresh text-btn text-btn--refresh glass-control glass-control--primary ${refreshing ? "glass-control--active" : ""}`}
+            onClick={onRefresh}
+            disabled={refreshing}
+            title={refreshCopy.title}
+            aria-label={refreshCopy.title}
+            aria-busy={refreshing}
+            data-header-action="refresh"
+            data-priority="primary"
+            data-state={refreshState}
+          >
+            <RotateCw size={16} className={refreshing ? "icon-spin" : ""} />
+            <span className="text-btn__label text-btn__label--primary" aria-live="polite">
+              {refreshCopy.label}
+            </span>
+          </button>
+        )}
         <button
           type="button"
           className="app-header__action app-header__action--quiet app-header__action--settings icon-btn glass-control glass-control--clear"

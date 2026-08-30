@@ -1,6 +1,6 @@
 # ChuMaiNichi
 
-A personal dashboard for CHUNITHM and maimai DX arcade rhythm-game players. Tracks daily play counts, ratings over time, and uses an AI agent to suggest songs for efficient DX rating improvement.
+A personal dashboard for CHUNITHM and maimai DX arcade rhythm-game players. It keeps live International data separate from a historical Japan Journal view, tracks daily activity and ratings, and uses an AI agent to suggest songs for efficient DX rating improvement.
 
 > *ChuMaiNichi* = CHUNITHM + maimai + 毎日 (*mainichi*, "every day") — *playing daily*.
 
@@ -29,6 +29,7 @@ A personal dashboard for CHUNITHM and maimai DX arcade rhythm-game players. Trac
 ## Features
 
 - **Daily play tracking** — your play count and rating are recorded in PostgreSQL once per day.
+- **International/Japan views** — switch the whole dashboard between live International data and the Japan Journal archive; Japan also includes ONGEKI tracks.
 - **Rating history** — DX rating and CHUNITHM rating tracked per day.
 - **AI agent with tool use** — chat with an LLM that can query your database and recommend songs.
 - **Song suggestion engine (maimai)** — greedy algorithm that finds the minimum-effort path to a target DX rating.
@@ -64,8 +65,9 @@ GitHub Actions (cron + manual trigger)
     └── scrape-user-data.yml   → chuumai-tools Docker → Neon
 
 Neon PostgreSQL
-    ├── daily_play    — one row per date, both games combined
-    └── user_scores   — JSONB snapshots from chuumai-tools
+    ├── daily_play          — live International data, both games combined
+    ├── japan_daily_play    — Journal-derived maimai/CHUNITHM plays + ONGEKI tracks
+    └── user_scores         — International JSONB snapshots from chuumai-tools
 ```
 
 All secrets stay in Vercel env vars and GitHub repo secrets. The browser never sees connection strings or API keys.
@@ -171,7 +173,7 @@ Single file at repo root, committed to git. Edits require a redeploy to take eff
 
 | Field | Values | Effect |
 |---|---|---|
-| `games` | `["maimai"]`, `["chunithm"]`, or both | Which scrapers run, which heatmap columns render, and whether the maimai song-suggestion AI tool is available |
+| `games` | `["maimai"]`, `["chunithm"]`, or both | Which International scrapers run, which International heatmaps render, and whether the maimai song-suggestion AI tool is available |
 | `currency_per_play` | Integer (THB) | Used in spending calculations shown on the dashboard and in Discord notifications |
 
 **Do not put secrets here.** This file is public.
@@ -206,6 +208,8 @@ Single file at repo root, committed to git. Edits require a redeploy to take eff
 
 **Manual refresh.** Clicking **Refresh scores** on the dashboard calls `/api/refresh`, which triggers `scrape-user-data.yml`. That runs the `leomotors/chuumai-tools` Docker scrapers to fetch your full song-score history and stores it as a JSONB snapshot in `user_scores`. Takes ~2 minutes.
 
+**Japan Journal import.** The Japan view is intentionally not scraped. Run `uv run python import_japan_journal.py /path/to/Obsidian/Journal` from `scraper/` for a dry run, then add `--apply` to upsert the audited series into `japan_daily_play`. An explicit dash carries the previous cumulative value forward; an omitted total must have a non-negative audited daily count in `japan_daily_attribution.json` or the importer stops. Cells whose daily count uses a user-estimated ambiguous split display `*`; deterministic differences between audited totals do not. ONGEKI is stored in tracks.
+
 **AI chat.** The right-sidebar chat streams responses from `/api/chat`, which proxies to an OpenAI-compatible API with two tools available to the model:
 
 - `query_database` — generates and runs read-only SQL against your Neon database.
@@ -216,7 +220,7 @@ Single file at repo root, committed to git. Edits require a redeploy to take eff
 ```
 ChuMaiNichi/
 ├── .github/workflows/   # GitHub Actions (daily scrape, user-data refresh, songs cache)
-├── scraper/             # Python Playwright daily scraper
+├── scraper/             # Python scrapers + Japan Journal importer
 ├── api/                 # Vercel serverless functions (query, chat, refresh)
 ├── src/                 # React frontend
 ├── public/              # Cached maimai-songs.json (chart constants)

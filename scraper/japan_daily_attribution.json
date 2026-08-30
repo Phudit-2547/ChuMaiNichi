@@ -1,0 +1,55 @@
+{
+  "daily_counts": {
+    "2026-05-27": {
+      "maimai": 0,
+      "chunithm": 0,
+      "ongeki": 0
+    },
+    "2026-05-28": {
+      "chunithm": 0
+    },
+    "2026-05-31": {
+      "maimai": 0,
+      "chunithm": 0
+    },
+    "2026-06-01": {
+      "maimai": 1,
+      "chunithm": 0,
+      "ongeki": 6
+    },
+    "2026-06-02": {
+      "maimai": 0,
+      "chunithm": 0,
+      "ongeki": 0
+    },
+    "2026-06-03": {
+      "maimai": 0,
+      "chunithm": 0
+    },
+    "2026-06-04": {
+      "maimai": 0,
+      "chunithm": 0
+    },
+    "2026-06-05": {
+      "maimai": 0,
+      "chunithm": 0
+    },
+    "2026-06-07": {
+      "chunithm": 0
+    },
+    "2026-06-08": {
+      "chunithm": 0
+    }
+  },
+  "inferred_games": {
+    "2026-06-01": [
+      "maimai"
+    ],
+    "2026-06-06": [
+      "maimai"
+    ]
+  },
+  "notes": {
+    "2026-06-01": "Under the user-confirmed rule that a game not mentioned that day has zero activity, ONGEKI is calculated as 70 minus the prior 61 and the explicit 3 tracks on 2026-06-03. The user estimated that one of the five maimai plays between cumulative totals 12 and 17 belongs to Monday 2026-06-01; the remaining four belong to Saturday 2026-06-06, when they played with people they knew in Japan. The asterisk marks this judgment-based maimai split, not deterministic arithmetic under the audited zero-activity rule. Confirmed in conversation on 2026-08-30."
+  }
+}

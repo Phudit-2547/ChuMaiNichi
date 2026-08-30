@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getMaimaiMaxConstant, runSlashCommand } from "./slash-commands";
+import {
+  getMaimaiMaxConstant,
+  runSlashCommand,
+  runSlashCommandForRegion,
+} from "./slash-commands";
 
 const BOTH_GAMES = ["maimai", "chunithm"];
 
@@ -59,5 +63,25 @@ describe("runSlashCommand", () => {
         { title: "B", chartType: "dx", remaster: { level: "15", constant: 15 } },
       ]),
     ).toBe(15);
+  });
+
+  it("never dispatches slash commands in the Japan region", () => {
+    expect(
+      runSlashCommandForRegion(
+        "/mai rating 14.0 100.5%",
+        ["maimai", "chunithm"],
+        "japan",
+      ),
+    ).toBeNull();
+  });
+
+  it("still dispatches slash commands in the International region", () => {
+    expect(
+      runSlashCommandForRegion(
+        "/mai rating 14.0 100.5%",
+        ["maimai", "chunithm"],
+        "international",
+      ),
+    ).toContain("maimai DX song rating");
   });
 });

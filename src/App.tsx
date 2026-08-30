@@ -24,6 +24,7 @@ import useSettingsStore, {
 } from "./features/settings/stores/settings-store";
 import Header from "./features/shell/components/Header";
 import useShellStore from "./features/shell/stores/shell-store";
+import { RegionSwitch } from "./features/heatmap/components/RegionSwitch";
 
 const Heatmap = lazy(() => import("./features/heatmap/components/Heatmap"));
 const RatingImage = lazy(
@@ -233,7 +234,13 @@ function App() {
   const [refreshStatus, setRefreshStatus] = useState<RefreshUiStatus>("");
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const { chatOpen, setChatOpen, chatWidth } = useShellStore();
+  const {
+    chatOpen,
+    setChatOpen,
+    chatWidth,
+    dataRegion,
+    setDataRegion,
+  } = useShellStore();
   const themeMode = useSettingsStore((state) => state.themeMode);
   useEffectiveTheme(themeMode);
   useLiquidGlassPointer();
@@ -265,6 +272,7 @@ function App() {
   }, [setChatOpen]);
 
   async function handleRefresh() {
+    if (dataRegion !== "international") return;
     setRefreshing(true);
     setRefreshStatus("queued");
     try {
@@ -296,6 +304,7 @@ function App() {
       <div
         className="app-shell"
         data-chat-open={chatOpen}
+        data-region={dataRegion}
         style={{ "--chat-width": `${chatWidth}px` } as React.CSSProperties}
       >
         <Header
@@ -303,28 +312,48 @@ function App() {
           onOpenSettings={() => setSettingsOpen(true)}
           refreshing={refreshing}
           refreshStatus={refreshStatus}
+          refreshAvailable={dataRegion === "international"}
         />
         <main className="app-main">
           <div className="app-main__inner">
+            <div className="page-context-toolbar">
+              <RegionSwitch
+                value={dataRegion}
+                onChange={setDataRegion}
+              />
+              <span className="page-context-toolbar__source">
+                {dataRegion === "japan"
+                  ? "Obsidian Journal archive"
+                  : "Live International data"}
+              </span>
+            </div>
             <Suspense fallback={<HeatmapSkeleton />}>
               <Heatmap
+                key={dataRegion}
                 games={APP_CONFIG.games}
+                region={dataRegion}
                 refreshNonce={refreshNonce}
               />
             </Suspense>
-            <Suspense fallback={null}>
-              <RatingImage
-                games={APP_CONFIG.games}
-                refreshNonce={refreshNonce}
-              />
-            </Suspense>
+            {dataRegion === "international" && (
+              <Suspense fallback={null}>
+                <RatingImage
+                  games={APP_CONFIG.games}
+                  refreshNonce={refreshNonce}
+                />
+              </Suspense>
+            )}
           </div>
         </main>
         <div className="overflow-hidden min-w-0">
-          <ChatPanel />
+          <ChatPanel key={dataRegion} region={dataRegion} />
         </div>
       </div>
-      <SettingsModal open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <SettingsModal
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        region={dataRegion}
+      />
     </TooltipProvider>
   );
 }

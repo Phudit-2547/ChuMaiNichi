@@ -27,8 +27,9 @@ GitHub Actions (cron + manual trigger)
     └── scrape-user-data.yml    → chuumai-tools Docker → Neon (no git commit)
 
 Neon PostgreSQL (free tier, serverless — scales to zero, so first query pays a warmup cost)
-    ├── daily_play         — one row per date, both games combined
-    ├── user_scores        — JSONB snapshots from chuumai-tools scraper
+    ├── daily_play         — International: one row per date, both games combined
+    ├── japan_daily_play   — Journal-derived Japan activity, including ONGEKI tracks
+    ├── user_scores        — International JSONB snapshots from chuumai-tools scraper
     └── user_rating_images — rendered rating-frame images (served by /api/rating-image)
 ```
 
@@ -71,10 +72,12 @@ ChuMaiNichi/
 │   │       ├── constants.py      # URLs, webhook refs, cost per play
 │   │       └── date_helpers.py
 │   ├── import_user_data.py       # NEW: parse chuumai-tools output → Neon
+│   ├── import_japan_journal.py    # Dry-run-first Obsidian Journal → japan_daily_play
+│   ├── japan_daily_attribution.json # Audited counts for omitted Journal totals
 │   ├── main.py
 │   ├── pyproject.toml
 │   ├── uv.lock
-│   └── init.sql                  # Schema: daily_play + user_scores
+│   └── init.sql                  # Schema: International + Japan tables
 ├── api/                          # Vercel serverless functions (thin handlers)
 │   ├── query.ts                  # DB proxy (read-only SELECT only)
 │   ├── auth.ts                   # Login probe — password check ONLY, no DB
@@ -149,7 +152,8 @@ Single-page app. No `react-router-dom`. No client-side routing.
 ├──────────────────────────────┬───────────────┤
 │                              │               │
 │  Main view                   │  Chat panel   │
-│  └── Heatmap                 │  (sidebar,    │
+│  ├── Region switch           │  (sidebar,    │
+│  └── Heatmaps                │   region-aware)│
 │                              │   collapsible)│
 │                              │               │
 ├──────────────────────────────┴───────────────┤
@@ -157,10 +161,12 @@ Single-page app. No `react-router-dom`. No client-side routing.
 └──────────────────────────────────────────────┘
 ```
 
-- **Main view**: Heatmap, always visible
-- **Chat panel**: Right sidebar, toggle via header button. Streams AI responses from `/api/chat`
+- **Main view**: Page-level International/Japan switch plus heatmaps
+- **International**: configured maimai/CHUNITHM heatmaps, rating images, Refresh, and score-aware chat
+- **Japan**: Journal-derived maimai/CHUNITHM heatmaps plus ONGEKI tracks; no Refresh, rating image, or spending calculation
+- **Chat panel**: Right sidebar with isolated history per region. Japan uses a static structured activity tool and cannot issue free-form SQL. International retains the generic read-only SQL tool; its direct Japan-table guard prevents accidental mixing but is not a database security boundary because both contexts share `DATABASE_URL`.
 - **Settings modal**: Overlay triggered by gear icon. Theme toggle and display preferences. Stored in `localStorage`
-- **Game selection and currency**: Configured in `config.json` at repo root (deploy-time, not per-session)
+- **Game selection and currency**: `config.json` controls International only; the Japan view always uses its Journal schema
 - **Refresh button**: In header or settings. Calls `/api/refresh` to trigger `scrape-user-data.yml`
 - No separate pages, no route transitions
 
@@ -177,7 +183,7 @@ Single config file at repo root. Friends edit this once after forking.
 
 | Field | Values | Effect |
 |---|---|---|
-| `games` | `["maimai"]`, `["chunithm"]`, or `["maimai", "chunithm"]` | Controls which scrapers run in GitHub Actions, which heatmap columns render, whether `maimai_suggest_songs` is available (maimai only) |
+| `games` | `["maimai"]`, `["chunithm"]`, or `["maimai", "chunithm"]` | Controls International scrapers/heatmaps and whether `maimai_suggest_songs` is available |
 | `currency_per_play` | Integer (THB) | Used to calculate money spent in reports and Discord notifications |
 
 **Who reads it:**
@@ -221,11 +227,28 @@ CREATE TABLE IF NOT EXISTS user_rating_images (
     content_type TEXT NOT NULL,         -- e.g. 'image/webp'
     updated_at   TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'Asia/Bangkok')
 );
+
+-- Table 4: Japan Journal history; ONGEKI uses tracks rather than plays.
+CREATE TABLE IF NOT EXISTS japan_daily_play (
+    play_date                   DATE PRIMARY KEY,
+    maimai_play_count           INTEGER NOT NULL,
+    chunithm_play_count         INTEGER NOT NULL,
+    ongeki_track_count          INTEGER NOT NULL,
+    maimai_cumulative           INTEGER NOT NULL,
+    chunithm_cumulative         INTEGER NOT NULL,
+    ongeki_cumulative_tracks    INTEGER NOT NULL,
+    source                      TEXT NOT NULL,
+    source_paths                TEXT[] NOT NULL,
+    source_hashes               TEXT[] NOT NULL,
+    inferred_games              TEXT[] NOT NULL
+);
 ```
 
-All three tables are created idempotently by `scraper/init.sql`, which runs during a scraper invocation (not on Vercel). Before the first scrape they may not exist yet — `/api/rating-image` treats a missing `user_rating_images` table as a 404 so the UI hides cleanly.
+All four tables are created idempotently by `scraper/init.sql`, which runs during a scraper invocation (not on Vercel). Before the first scrape they may not exist yet — `/api/rating-image` treats a missing `user_rating_images` table as a 404 so the UI hides cleanly.
 
-**Critical schema rule:** `daily_play` has ONE row per date with columns for BOTH games. Do NOT create separate rows per game. Any upsert logic that loops per-game and inserts twice is a bug.
+**Critical schema rules:** `daily_play` remains International-only and has ONE row per date with columns for BOTH games; any upsert logic that loops per game and inserts twice is a bug. `japan_daily_play` also has ONE row per date, adds ONGEKI tracks, and is written only by the dry-run-first Journal importer. Never merge cumulative values across these tables.
+
+**Japan attribution rule:** An explicit `-` means the cumulative value is unchanged from the previous day. A game omitted from a Journal total is not automatically a dash; `import_japan_journal.py` must find a non-negative audited daily count in `japan_daily_attribution.json` or block the import. The 2026-06-01 maimai count is a user-estimated 1 play; the 2026-06-06 snapshot therefore contributes the remaining 4 plays. Both cells are listed in `inferred_games` and must display an explanatory `*` in the Japan UI. Reserve `inferred_games` for judgment-based ambiguous splits; deterministic differences between audited totals do not receive a marker.
 
 ## Rating system (maimai DX)
 

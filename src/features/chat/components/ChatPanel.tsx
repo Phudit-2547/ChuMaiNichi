@@ -5,6 +5,10 @@ import useShellStore from "@/features/shell/stores/shell-store";
 import useSettingsStore from "@/features/settings/stores/settings-store";
 import { fetchModel } from "@/global/lib/api";
 import { APP_CONFIG } from "@/global/lib/config";
+import {
+  DATA_REGION_LABELS,
+  type DataRegion,
+} from "@/global/lib/regions";
 import { streamChat, type ChatMessage, type StreamEvent } from "../lib/stream";
 import { renderBody } from "../lib/render-body";
 import { GlassComposer, GlassSendButton } from "./LiquidComposer";
@@ -17,7 +21,10 @@ type UiMessage =
   | { role: "tool"; name: string; result: unknown }
   | { role: "error"; content: string };
 
-const CHAT_STORAGE_KEY = "chumai-chat-messages";
+const CHAT_STORAGE_KEYS: Record<DataRegion, string> = {
+  international: "chumai-chat-messages",
+  japan: "chumai-chat-messages-japan",
+};
 const CHAT_MAX_STORED = 100;
 interface SlashCommand {
   id: string;
@@ -118,9 +125,9 @@ function formatAgo(timestamp: string, now: Date): string {
   return rh > 0 ? `${days}d ${rh}h ago` : `${days}d ago`;
 }
 
-function loadMessages(): UiMessage[] {
+function loadMessages(region: DataRegion): UiMessage[] {
   try {
-    const raw = localStorage.getItem(CHAT_STORAGE_KEY);
+    const raw = localStorage.getItem(CHAT_STORAGE_KEYS[region]);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -157,7 +164,7 @@ function loadMessages(): UiMessage[] {
   }
 }
 
-function saveMessages(messages: UiMessage[]): void {
+function saveMessages(messages: UiMessage[], region: DataRegion): void {
   try {
     const toSave: UiMessage[] = [];
     for (const m of messages) {
@@ -168,7 +175,7 @@ function saveMessages(messages: UiMessage[]): void {
       }
     }
     const capped = toSave.slice(-CHAT_MAX_STORED);
-    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(capped));
+    localStorage.setItem(CHAT_STORAGE_KEYS[region], JSON.stringify(capped));
   } catch {
     /* quota or serialization error — drop silently */
   }
@@ -228,10 +235,12 @@ function friendlyStreamError(error: unknown): string {
   return `The response could not finish. ${retryPath}`;
 }
 
-export default function ChatPanel() {
+export default function ChatPanel({ region }: { region: DataRegion }) {
   const { chatOpen, setChatOpen } = useShellStore();
   const { showToolCalls } = useSettingsStore();
-  const [messages, setMessages] = useState<UiMessage[]>(loadMessages);
+  const [messages, setMessages] = useState<UiMessage[]>(() =>
+    loadMessages(region),
+  );
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [modelLabel, setModelLabel] = useState<string | null>(null);
@@ -244,12 +253,14 @@ export default function ChatPanel() {
   const [slashIndex, setSlashIndex] = useState(0);
   const [slashDismissed, setSlashDismissed] = useState(false);
   const [selectedSlashId, setSelectedSlashId] = useState<string | null>(null);
+  const latestMessagesRef = useRef(messages);
+  latestMessagesRef.current = messages;
 
   const userMessages = messages.filter((m) => m.role === "user");
   const selectedSlashCommand =
     SLASH_COMMANDS.find((command) => command.id === selectedSlashId) ?? null;
   const slashMatches =
-    input.startsWith("/") && !slashDismissed
+    region === "international" && input.startsWith("/") && !slashDismissed
       ? SLASH_COMMANDS.filter((command) => matchesSlashCommand(command, input))
       : [];
   const slashMenuOpen = slashMatches.length > 0;
@@ -318,9 +329,17 @@ export default function ChatPanel() {
   }, [messages]);
 
   useEffect(() => {
-    const handle = setTimeout(() => saveMessages(messages), 300);
+    const handle = setTimeout(() => saveMessages(messages, region), 300);
     return () => clearTimeout(handle);
-  }, [messages]);
+  }, [messages, region]);
+
+  useEffect(
+    () => () => {
+      saveMessages(latestMessagesRef.current, region);
+      abortRef.current?.abort();
+    },
+    [region],
+  );
 
   useEffect(() => {
     const ta = taRef.current;
@@ -422,7 +441,7 @@ export default function ChatPanel() {
       abortRef.current = ctrl;
 
       try {
-        await streamChat(apiHistory, handleEvent, ctrl.signal);
+        await streamChat(apiHistory, handleEvent, ctrl.signal, region);
         setMessages(settleStreaming);
       } catch (err) {
         if (!ctrl.signal.aborted) {
@@ -440,7 +459,7 @@ export default function ChatPanel() {
         abortRef.current = null;
       }
     },
-    [input, busy, messages, handleEvent],
+    [input, busy, messages, handleEvent, region],
   );
 
   const stop = useCallback(() => {
@@ -534,7 +553,7 @@ export default function ChatPanel() {
     abortRef.current?.abort();
     setMessages([]);
     try {
-      localStorage.removeItem(CHAT_STORAGE_KEY);
+      localStorage.removeItem(CHAT_STORAGE_KEYS[region]);
     } catch {
       /* ignore */
     }
@@ -553,7 +572,7 @@ export default function ChatPanel() {
           "--chat-panel-mobile-left": chatOpen ? "0px" : "100vw",
         } as CSSProperties
       }
-      aria-label="Assistant chat"
+      aria-label={`${DATA_REGION_LABELS[region]} Assistant chat`}
       aria-hidden={chatOpen ? undefined : true}
       inert={chatOpen ? undefined : true}
     >
@@ -564,7 +583,9 @@ export default function ChatPanel() {
           size={16}
           style={{ color: "var(--color-text-muted)" }}
         />
-        <div className="chat-panel__title">Assistant</div>
+        <div className="chat-panel__title">
+          {DATA_REGION_LABELS[region]} Assistant
+        </div>
         <div
           className="chat-panel__sub"
           title={modelStatusDescription}
@@ -604,7 +625,7 @@ export default function ChatPanel() {
         ref={scrollRef}
       >
         {messages.length === 0 ? (
-          <EmptyState onPick={(t) => send(t)} />
+          <EmptyState region={region} onPick={(t) => send(t)} />
         ) : (
           messages
             .filter((m) => showToolCalls || m.role !== "tool")
@@ -661,28 +682,34 @@ export default function ChatPanel() {
         )}
         <GlassComposer className="chat-composer__surface">
           <div className="chat-composer__row">
-            <button
-              type="button"
-              className="chat-composer__command chat-composer__command--slash"
-              onClick={openSlashCommands}
-              disabled={busy || Boolean(input && !input.startsWith("/"))}
-              data-active={slashMenuOpen}
-              aria-pressed={slashMenuOpen}
-              aria-haspopup="listbox"
-              aria-keyshortcuts="/"
-              aria-label="Open slash commands"
-              title="Commands (/)"
-            >
-              <span className="chat-composer__command-glyph" aria-hidden="true">
-                /
-              </span>
-            </button>
+            {region === "international" && (
+              <button
+                type="button"
+                className="chat-composer__command chat-composer__command--slash"
+                onClick={openSlashCommands}
+                disabled={busy || Boolean(input && !input.startsWith("/"))}
+                data-active={slashMenuOpen}
+                aria-pressed={slashMenuOpen}
+                aria-haspopup="listbox"
+                aria-keyshortcuts="/"
+                aria-label="Open slash commands"
+                title="Commands (/)"
+              >
+                <span className="chat-composer__command-glyph" aria-hidden="true">
+                  /
+                </span>
+              </button>
+            )}
             <textarea
               ref={taRef}
               className="chat-composer__input flex-1 bg-transparent border-none outline-none text-foreground
                          placeholder:text-muted-foreground resize-none min-h-[22px] max-h-[140px]
                          py-1 px-1 scrollbar-thin"
-              placeholder="Ask about plays, rating, or song picks…"
+              placeholder={
+                region === "japan"
+                  ? "Ask about Japan plays or ONGEKI tracks…"
+                  : "Ask about plays, rating, or song picks…"
+              }
               aria-expanded={slashMenuOpen}
               aria-haspopup="listbox"
               aria-autocomplete="list"
@@ -724,10 +751,12 @@ export default function ChatPanel() {
           {draftHint ? (
             <span className="chat-composer__draft-hint">{draftHint}</span>
           ) : (
-            <span className="chat-composer__shortcut-hints">
-              <kbd>Enter</kbd> send · <kbd>↑</kbd> history · <kbd>/</kbd>{" "}
-              commands
-            </span>
+              <span className="chat-composer__shortcut-hints">
+                <kbd>Enter</kbd> send · <kbd>↑</kbd> history
+                {region === "international" && (
+                  <> · <kbd>/</kbd> commands</>
+                )}
+              </span>
           )}
         </div>
       </div>

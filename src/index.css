@@ -123,6 +123,7 @@
   --success: oklch(0.57 0.16 150);
   --maimai: oklch(0.72 0.19 350);
   --chunithm: oklch(0.62 0.19 268);
+  --ongeki: oklch(0.62 0.135 82);
   --maimai-soft: oklch(0.72 0.19 350 / 0.1);
   --chunithm-soft: oklch(0.62 0.19 268 / 0.1);
   --maimai-border: oklch(0.72 0.19 350 / 0.24);
@@ -138,6 +139,11 @@
   --heatmap-chunithm-2: #abc4ff;
   --heatmap-chunithm-3: #6389ef;
   --heatmap-chunithm-4: #2f5ed0;
+  --heatmap-ongeki-0: var(--heatmap-maimai-0);
+  --heatmap-ongeki-1: oklch(0.9 0.055 82);
+  --heatmap-ongeki-2: oklch(0.81 0.095 82);
+  --heatmap-ongeki-3: oklch(0.7 0.125 82);
+  --heatmap-ongeki-4: oklch(0.58 0.145 82);
   --toggle-knob: oklch(0.985 0.005 285);
   --error-text: oklch(0.79 0.12 25);
   --sql-keyword: oklch(0.78 0.17 350);
@@ -272,6 +278,7 @@
   --success: oklch(0.62 0.16 150);
   --maimai: oklch(0.75 0.19 350);
   --chunithm: oklch(0.68 0.19 268);
+  --ongeki: oklch(0.72 0.14 82);
   --maimai-soft: oklch(0.75 0.19 350 / 0.1);
   --chunithm-soft: oklch(0.68 0.19 268 / 0.1);
   --maimai-border: oklch(0.75 0.19 350 / 0.24);
@@ -287,6 +294,11 @@
   --heatmap-chunithm-2: #2c55a5;
   --heatmap-chunithm-3: #2d59a3;
   --heatmap-chunithm-4: #3d67e3;
+  --heatmap-ongeki-0: var(--heatmap-maimai-0);
+  --heatmap-ongeki-1: oklch(0.32 0.055 82);
+  --heatmap-ongeki-2: oklch(0.43 0.085 82);
+  --heatmap-ongeki-3: oklch(0.57 0.115 82);
+  --heatmap-ongeki-4: oklch(0.72 0.14 82);
   --toggle-knob: oklch(0.91 0.012 260);
   --error-text: oklch(0.82 0.12 25);
   --sql-keyword: oklch(0.82 0.16 350);
@@ -450,6 +462,8 @@ html[data-theme-transition="fallback"] .modal,
 html[data-theme-transition="fallback"] .slash-menu,
 html[data-theme-transition="fallback"] .year-dropdown__trigger,
 html[data-theme-transition="fallback"] .year-dropdown__menu,
+html[data-theme-transition="fallback"] .region-switch__options,
+html[data-theme-transition="fallback"] .region-switch__option,
 html[data-theme-transition="fallback"] .toggle {
   transition:
     background 280ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -712,6 +726,13 @@ h1 {
   background: var(--game-accent, var(--accent));
   box-shadow: 0 0 0 1px color-mix(in oklch, var(--game-accent, var(--accent)) 52%, transparent);
   flex: 0 0 auto;
+}
+
+.game-heading__unit {
+  color: var(--muted-foreground);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.025em;
 }
 
 .stats-bar {
@@ -1209,6 +1230,90 @@ h1 {
   font-weight: 650;
 }
 
+.region-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.region-switch__label {
+  color: var(--secondary-foreground);
+  font-size: 0.875rem;
+}
+
+.region-switch__options {
+  display: inline-grid;
+  grid-template-columns: repeat(2, auto);
+  align-items: center;
+  min-height: 40px;
+  padding: 2px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  background: color-mix(in oklch, var(--surface-muted) 52%, var(--surface));
+  box-shadow: var(--shadow-quiet);
+}
+
+.region-switch__option {
+  min-height: 34px;
+  padding: 0 0.8rem;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 550;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 150ms ease,
+    box-shadow 150ms ease,
+    color 150ms ease,
+    transform 150ms ease;
+}
+
+.region-switch__option:hover:not(:disabled) {
+  color: var(--foreground);
+}
+
+.region-switch__option[aria-pressed="true"] {
+  background: var(--surface-elevated);
+  color: var(--foreground);
+  box-shadow:
+    0 1px 0 color-mix(in oklch, var(--foreground) 8%, transparent),
+    0 3px 9px oklch(0.18 0.012 265 / 0.09);
+}
+
+.region-switch__option:focus-visible {
+  outline: none;
+  box-shadow: var(--glass-focus-ring);
+}
+
+.region-switch__option:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.region-switch__option:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.page-context-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.page-context-toolbar__source {
+  min-width: 0;
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+  text-align: right;
+}
+
 .ch-domain-text,
 .ch-label-text {
   fill: var(--color-text-muted);
@@ -1230,6 +1335,13 @@ h1 {
 .ch-subdomain-bg.highlight {
   stroke: var(--color-accent-hover);
   stroke-width: 1.5px;
+}
+
+.ch-subdomain-text {
+  fill: var(--foreground);
+  font-size: 10px;
+  font-weight: 700;
+  pointer-events: none;
 }
 
 /* Today cell — extra emphasis */
@@ -1967,6 +2079,17 @@ rect.heatmap-today {
 .game-badge[data-game="chunithm"]:hover {
   border-color: color-mix(in oklch, var(--chunithm) 76%, transparent);
   background: color-mix(in oklch, var(--chunithm-soft) 75%, var(--glass-control-hover-bg));
+}
+
+.game-badge[data-game="ongeki"] {
+  border-color: color-mix(in oklch, var(--ongeki) 58%, transparent);
+  color: color-mix(in oklch, var(--ongeki) 82%, var(--foreground));
+  background: color-mix(in oklch, var(--ongeki) 10%, transparent);
+}
+
+.game-badge[data-game="ongeki"]:hover {
+  border-color: color-mix(in oklch, var(--ongeki) 76%, transparent);
+  background: color-mix(in oklch, var(--ongeki) 16%, var(--glass-control-hover-bg));
 }
 
 .toggle {
@@ -3246,6 +3369,14 @@ rect.heatmap-today {
 }
 
 @media (max-width: 640px) {
+  .page-context-toolbar {
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+  .page-context-toolbar__source {
+    flex-basis: 100%;
+    text-align: left;
+  }
   .text-btn--refresh .text-btn__label {
     display: none;
   }

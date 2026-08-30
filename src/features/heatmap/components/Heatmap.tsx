@@ -1,19 +1,30 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import "cal-heatmap/cal-heatmap.css";
-import { queryDB } from "../../../global/lib/api";
-import type { DailyRow, Game } from "../types/types";
-import { fetchData, fetchYears } from "../lib/fetch";
+import type {
+  DailyRow,
+  DataRegion,
+  Game,
+  HeatmapGame,
+} from "../types/types";
+import { fetchData, fetchLastUpdated, fetchYears } from "../lib/fetch";
 import { formatLastUpdated } from "../lib/formatting";
-import { GAME_ACCENT } from "../lib/constants";
+import {
+  ACTIVITY_UNIT,
+  GAME_ACCENT,
+  GAME_LABELS,
+  JAPAN_GAMES,
+} from "../lib/constants";
 import { GameHeatmap } from "./GameHeatmap";
 import { YearDropdown } from "./YearDropdown";
 import HeatmapSkeletonBlock from "./heatmap-skeleton/HeatmapSkeletonBlock";
 
 export default function Heatmap({
   games,
+  region = "international",
   refreshNonce = 0,
 }: {
   games: Game[];
+  region?: DataRegion;
   refreshNonce?: number;
 }) {
   const [years, setYears] = useState<number[]>([]);
@@ -25,40 +36,59 @@ export default function Heatmap({
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const isInitialLoad = useRef(true);
+  const visibleGames: HeatmapGame[] =
+    region === "japan" ? JAPAN_GAMES : games;
 
   useEffect(() => {
+    let cancelled = false;
     const currentYear = new Date().getFullYear();
     Promise.all([
-      fetchYears(),
-      queryDB<{ last_date: string }>(
-        "SELECT MAX(play_date)::text AS last_date FROM daily_play",
-      ),
+      fetchYears(region),
+      fetchLastUpdated(region),
     ])
-      .then(([yrs, lastRows]) => {
+      .then(([yrs, latestDate]) => {
+        if (cancelled) return;
         const set = new Set<number>(yrs);
-        set.add(currentYear);
-        set.add(currentYear - 1);
+        if (region === "international") {
+          set.add(currentYear);
+          set.add(currentYear - 1);
+        } else if (set.size === 0) {
+          set.add(currentYear);
+        }
         const list = Array.from(set).sort((a, b) => a - b);
         setYears(list);
         if (isInitialLoad.current) {
           setSelectedYear(list[list.length - 1]);
           isInitialLoad.current = false;
+        } else {
+          setSelectedYear((year) =>
+            list.includes(year) ? year : list[list.length - 1],
+          );
         }
-        if (lastRows[0]?.last_date) setLastUpdated(lastRows[0].last_date);
+        setLastUpdated(latestDate);
       })
       .catch(() => {
+        if (cancelled) return;
+        setLastUpdated(null);
         if (isInitialLoad.current) {
-          setYears([currentYear, currentYear - 1]);
+          setYears(
+            region === "international"
+              ? [currentYear - 1, currentYear]
+              : [currentYear],
+          );
           setSelectedYear(currentYear);
           isInitialLoad.current = false;
         }
       });
-  }, [refreshNonce]);
+    return () => {
+      cancelled = true;
+    };
+  }, [region, refreshNonce]);
 
   const [isStale, setIsStale] = useState(false);
 
   useEffect(() => {
-    if (lastUpdated == null) {
+    if (lastUpdated == null || region === "japan") {
       const id = setTimeout(() => setIsStale(false), 0);
       return () => clearTimeout(id);
     }
@@ -67,7 +97,7 @@ export default function Heatmap({
       setIsStale(ageMs > 2 * 86400000);
     }, 0);
     return () => clearTimeout(id);
-  }, [lastUpdated]);
+  }, [lastUpdated, region]);
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -78,7 +108,9 @@ export default function Heatmap({
     setLoading(true);
     setError(null);
     try {
-      setData(await fetchData(year, spillover, controller.signal));
+      setData(
+        await fetchData(year, spillover, controller.signal, region),
+      );
     } catch (err) {
       if (controller.signal.aborted) return;
       setData([]);
@@ -94,12 +126,12 @@ export default function Heatmap({
           "Dashboard API unreachable. Check your connection, then retry.",
         );
       } else {
-        setError("Play data did not load. Saved scores are unchanged.");
+        setError("Play data did not load. Saved data is unchanged.");
       }
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
-  }, []);
+  }, [region]);
 
   useEffect(() => {
     if (!years.length) return;
@@ -114,13 +146,18 @@ export default function Heatmap({
     ? formatLastUpdated(lastUpdated)
     : null;
   const updateStatusText = lastUpdatedLabel
-    ? isStale
-      ? `Last update ${lastUpdatedLabel}. Refresh to check for new sessions.`
-      : `Last updated ${lastUpdatedLabel}`
+    ? region === "japan"
+      ? `Last recorded ${lastUpdatedLabel}`
+      : isStale
+        ? `Last update ${lastUpdatedLabel}. Refresh to check for new sessions.`
+        : `Last updated ${lastUpdatedLabel}`
     : null;
+  const hasSelectedYearData = data.some((row) =>
+    row.play_date.startsWith(String(selectedYear)),
+  );
 
   return (
-    <div>
+    <div data-region={region}>
       <div className="heatmap-toolbar flex flex-wrap items-center gap-2 mb-4">
         <label className="text-sm text-secondary-foreground">Year</label>
         <YearDropdown
@@ -128,9 +165,9 @@ export default function Heatmap({
           years={years}
           onChange={setSelectedYear}
         />
-        {lastUpdated && (
+        {!loading && lastUpdated && (
           <span
-            className={`w-full sm:w-auto sm:ml-auto text-xs ${isStale ? "text-destructive" : "text-muted-foreground"}`}
+            className={`w-full sm:w-auto sm:ml-auto text-xs ${region === "international" && isStale ? "text-destructive" : "text-muted-foreground"}`}
             title={updateStatusText ?? undefined}
             aria-live="polite"
           >
@@ -141,7 +178,7 @@ export default function Heatmap({
 
       {loading && (
         <div className="flex flex-col gap-8" aria-label="Loading play data">
-          {games.map((game) => (
+          {visibleGames.map((game) => (
             <HeatmapSkeletonBlock key={game} />
           ))}
         </div>
@@ -167,7 +204,7 @@ export default function Heatmap({
 
       {!loading &&
         !error &&
-        games.map((game) => (
+        visibleGames.map((game) => (
           <div key={game} className="game-section mb-8">
             <h2 className="game-heading">
               <span
@@ -175,9 +212,12 @@ export default function Heatmap({
                 style={{ backgroundColor: GAME_ACCENT[game] }}
                 aria-hidden="true"
               />
-              <span>{game === "maimai" ? "maimai" : "CHUNITHM"}</span>
+              <span>{GAME_LABELS[game]}</span>
+              {ACTIVITY_UNIT[game] === "track" && (
+                <span className="game-heading__unit">tracks</span>
+              )}
             </h2>
-            {data.length > 0 ? (
+            {hasSelectedYearData ? (
               <GameHeatmap
                 game={game}
                 data={data}
@@ -185,10 +225,15 @@ export default function Heatmap({
               />
             ) : (
               <div className="heatmap-empty content-panel p-8 text-center text-muted-foreground border border-border rounded-lg">
-                <p className="m-0">No plays in {selectedYear}</p>
+                <p className="m-0">
+                  {region === "japan"
+                    ? `No Japan activity recorded in ${selectedYear}`
+                    : `No plays in ${selectedYear}`}
+                </p>
                 <p className="mt-2 text-xs m-0">
-                  Choose another year, or refresh after the first scrape
-                  finishes.
+                  {region === "japan"
+                    ? "Choose another year. Japan data comes from your Journal."
+                    : "Choose another year, or refresh after the first scrape finishes."}
                 </p>
               </div>
             )}

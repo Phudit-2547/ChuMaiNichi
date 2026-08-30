@@ -7,6 +7,7 @@ import {
   getRankInfo as getMaimaiRankInfo,
   type SongData,
 } from "../../global/lib/maimai-rating.js";
+import type { DataRegion } from "../../global/lib/regions.js";
 
 type Game = "chunithm" | "maimai";
 type MaimaiDifficulty = "basic" | "advanced" | "expert" | "master" | "remaster";
@@ -248,4 +249,14 @@ export function runSlashCommand(
     command.args,
     normalizeMaimaiMaxConstant(options.maimaiMaxConstant),
   );
+}
+
+export function runSlashCommandForRegion(
+  input: string,
+  enabledGames: readonly string[],
+  region: DataRegion,
+  options: SlashCommandOptions = {},
+): string | null {
+  if (region !== "international") return null;
+  return runSlashCommand(input, enabledGames, options);
 }
