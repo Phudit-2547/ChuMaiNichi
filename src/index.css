@@ -2008,6 +2008,315 @@ rect.heatmap-today {
   line-height: 1.45;
 }
 
+.codex-auth__heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.1rem;
+}
+
+.modal-section .codex-auth__heading h3 {
+  margin: 0;
+}
+
+.codex-auth__experimental {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 0 0.38rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 5px;
+  color: var(--color-text-muted);
+  background: var(--surface-subtle-tint);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.codex-auth__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 0;
+}
+
+.codex-auth__summary {
+  min-width: 0;
+}
+
+.codex-auth__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--color-foreground);
+  font-size: 0.85rem;
+}
+
+.codex-auth__status-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+}
+
+.codex-auth__status-dot[data-state="connected"] {
+  background: var(--color-success);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--success) 14%, transparent);
+}
+
+.codex-auth__status-dot[data-state="checking"] {
+  background: var(--accent-hover);
+  animation: codex-auth-pulse 1.35s ease-in-out infinite;
+}
+
+.codex-auth__status-dot[data-state="unavailable"] {
+  background: var(--color-destructive);
+}
+
+@keyframes codex-auth-pulse {
+  0%, 100% { opacity: 0.42; }
+  50% { opacity: 1; }
+}
+
+.codex-auth__actions,
+.codex-auth__confirm-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  flex: 0 0 auto;
+}
+
+.codex-auth__model {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.65rem 0 0.75rem;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.codex-auth__model-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--color-foreground);
+  font-size: 0.78rem;
+}
+
+.codex-auth__model-heading label {
+  font-weight: 600;
+}
+
+.codex-auth__model-heading span {
+  color: var(--color-text-muted);
+  font-size: 0.66rem;
+}
+
+.codex-auth__model select {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--glass-control-border);
+  border-radius: 8px;
+  padding: 0 0.65rem;
+  color: var(--color-foreground);
+  background: var(--glass-control-bg);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.codex-auth__model select:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.codex-auth__model select:focus-visible {
+  outline: none;
+  border-color: var(--accent-border);
+  box-shadow: var(--glass-focus-ring);
+}
+
+.codex-auth__model p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
+.codex-auth__model .codex-auth__model-note {
+  font-size: 0.66rem;
+}
+
+.codex-auth__button,
+.codex-auth__copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 32px;
+  border: 1px solid var(--glass-control-border);
+  border-radius: 8px;
+  padding: 0 0.7rem;
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease, opacity 140ms ease;
+}
+
+.codex-auth__button--quiet,
+.codex-auth__copy {
+  color: var(--color-text-muted);
+  background: var(--glass-control-bg);
+}
+
+.codex-auth__button--quiet:hover:not(:disabled),
+.codex-auth__copy:hover:not(:disabled) {
+  color: var(--foreground);
+  background: var(--glass-control-hover-bg);
+  border-color: var(--glass-stroke-strong);
+}
+
+.codex-auth__button--primary {
+  color: var(--accent-foreground);
+  background: var(--accent);
+  border-color: color-mix(in oklch, var(--accent) 72%, var(--foreground));
+}
+
+.codex-auth__button--primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.codex-auth__button--danger {
+  color: var(--error-text);
+  background: color-mix(in oklch, var(--destructive) 14%, transparent);
+  border-color: color-mix(in oklch, var(--destructive) 34%, transparent);
+}
+
+.codex-auth__button--danger:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--destructive) 20%, transparent);
+}
+
+.codex-auth__button:disabled,
+.codex-auth__copy:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.codex-auth__button:focus-visible,
+.codex-auth__copy:focus-visible,
+.codex-auth__device a:focus-visible {
+  outline: none;
+  box-shadow: var(--glass-focus-ring);
+}
+
+.codex-auth__device {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.25rem;
+  padding: 0.7rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 10px;
+  background: color-mix(in oklch, var(--surface-subtle-tint) 70%, transparent);
+}
+
+.codex-auth__device-head,
+.codex-auth__device-footer,
+.codex-auth__code-row,
+.codex-auth__confirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.codex-auth__device-head {
+  color: var(--color-foreground);
+  font-size: 0.74rem;
+  line-height: 1.4;
+}
+
+.codex-auth__device-head time {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+}
+
+.codex-auth__code-row code {
+  min-width: 0;
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: clamp(0.9rem, 3.2vw, 1.05rem);
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.codex-auth__copy {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding-inline: 0.55rem;
+}
+
+.codex-auth__device-footer {
+  padding-top: 0.05rem;
+  font-size: 0.7rem;
+}
+
+.codex-auth__device a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 5px;
+  color: var(--accent-hover);
+  text-decoration: none;
+}
+
+.codex-auth__device a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.codex-auth__waiting {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.codex-auth__spinner {
+  width: 14px;
+  height: 14px;
+  animation: codex-auth-spin 0.9s linear infinite;
+}
+
+@keyframes codex-auth-spin {
+  to { transform: rotate(1turn); }
+}
+
+.codex-auth__confirm {
+  margin-top: 0.3rem;
+  padding: 0.6rem 0.7rem;
+  border-top: 1px solid var(--color-border-subtle);
+  color: var(--color-foreground);
+  font-size: 0.74rem;
+}
+
+.codex-auth__error {
+  margin: 0.35rem 0 0;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid color-mix(in oklch, var(--destructive) 34%, transparent);
+  border-radius: 8px;
+  color: var(--error-text);
+  background: color-mix(in oklch, var(--destructive) 10%, transparent);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
 .row-value {
   font-family: var(--font-mono);
   font-size: 0.82rem;
@@ -3516,6 +3825,25 @@ rect.heatmap-today {
     flex-wrap: wrap;
     justify-content: flex-end;
   }
+  .codex-auth__row,
+  .codex-auth__confirm {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .codex-auth__actions,
+  .codex-auth__confirm-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .codex-auth__device-head,
+  .codex-auth__device-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .codex-auth__waiting {
+    white-space: normal;
+  }
   .heatmap-empty {
     padding: 1.25rem 0.9rem;
   }
@@ -3527,6 +3855,14 @@ rect.heatmap-today {
   }
   .rating-image-placeholder {
     height: 13.75rem;
+  }
+}
+
+@media (pointer: coarse) {
+  .codex-auth__button,
+  .codex-auth__copy,
+  .codex-auth__model select {
+    min-height: 44px;
   }
 }
 

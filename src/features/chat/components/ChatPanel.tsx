@@ -4,6 +4,7 @@ import { MessageCircle, Square, Trash2, X } from "lucide-react";
 import useShellStore from "@/features/shell/stores/shell-store";
 import useSettingsStore from "@/features/settings/stores/settings-store";
 import { fetchModel } from "@/global/lib/api";
+import { subscribeToCodexAuthRefreshSignals } from "@/global/lib/events";
 import { APP_CONFIG } from "@/global/lib/config";
 import {
   DATA_REGION_LABELS,
@@ -11,21 +12,19 @@ import {
 } from "@/global/lib/regions";
 import { streamChat, type ChatMessage, type StreamEvent } from "../lib/stream";
 import { renderBody } from "../lib/render-body";
+import {
+  loadAndMigrateStoredMessages,
+  messagesForStorage,
+  type UiMessage,
+} from "../lib/history";
 import { GlassComposer, GlassSendButton } from "./LiquidComposer";
 import ToolCall from "./ToolCall";
 import EmptyState from "./EmptyState";
-
-type UiMessage =
-  | { role: "user"; content: string; timestamp?: string }
-  | { role: "assistant"; content: string; streaming?: boolean }
-  | { role: "tool"; name: string; result: unknown }
-  | { role: "error"; content: string };
 
 const CHAT_STORAGE_KEYS: Record<DataRegion, string> = {
   international: "chumai-chat-messages",
   japan: "chumai-chat-messages-japan",
 };
-const CHAT_MAX_STORED = 100;
 interface SlashCommand {
   id: string;
   title: string;
@@ -126,56 +125,20 @@ function formatAgo(timestamp: string, now: Date): string {
 }
 
 function loadMessages(region: DataRegion): UiMessage[] {
-  try {
-    const raw = localStorage.getItem(CHAT_STORAGE_KEYS[region]);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    const valid: UiMessage[] = [];
-    for (const m of parsed) {
-      if (!m || typeof m !== "object") continue;
-      const r = (m as { role?: unknown }).role;
-      const content = (m as { content?: unknown }).content;
-      if (r === "user" && typeof content === "string") {
-        const ts = (m as { timestamp?: unknown }).timestamp;
-        valid.push({
-          role: "user",
-          content,
-          ...(typeof ts === "string" ? { timestamp: ts } : {}),
-        });
-      } else if (r === "assistant" && typeof content === "string" && content) {
-        valid.push({ role: "assistant", content });
-      } else if (r === "tool") {
-        const name = (m as { name?: unknown }).name;
-        if (typeof name === "string") {
-          valid.push({
-            role: "tool",
-            name,
-            result: (m as { result?: unknown }).result,
-          });
-        }
-      } else if (r === "error" && typeof content === "string") {
-        valid.push({ role: "error", content });
-      }
-    }
-    return valid;
-  } catch {
-    return [];
-  }
+  // Rewrite legacy history immediately so tool payloads from older builds do
+  // not remain at rest after they have been excluded from memory.
+  return loadAndMigrateStoredMessages(
+    localStorage,
+    CHAT_STORAGE_KEYS[region],
+  );
 }
 
 function saveMessages(messages: UiMessage[], region: DataRegion): void {
   try {
-    const toSave: UiMessage[] = [];
-    for (const m of messages) {
-      if (m.role === "assistant") {
-        if (m.content) toSave.push({ role: "assistant", content: m.content });
-      } else {
-        toSave.push(m);
-      }
-    }
-    const capped = toSave.slice(-CHAT_MAX_STORED);
-    localStorage.setItem(CHAT_STORAGE_KEYS[region], JSON.stringify(capped));
+    localStorage.setItem(
+      CHAT_STORAGE_KEYS[region],
+      JSON.stringify(messagesForStorage(messages)),
+    );
   } catch {
     /* quota or serialization error — drop silently */
   }
@@ -244,6 +207,7 @@ export default function ChatPanel({ region }: { region: DataRegion }) {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [modelLabel, setModelLabel] = useState<string | null>(null);
+  const [modelUnavailable, setModelUnavailable] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const panelRef = useRef<HTMLElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -270,10 +234,13 @@ export default function ChatPanel({ region }: { region: DataRegion }) {
     selectedSlashCommand && input.startsWith(selectedSlashCommand.draft)
       ? selectedSlashCommand.hint
       : null;
-  const modelStatusText = modelLabel ?? "Checking...";
+  const modelStatusText =
+    modelLabel ?? (modelUnavailable ? "Unavailable" : "Checking...");
   const modelStatusDescription = modelLabel
     ? `Assistant ready. Current model: ${modelLabel}.`
-    : "Assistant is checking model availability.";
+    : modelUnavailable
+      ? "Assistant unavailable. Connect ChatGPT or configure an AI provider in Settings."
+      : "Assistant is checking model availability.";
 
   useEffect(() => {
     setSlashIndex(0);
@@ -315,11 +282,28 @@ export default function ChatPanel({ region }: { region: DataRegion }) {
   }, [chatOpen]);
 
   useEffect(() => {
-    const ctrl = new AbortController();
-    fetchModel(ctrl.signal)
-      .then(setModelLabel)
-      .catch(() => {});
-    return () => ctrl.abort();
+    let ctrl = new AbortController();
+    const refreshModel = () => {
+      ctrl.abort();
+      ctrl = new AbortController();
+      const request = ctrl;
+      setModelLabel(null);
+      setModelUnavailable(false);
+      fetchModel(ctrl.signal)
+        .then((model) => {
+          if (request.signal.aborted) return;
+          setModelLabel(model);
+        })
+        .catch(() => {
+          if (!request.signal.aborted) setModelUnavailable(true);
+        });
+    };
+    refreshModel();
+    const unsubscribe = subscribeToCodexAuthRefreshSignals(refreshModel);
+    return () => {
+      ctrl.abort();
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {

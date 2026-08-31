@@ -31,11 +31,11 @@ A personal dashboard for CHUNITHM and maimai DX arcade rhythm-game players. It k
 - **Daily play tracking** — your play count and rating are recorded in PostgreSQL once per day.
 - **International/Japan views** — switch the whole dashboard between live International data and the Japan Journal archive; Japan also includes ONGEKI tracks.
 - **Rating history** — DX rating and CHUNITHM rating tracked per day.
-- **AI agent with tool use** — chat with an LLM that can query your database and recommend songs.
+- **AI agent with tool use** — chat with an LLM that can query your database and recommend songs; optionally connect a ChatGPT plan through Codex device login.
 - **Song suggestion engine (maimai)** — greedy algorithm that finds the minimum-effort path to a target DX rating.
 - **Discord notifications** — daily summary of play count, rating changes, and money spent.
 - **Password-gated** — frontend prompts for a password on first visit; all `/api/*` routes require it.
-- **Zero cost** — runs on free tiers only (Vercel Hobby, Neon free, GitHub Actions free minutes).
+- **Free infrastructure tier** — Vercel Hobby, Neon free, and GitHub Actions can host the dashboard without infrastructure charges; ChatGPT plans or API usage are separate.
 
 ## Tech stack
 
@@ -47,7 +47,7 @@ A personal dashboard for CHUNITHM and maimai DX arcade rhythm-game players. It k
 | Database | Neon PostgreSQL (serverless) |
 | Daily scraper | Python 3.12 + Playwright (Firefox, headless), managed with `uv` |
 | Per-song scraper | [leomotors/chuumai-tools](https://github.com/Leomotors/chuumai-tools) Docker images |
-| AI | OpenAI-compatible API with tool use (server-side, streaming); Gemini via its OpenAI-compatible endpoint |
+| AI | ChatGPT/Codex subscription (experimental) or an OpenAI-compatible API; server-side, streaming, with local tools |
 | CI/CD | GitHub Actions |
 | Notifications | Discord webhooks |
 
@@ -57,7 +57,8 @@ A personal dashboard for CHUNITHM and maimai DX arcade rhythm-game players. It k
 Browser (React SPA on Vercel)
     │
     ├── POST /api/query   → Neon PostgreSQL (read-only SQL)
-    ├── POST /api/chat    → OpenAI-compatible API (tool use, streaming)
+    ├── POST /api/chat    → Codex subscription or OpenAI-compatible API (tool use, streaming)
+    ├── GET/POST /api/codex-auth → ChatGPT login/status/model/disconnect
     └── POST /api/refresh → GitHub API (trigger workflow_dispatch)
 
 GitHub Actions (cron + manual trigger)
@@ -67,14 +68,16 @@ GitHub Actions (cron + manual trigger)
 Neon PostgreSQL
     ├── daily_play          — live International data, both games combined
     ├── japan_daily_play    — Journal-derived maimai/CHUNITHM plays + ONGEKI tracks
-    └── user_scores         — International JSONB snapshots from chuumai-tools
+    ├── user_scores         — International JSONB snapshots from chuumai-tools
+    ├── user_rating_images  — latest rendered rating frame per game
+    └── codex_oauth_credentials — encrypted OAuth credential + lifecycle state (single user)
 ```
 
-All secrets stay in Vercel env vars and GitHub repo secrets. The browser never sees connection strings or API keys.
+All secrets stay in Vercel env vars, Neon, and GitHub repo secrets. The browser never receives API keys or ChatGPT access/refresh tokens.
 
 ## Setup
 
-Three free accounts (GitHub, Neon, Vercel) plus one SEGA account. Optionally: Discord and an OpenAI or Gemini key.
+Three free accounts (GitHub, Neon, Vercel) plus one SEGA account. Optionally: Discord, an eligible ChatGPT plan, or an OpenAI/Gemini API key.
 
 ### 1. Fork this repository
 
@@ -148,7 +151,8 @@ Then import your fork at [vercel.com/new](https://vercel.com/new) and set these 
 | `DASHBOARD_PASSWORD` | A strong password — the dashboard will prompt for it |
 | `GITHUB_PAT` | Fine-grained PAT with `actions: write` scope on your fork |
 | `GITHUB_REPO` | `<your-username>/ChuMaiNichi` |
-| `OPENAI_API_KEY` **or** `GEMINI_API_KEY` | Pick one AI provider |
+| `OPENAI_API_KEY` or `GEMINI_API_KEY` | Optional fallback AI provider when ChatGPT is not connected |
+| `CODEX_OAUTH_ENCRYPTION_KEY` | Optional: enables ChatGPT subscription login; generate with `openssl rand -base64 32` |
 
 See [Environment variables](#environment-variables) for the full reference including optional vars.
 
@@ -157,6 +161,10 @@ Step-by-step walkthrough: [How To Deploy A Vercel Project With Environment Varia
 ### 8. Visit your dashboard
 
 Open the URL Vercel assigns (`<your-project>.vercel.app`). Enter the `DASHBOARD_PASSWORD` from step 7 when prompted — it's stored in `localStorage`, so you only enter it once per browser.
+
+To use the Codex allowance included with an eligible ChatGPT plan, open **Settings → ChatGPT subscription**, choose **Connect**, then enter the displayed one-time code on the OpenAI verification page. You can choose GPT-5.6 Sol, Terra, or Luna in the same section; the server validates and stores the selection, and the next Assistant message uses it. Only opaque, short-lived login state reaches the browser; the resulting OAuth tokens are encrypted with `CODEX_OAUTH_ENCRYPTION_KEY` and stored in Neon. A server-side login nonce lets Disconnect or a newer login invalidate an in-flight flow. Refresh-token rotation is fail-closed: after an ambiguous timeout or crash the server will not replay the old token, and Settings will ask you to **Reset connection** and connect again.
+
+> **Experimental:** OpenAI officially documents ChatGPT subscription authentication through [Codex App Server](https://learn.chatgpt.com/docs/app-server). This Vercel integration uses the same Codex device-code flow and Responses backend used by Codex clients so it can preserve ChuMaiNichi's existing server-side database tools. That direct backend is not a documented general OpenAI API contract and may need maintenance when Codex changes.
 
 ## Configuration
 
@@ -188,10 +196,12 @@ Single file at repo root, committed to git. Edits require a redeploy to take eff
 | `DASHBOARD_PASSWORD` | yes | Bearer-token password for all `/api/*` routes |
 | `GITHUB_PAT` | yes | Fine-grained PAT for triggering `workflow_dispatch` |
 | `GITHUB_REPO` | yes | `<your-username>/ChuMaiNichi` |
-| `OPENAI_API_KEY` | one of two | OpenAI-compatible key (used if `GEMINI_API_KEY` not set) |
+| `OPENAI_API_KEY` | optional fallback | OpenAI-compatible key (used if ChatGPT is disconnected and `GEMINI_API_KEY` is not set) |
 | `OPENAI_BASE_URL` | optional | Custom base URL; defaults to OpenAI |
-| `GEMINI_API_KEY` | one of two | Google Gemini key (takes priority over OpenAI) |
+| `GEMINI_API_KEY` | optional fallback | Google Gemini key (takes priority over `OPENAI_API_KEY`) |
 | `AI_MODEL` | optional | Model override; default `gemini-2.5-flash` (Gemini) or `gpt-4o-mini` (OpenAI) |
+| `CODEX_OAUTH_ENCRYPTION_KEY` | for ChatGPT login | Exactly 32 random bytes encoded as 64-character hex or padded Base64; encrypts OAuth state and credentials |
+| `CODEX_MODEL` | optional | Initial Codex model before Settings saves a server-side choice; one of `gpt-5.6-sol`, `gpt-5.6-terra` (default), or `gpt-5.6-luna` |
 
 **GitHub Actions secrets:**
 
@@ -210,10 +220,12 @@ Single file at repo root, committed to git. Edits require a redeploy to take eff
 
 **Japan Journal import.** The Japan view is intentionally not scraped. Run `uv run python import_japan_journal.py /path/to/Obsidian/Journal` from `scraper/` for a dry run, then add `--apply` to upsert the audited series into `japan_daily_play`. An explicit dash carries the previous cumulative value forward; an omitted total must have a non-negative audited daily count in `japan_daily_attribution.json` or the importer stops. Cells whose daily count uses a user-estimated ambiguous split display `*`; deterministic differences between audited totals do not. ONGEKI is stored in tracks.
 
-**AI chat.** The right-sidebar chat streams responses from `/api/chat`, which proxies to an OpenAI-compatible API with two tools available to the model:
+**AI chat.** The right-sidebar chat streams responses from `/api/chat`. A connected ChatGPT/Codex credential takes precedence; otherwise the route uses the configured Gemini/OpenAI-compatible fallback. Both paths keep the same tools and browser SSE protocol:
 
-- `query_database` — generates and runs read-only SQL against your Neon database.
+- `query_database` — generates and runs read-only SQL against your Neon database. A shared application-layer guard excludes the private OAuth table and PostgreSQL system catalogs, and restricts callable SQL functions to a small analytics allowlist.
 - `maimai_suggest_songs` (maimai only) — given your current scores, finds songs where extra practice most efficiently raises your DX rating (greedy search over top-35 old + top-15 new).
+
+The SQL guard keeps the dashboard and AI query paths from reading `codex_oauth_credentials`, but it is application-layer defense rather than PostgreSQL role isolation. Keep the guard centralized and its adversarial tests when extending the query vocabulary.
 
 ## Project structure
 

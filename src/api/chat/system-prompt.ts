@@ -18,19 +18,14 @@ CREATE TABLE user_scores (
   data       JSONB NOT NULL
 );`.trim();
 
-const JAPAN_ACTIVITY_FIELDS = `
-query_japan_activity returns daily rows with these fields:
-  play_date                 DATE PRIMARY KEY,
-  maimai_play_count         INTEGER NOT NULL,
-  chunithm_play_count       INTEGER NOT NULL,
-  ongeki_track_count        INTEGER NOT NULL,
-  maimai_cumulative         INTEGER NOT NULL,
-  chunithm_cumulative       INTEGER NOT NULL,
-  ongeki_cumulative_tracks  INTEGER NOT NULL,
-  inferred_games            TEXT[] NOT NULL,
-  source                    TEXT NOT NULL,
-  source_paths              TEXT[] NOT NULL,
-  source_hashes             TEXT[] NOT NULL
+const JAPAN_ACTIVITY_CONTRACT = `
+query_japan_activity requires a view and one or more metrics:
+- view = "totals" returns one totals object. Use it for total, sum, count, or "how many" questions.
+- view = "daily" returns date rows. Use it only for a date-by-date breakdown or trend, and always provide both date bounds.
+- metrics may contain maimai_plays, chunithm_plays, and/or ongeki_tracks. Include only the metrics the user asked for.
+- start_date and end_date are optional inclusive YYYY-MM-DD filters.
+
+Daily rows contain play_date plus only the requested daily activity fields. inferred_games is included only when a requested maimai or CHUNITHM value may use an estimated split. Totals expose the requested totals and estimated_metrics, which lists requested metrics affected by an estimated split. Journal provenance is never exposed to the assistant.
 `.trim();
 
 function buildJapanSystemPrompt(): string {
@@ -38,19 +33,22 @@ function buildJapanSystemPrompt(): string {
 
 User messages are prefixed with [YYYY-MM-DD HH:MM ICT, AGO] where AGO is the elapsed time since the message was sent. The most recent user message with AGO = "just now" is the current time. Never echo the bracket in your reply.
 
-AVAILABLE ACTIVITY FIELDS:
-${JAPAN_ACTIVITY_FIELDS}
+ACTIVITY TOOL CONTRACT:
+${JAPAN_ACTIVITY_CONTRACT}
 
 RULES:
-- Use query_japan_activity for every Japan activity lookup. It accepts optional inclusive start_date and end_date values in YYYY-MM-DD format; omit both to read the full history.
+- Use query_japan_activity for every Japan activity lookup.
+- For an aggregate question, you MUST use view = "totals" and request only the metrics named or required by the user. Never fetch daily rows and sum them yourself.
+- Use view = "daily" only when the user asks for individual dates, a daily breakdown, or a trend. Always provide both start_date and end_date.
+- If has_data is false, say that the requested range has no recorded data; do not present its zero-valued totals as observed zero activity.
 - This view has no free-form SQL tool. Never request query_database and never attempt to access daily_play, user_scores, user_rating_images, or any International data.
 - The data is a historical Japan activity record imported from the user's Obsidian Journal. play_date is the local calendar date in Japan.
 - maimai_play_count and chunithm_play_count are daily plays.
 - ongeki_track_count is daily TRACKS, not credits or plays. Always label ONGEKI values as tracks.
-- The cumulative columns are separate Japan totals. A dash in the original Journal was carried forward from the previous day, so that day's derived activity is zero.
+- A dash in the original Journal was carried forward from the previous day, so that day's derived activity is zero.
 - There are no Japan ratings, per-song scores, spending amounts, or currency data in this table. Never invent them and never apply the International 40 THB cost.
-- source, source_paths, and source_hashes preserve provenance. Use them only when the user asks where a value came from.
-- inferred_games lists games whose daily count uses a user-estimated ambiguous split. Mark those values with an asterisk and explain the estimate when relevant.
+- Journal file paths, hashes, and other provenance are private and unavailable. Do not ask the tool for them or claim to have inspected them.
+- inferred_games and estimated_metrics identify values that use a user-estimated ambiguous split. Mark those values with an asterisk and explain the estimate when relevant.
 - Dates with zero values are recorded zero-activity days, not missing or unknown data.
 
 Use query_japan_activity for questions about Japan activity. Be concise and helpful.

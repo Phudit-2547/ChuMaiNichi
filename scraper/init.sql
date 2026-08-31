@@ -96,3 +96,35 @@ CREATE TABLE IF NOT EXISTS public.user_rating_images (
     content_type TEXT NOT NULL DEFAULT 'image/webp',
     updated_at   TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'Asia/Bangkok')
 );
+
+-- Private/experimental ChatGPT Codex OAuth state. A permanent singleton row
+-- acts as a disconnect tombstone, so revision never resets (no ABA race).
+-- Credentials are AES-256-GCM ciphertext; plaintext never enters SQL. The
+-- durable pending-login nonce lets Disconnect invalidate in-flight device
+-- flows, while the refresh marker serializes one-time refresh-token rotation.
+-- The marker is deliberately never auto-stolen after its deadline: an
+-- ambiguous crash/timeout may already have consumed the old refresh token, so
+-- authenticated Reset is safer than replaying it automatically.
+CREATE TABLE IF NOT EXISTS public.codex_oauth_credentials (
+    singleton_id          SMALLINT PRIMARY KEY DEFAULT 1
+                          CHECK (singleton_id = 1),
+    encrypted_credentials TEXT,
+    selected_model        TEXT,
+    revision              BIGINT NOT NULL DEFAULT 1 CHECK (revision > 0),
+    pending_login_id       TEXT,
+    refresh_lock_id        TEXT,
+    refresh_lock_until     TIMESTAMPTZ,
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.codex_oauth_credentials
+    ALTER COLUMN encrypted_credentials DROP NOT NULL,
+    ADD COLUMN IF NOT EXISTS selected_model TEXT,
+    ADD COLUMN IF NOT EXISTS pending_login_id TEXT,
+    ADD COLUMN IF NOT EXISTS refresh_lock_id TEXT,
+    ADD COLUMN IF NOT EXISTS refresh_lock_until TIMESTAMPTZ;
+
+INSERT INTO public.codex_oauth_credentials
+        (singleton_id, encrypted_credentials, revision, updated_at)
+VALUES (1, NULL, 1, NOW())
+ON CONFLICT (singleton_id) DO NOTHING;

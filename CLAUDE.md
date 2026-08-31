@@ -18,7 +18,8 @@ Browser (React SPA on Vercel)
     │
     ├── GET  /api/auth    → password check only (no DB) — the login gate
     ├── POST /api/query   → Neon PostgreSQL (read-only SQL; client retries cold starts)
-    ├── POST /api/chat    → OpenAI-compatible API (tool-use, streaming)
+    ├── POST /api/chat    → Codex subscription or OpenAI-compatible API (tool-use, streaming)
+    ├── GET/POST /api/codex-auth → ChatGPT device login/status/disconnect
     ├── POST /api/refresh → GitHub API (trigger workflow_dispatch) + GET poll
     └── GET  /api/model, /api/rating-image, /api/cover
 
@@ -30,10 +31,11 @@ Neon PostgreSQL (free tier, serverless — scales to zero, so first query pays a
     ├── daily_play         — International: one row per date, both games combined
     ├── japan_daily_play   — Journal-derived Japan activity, including ONGEKI tracks
     ├── user_scores        — International JSONB snapshots from chuumai-tools scraper
-    └── user_rating_images — rendered rating-frame images (served by /api/rating-image)
+    ├── user_rating_images — rendered rating-frame images (served by /api/rating-image)
+    └── codex_oauth_credentials — encrypted Codex credential + model preference
 ```
 
-**Key constraint:** All secrets (DATABASE_URL, OPENAI_API_KEY, OPENAI_BASE_URL, GITHUB_PAT) live exclusively in Vercel env vars and GitHub repo secrets. The browser NEVER sees connection strings or API keys. This is why we use Vercel (serverless functions) instead of GitHub Pages (static-only).
+**Key constraint:** All secrets (DATABASE_URL, provider keys, Codex OAuth tokens, GITHUB_PAT) live exclusively in Vercel env vars, encrypted Neon storage, and GitHub repo secrets. The browser NEVER sees connection strings, API keys, or ChatGPT access/refresh tokens. This is why we use Vercel (serverless functions) instead of GitHub Pages (static-only).
 
 ## Tech stack
 
@@ -46,7 +48,7 @@ Neon PostgreSQL (free tier, serverless — scales to zero, so first query pays a
 | Scraper | Python 3.12 + Playwright (Firefox, headless) |
 | Package manager (Python) | `uv` — NOT pip. Use `uv sync` / `uv run`. |
 | Package manager (JS) | pnpm |
-| AI | OpenAI-compatible API with tool-use (server-side) |
+| AI | ChatGPT/Codex subscription (experimental) or OpenAI-compatible API with tool-use (server-side) |
 | CI/CD | GitHub Actions |
 | Notifications | Discord webhooks |
 | User data scraper | leomotors/chuumai-tools Docker images |
@@ -82,6 +84,7 @@ ChuMaiNichi/
 │   ├── query.ts                  # DB proxy (read-only SELECT only)
 │   ├── auth.ts                   # Login probe — password check ONLY, no DB
 │   ├── chat.ts                   # AI agent proxy (streaming, tool-use)
+│   ├── codex-auth.ts             # ChatGPT device login/status/disconnect
 │   ├── refresh.ts                # Trigger + poll GitHub Actions workflow
 │   ├── model.ts                  # Returns the active AI model name
 │   ├── rating-image.ts           # Serves stored rating-frame image from Neon
@@ -95,7 +98,7 @@ ChuMaiNichi/
 │   │   ├── config.ts             # loadConfig() reads config.json (server)
 │   │   ├── error-handling.ts     # Vite/Vercel error responders
 │   │   ├── vite-adapter.ts       # Emulates Vercel functions in `vite dev`
-│   │   └── chat/                 # system-prompt, tools, client, slash-commands
+│   │   └── chat/                 # prompt, tools, providers, encrypted Codex OAuth
 │   ├── features/                 # Feature-first UI (components + stores + lib)
 │   │   ├── auth/                 # PasswordGate, AuthLoading, auth-store (zustand)
 │   │   ├── heatmap/              # Heatmap, GameHeatmap, stats, fetch
@@ -242,9 +245,23 @@ CREATE TABLE IF NOT EXISTS japan_daily_play (
     source_hashes               TEXT[] NOT NULL,
     inferred_games              TEXT[] NOT NULL
 );
+
+-- Table 5: Private/experimental single-user Codex OAuth lifecycle state.
+-- encrypted_credentials is AES-256-GCM ciphertext and is NULL while disconnected.
+CREATE TABLE IF NOT EXISTS codex_oauth_credentials (
+    singleton_id          SMALLINT PRIMARY KEY DEFAULT 1
+                          CHECK (singleton_id = 1),
+    encrypted_credentials TEXT,
+    selected_model        TEXT,
+    revision              BIGINT NOT NULL DEFAULT 1 CHECK (revision > 0),
+    pending_login_id       TEXT,
+    refresh_lock_id        TEXT,
+    refresh_lock_until     TIMESTAMPTZ,
+    updated_at             TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 ```
 
-All four tables are created idempotently by `scraper/init.sql`, which runs during a scraper invocation (not on Vercel). Before the first scrape they may not exist yet — `/api/rating-image` treats a missing `user_rating_images` table as a 404 so the UI hides cleanly.
+All five tables are created idempotently by `scraper/init.sql`, which runs during a scraper invocation (not on Vercel). The OAuth route also lazily creates/migrates its own table so subscription login does not depend on a later scraper run. Before the first scrape, `/api/rating-image` treats a missing `user_rating_images` table as a 404 so the UI hides cleanly.
 
 **Critical schema rules:** `daily_play` remains International-only and has ONE row per date with columns for BOTH games; any upsert logic that loops per game and inserts twice is a bug. `japan_daily_play` also has ONE row per date, adds ONGEKI tracks, and is written only by the dry-run-first Journal importer. Never merge cumulative values across these tables.
 
@@ -299,6 +316,10 @@ sha256 + `timingSafeEqual`) except `/api/cover`, which proxies public art. When
 - Body: `{ sql: string, params?: any[] }`
 - Read-only guard: reject any SQL that is not a SELECT statement (plus a
   forbidden-pattern regex blocking `;`, comments, and write keywords)
+- A shared private-data boundary rejects the OAuth credential table, PostgreSQL
+  system catalogs, encoded or quoted identifiers, and callable SQL outside a
+  small analytics allowlist. This is application-layer defense, not PostgreSQL
+  role-level privilege isolation.
 - Uses `DATABASE_URL` env var → `@neondatabase/serverless`
 - Returns: `{ rows: any[], rowCount: number }`
 - **Cold-start retry (client-side):** the `queryDB` wrapper in
@@ -307,7 +328,16 @@ sha256 + `timingSafeEqual`) except `/api/cover`, which proxies public art. When
   retries 4xx (auth/bad-query) or caller-aborted requests.
 
 ### GET /api/model
-- Returns `{ model: string }` — the active AI model name (`defaultModel()`), for the chat UI.
+- Returns `{ model: string }` — the active provider's model name for the chat UI. A connected Codex credential takes precedence; returns `503` rather than advertising a display default when neither Codex nor a fallback provider is configured.
+
+### GET/POST /api/codex-auth
+- Experimental, single-user ChatGPT/Codex subscription connection. It is separate from the dashboard password identity.
+- `GET` returns safe connection/configuration metadata plus the server-owned Sol/Terra/Luna model options; it never returns OAuth tokens. It can return `reset_required: true` when encrypted state exists but the key is unavailable or a refresh outcome became ambiguous.
+- `POST { action: "start" }` starts Codex device login and returns a one-time user code plus OpenAI verification URL.
+- `POST { action: "poll", login_token }` completes the exchange server-side; `POST { action: "disconnect" }` clears the credential and invalidates pending login/refresh work while preserving a monotonic tombstone revision.
+- `POST { action: "set_model", model }` accepts only `gpt-5.6-sol`, `gpt-5.6-terra`, or `gpt-5.6-luna`. The selection is stored separately from ciphertext and does not advance the OAuth revision or disturb refresh ownership.
+- Start, poll, status decryption, and chat require `DASHBOARD_PASSWORD`, `DATABASE_URL`, and `CODEX_OAUTH_ENCRYPTION_KEY`. Authenticated model selection and Disconnect/Reset require only the password and database so preferences remain manageable and a credential encrypted with a lost or malformed key remains removable.
+- Access/refresh tokens are AES-256-GCM encrypted in Neon; the browser holds only short-lived encrypted login state while connecting. A durable login nonce prevents stale device flows from overwriting newer state. Refresh-token rotation uses a non-stealable durable marker: ambiguous timeout/crash outcomes remain blocked and require authenticated Reset instead of replaying a potentially consumed refresh token.
 
 ### GET /api/rating-image?game=maimai|chunithm
 - Streams the stored rating-frame image (BYTEA) from `user_rating_images`.
@@ -318,13 +348,14 @@ sha256 + `timingSafeEqual`) except `/api/cover`, which proxies public art. When
 
 ### POST /api/chat
 - Body: `{ messages: { role: string, content: string }[], model?: string }`
-- Uses `OPENAI_API_KEY` and `OPENAI_BASE_URL` env vars
+- Prefers a connected ChatGPT/Codex credential, then falls back to Gemini/OpenAI-compatible env credentials when disconnected
 - Streams response via ReadableStream
 - Tool definitions:
-  - `query_database`: generates and executes read-only SQL against Neon
+  - `query_database`: generates and executes read-only SQL against Neon through the same private-data/function-allowlist boundary as `/api/query`
   - `maimai_suggest_songs`: maimai only — finds songs where score improvement most efficiently increases DX rating (see "Song suggestion algorithm" section below). Name is game-prefixed so a future `chunithm_suggest_songs` can coexist without ambiguity.
 - System prompt includes full schema DDL, rating formula, and tool examples
-- **60-second timeout on Vercel Hobby** — use streaming to keep connection alive
+- The Codex subscription path uses the Responses protocol while preserving the same browser SSE events and local tool loop as the OpenAI-compatible path.
+- **Experimental boundary:** OpenAI documents subscription auth through Codex App Server. The direct Codex backend used here follows Codex-client/Hermes behavior, not a documented general OpenAI API contract; do not present it as production-supported OAuth for `/v1/responses`.
 
 ### POST /api/refresh
 - Uses `GITHUB_PAT` + `GITHUB_REPO` env vars
@@ -421,11 +452,13 @@ The tool itself does not clamp. Instead the staging guard lives in `src/api/chat
 | `OPENAI_BASE_URL` | OpenAI-compatible base URL (optional, defaults to OpenAI) |
 | `GEMINI_API_KEY` | Google Gemini API key (takes priority over `OPENAI_API_KEY`) |
 | `AI_MODEL` | Override default model name (default: `gemini-2.5-flash` for Gemini, `gpt-4o-mini` for OpenAI) |
+| `CODEX_OAUTH_ENCRYPTION_KEY` | Enables ChatGPT subscription login. Exactly 32 random bytes encoded as 64-character hex or padded Base64; generate with `openssl rand -base64 32`. |
+| `CODEX_MODEL` | Initial Codex model until Settings saves a server-side selection; supported values are `gpt-5.6-sol`, `gpt-5.6-terra` (default), and `gpt-5.6-luna` |
 | `GITHUB_PAT` | Fine-grained PAT for triggering workflow_dispatch |
 | `GITHUB_REPO` | `Phudit-2547/ChuMaiNichi` |
 | `DASHBOARD_PASSWORD` | **Required.** Authenticated `/api/*` routes require `Authorization: Bearer <password>`. The `PasswordGate` prompts on first visit; the password is stored via a zustand `persist` store (localStorage key `user-state`) and sent as the Bearer token. Login is verified against `/api/auth` (password only — no DB round-trip). Without this, anyone can use your AI proxy and query your database. |
 
-**AI provider detection:** `api/chat.ts` checks `GEMINI_API_KEY` first, then `OPENAI_API_KEY`. Gemini is accessed via its OpenAI-compatible endpoint using the same `openai` SDK — no additional dependencies. Set exactly one of the two API keys.
+**AI provider detection:** a connected Codex OAuth credential takes precedence. When disconnected, `api/chat.ts` checks `GEMINI_API_KEY` first, then `OPENAI_API_KEY`. Do not silently fall back to a metered API key after a connected Codex request fails; surface the reconnect/quota error instead. Gemini is accessed via its OpenAI-compatible endpoint using the same `openai` SDK.
 
 ### GitHub repo secrets (for Actions)
 | Secret | Description |
@@ -442,17 +475,17 @@ The tool itself does not clamp. Instead the staging guard lives in `src/api/chat
 3. Create Neon account (free, no credit card) → create project → copy `DATABASE_URL`
 4. Add GitHub repo secrets: `DATABASE_URL`, `SEGA_USERNAME`, `SEGA_PASSWORD`, `DISCORD_WEBHOOK_URL`
 5. Trigger first scrape manually (workflow runs `init.sql` automatically on first run)
-6. Import forked repo in Vercel (free Hobby plan) → add env vars: `DATABASE_URL`, `DASHBOARD_PASSWORD`, `GITHUB_PAT`, `GITHUB_REPO`, and either `OPENAI_API_KEY` (+ optional `OPENAI_BASE_URL`) or `GEMINI_API_KEY`
-7. Visit `<username>.vercel.app`
-8. Total cost: 0 THB
+6. Import forked repo in Vercel (free Hobby plan) → add `DATABASE_URL`, `DASHBOARD_PASSWORD`, `GITHUB_PAT`, `GITHUB_REPO`, plus either `CODEX_OAUTH_ENCRYPTION_KEY` for ChatGPT login or an API provider key (provider keys may remain as a disconnected fallback)
+7. Visit `<username>.vercel.app`; for ChatGPT usage, connect under Settings and complete the device-code verification
+8. Infrastructure can remain 0 THB on the listed free tiers; any ChatGPT plan or metered API usage is separate
 
 ## Constraints and gotchas
 
 - **Neon free tier**: 100 CU-hours/project/month, 0.5 GB storage. Keep `user_scores` to latest 5 snapshots per game. Scale-to-zero means idle time costs nothing.
-- **Vercel Hobby tier**: 60-second function timeout. Stream AI responses. 100 GB bandwidth/month. Non-commercial use only.
+- **Vercel Hobby tier**: Functions currently default to a 300-second execution limit. Stream AI responses so users see progress; verify current quotas before relying on them.
 - **uv, not pip**: Always use `uv sync` to install, `uv run` to execute. In GitHub Actions, use `astral-sh/setup-uv@v5`.
 - **One row per date**: The `daily_play` table combines both games in a single row. Never insert two rows for the same date.
-- **No secrets in browser**: All API keys and connection strings must stay in Vercel env vars or GitHub secrets. The React app calls `/api/*` routes only.
+- **No secrets in browser**: API keys and connection strings stay in Vercel env vars or GitHub secrets; Codex access/refresh tokens stay AES-256-GCM-encrypted in Neon. The React app receives only opaque short-lived login state and calls `/api/*` routes.
 - **chuumai-tools Docker images**: chunithm uses `ghcr.io/leomotors/chunithm-scraper:v6`, maimai uses `ghcr.io/leomotors/maimai-scraper:v1`. Version env vars: `VERSION=XVRSX` (chunithm), `VERSION=CiRCLE` (maimai).
 - **Timezone**: All scraping and date logic uses `Asia/Bangkok` (UTC+7).
 - **Currency**: Default cost per play is 40 THB, configurable in settings.

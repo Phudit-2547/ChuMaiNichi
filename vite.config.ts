@@ -7,6 +7,7 @@ import path from "path";
 import { viteHandler as queryViteHandler } from "./api/query";
 import authHandler from "./api/auth";
 import chatHandler from "./api/chat";
+import codexAuthHandler from "./api/codex-auth";
 import refreshHandler from "./api/refresh";
 import modelHandler from "./api/model";
 import coverHandler from "./api/cover";
@@ -29,6 +30,10 @@ function devApiProxy(): Plugin {
       server.middlewares.use(
         "/api/chat",
         toViteMiddleware(chatHandler, { skipAuth: true }),
+      );
+      server.middlewares.use(
+        "/api/codex-auth",
+        toViteMiddleware(codexAuthHandler, { skipAuth: true }),
       );
       server.middlewares.use(
         "/api/refresh",

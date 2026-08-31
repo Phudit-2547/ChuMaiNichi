@@ -1,6 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import { checkAuth } from "./auth.js";
 import { QueryException } from "./query/errors.js";
+import { privateSqlBoundaryError } from "./query/security.js";
 
 const FORBIDDEN =
   /;|--|\/\*|\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|EXEC|EXECUTE|COPY|INTO)\b/i;
@@ -27,6 +28,12 @@ export async function runQuery(
     throw new QueryException(
       "FORBIDDEN_QUERY",
       "Forbidden SQL pattern detected",
+    );
+  const privateBoundaryError = privateSqlBoundaryError(trimmed);
+  if (privateBoundaryError)
+    throw new QueryException(
+      "FORBIDDEN_QUERY",
+      privateBoundaryError,
     );
 
   try {

@@ -13,9 +13,14 @@ describe("buildSystemPrompt region context", () => {
 
   it("isolates Japan Journal activity from International score data", () => {
     const prompt = buildSystemPrompt(config, "japan");
-    expect(prompt).toContain("query_japan_activity returns daily rows");
+    expect(prompt).toContain('view = "totals"');
+    expect(prompt).toContain("only the metrics the user asked for");
+    expect(prompt).toContain('view = "daily"');
+    expect(prompt).toContain("Always provide both start_date and end_date");
+    expect(prompt).not.toContain("cumulative");
     expect(prompt).toContain("ONGEKI values as tracks");
     expect(prompt).toContain("never apply the International 40 THB cost");
+    expect(prompt).not.toMatch(/source_paths|source_hashes/);
     expect(prompt).not.toContain("CREATE TABLE user_scores");
     expect(prompt).not.toContain("Use query_database");
   });

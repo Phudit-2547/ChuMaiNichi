@@ -1,6 +1,6 @@
 import { MonitorCog, Moon, Settings as Gear, Sun, X } from "lucide-react";
-import type { ReactNode } from "react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import ChatGptConnectionSection from "./ChatGptConnectionSection";
 import useSettingsStore, { type ThemeMode } from "../stores/settings-store";
 import useAuthStore from "@/features/auth/stores/auth-store";
 import { APP_CONFIG } from "@/global/lib/config";
@@ -56,7 +56,8 @@ export default function SettingsModal({
             <h2>Settings</h2>
           </DialogTitle>
           <DialogDescription className="sr-only">
-            Tune display preferences and review dashboard config.
+            Tune display preferences, connect ChatGPT subscription access, and
+            review dashboard config.
           </DialogDescription>
           <DialogClose asChild>
             <button
@@ -104,6 +105,8 @@ export default function SettingsModal({
               />
             </Row>
           </section>
+
+          <ChatGptConnectionSection active={open} />
 
           <section className="modal-section">
             <h3>Data</h3>
@@ -170,7 +173,7 @@ export default function SettingsModal({
           </div>
         ) : (
           <div className="modal-footer">
-            <span>Settings saved in this browser</span>
+            <span>Display settings saved in this browser</span>
             <button
               type="button"
               className="link-btn"

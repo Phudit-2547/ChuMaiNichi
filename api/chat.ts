@@ -4,6 +4,7 @@ import type {
   ChatCompletionCreateParamsStreaming,
   ChatCompletionMessageParam,
 } from "openai/resources/chat/completions";
+import type { ResponseInputItem } from "openai/resources/responses/responses";
 import {
   isDataRegion,
   type DataRegion,
@@ -11,6 +12,14 @@ import {
 import { checkAuth } from "../src/api/auth.js";
 import { loadConfig } from "../src/api/config.js";
 import { createClient, defaultModel } from "../src/api/chat/client.js";
+import {
+  CodexOAuthError,
+  resolveCodexOAuthCredentials,
+} from "../src/api/chat/codex-auth.js";
+import {
+  appendFunctionCallResultInput,
+  runCodexResponsesRound,
+} from "../src/api/chat/codex-responses.js";
 import { loadSongs } from "../src/api/chat/songs-cache.js";
 import {
   getMaimaiMaxConstant,
@@ -37,6 +46,10 @@ const KNOWLEDGE_INTENT =
 const DATA_INTENT =
   /\b(play(ed|s|ing)?|score(s|d)?|rating(s)?|rank(s|ed)?|song(s)?|chart(s)?|day(s)?|week(s|ly)?|month(s|ly)?|year(s)?|today|yesterday|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may|jun(e)?|jul(y)?|aug(ust)?|sep(tember|t)?|oct(ober)?|nov(ember)?|dec(ember)?|best|top|worst|most|more|fewer|less|avg|average|total|sum|count|streak|maimai|chunithm|ongeki|japan|international|sss\+?|ss\+?|aaa?)\b/i;
 
+const MAX_TOOL_ROUNDS = 5;
+const TOOL_ROUND_LIMIT_ERROR =
+  "AI reached the tool-call safety limit — try a narrower request.";
+
 function shouldForceQuery(text: string): boolean {
   if (STRONG_DATA_SIGNAL.test(text)) return true;
   if (KNOWLEDGE_INTENT.test(text)) return false;
@@ -46,6 +59,75 @@ function shouldForceQuery(text: string): boolean {
 function parseRegion(value: unknown): DataRegion | null {
   if (value == null) return "international";
   return isDataRegion(value) ? value : null;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function copySafeMetadata(
+  value: unknown,
+  keys: readonly string[],
+): Record<string, unknown> {
+  const record = asRecord(value);
+  if (!record) return {};
+  const projected: Record<string, unknown> = {};
+  for (const key of keys) {
+    if (record[key] !== undefined) projected[key] = record[key];
+  }
+  return projected;
+}
+
+/** Browser-safe projection; tool rows and aggregate values never enter SSE. */
+export function projectToolResultForClient(
+  name: string,
+  result: unknown,
+): unknown {
+  if (name === "query_japan_activity") {
+    return copySafeMetadata(result, [
+      "view",
+      "metrics",
+      "has_data",
+      "estimated_metrics",
+      "rowCount",
+      "error",
+    ]);
+  }
+  if (name === "query_database") {
+    return copySafeMetadata(result, ["sql", "rowCount", "error"]);
+  }
+  return result;
+}
+
+function isPrivateJapanResultKey(key: string): boolean {
+  return (
+    key === "source" ||
+    key.startsWith("source_") ||
+    key === "provenance" ||
+    key.includes("cumulative")
+  );
+}
+
+function stripPrivateJapanResult(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripPrivateJapanResult);
+  const record = asRecord(value);
+  if (!record) return value;
+  const stripped: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(record)) {
+    if (!isPrivateJapanResultKey(key)) {
+      stripped[key] = stripPrivateJapanResult(child);
+    }
+  }
+  return stripped;
+}
+
+function prepareToolResultForModel(name: string, result: unknown): unknown {
+  return name === "query_japan_activity"
+    ? stripPrivateJapanResult(result)
+    : result;
 }
 
 // --- Handler ---
@@ -76,10 +158,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (userMessages.length > 50) {
     return res.status(400).json({ error: "Too many messages (max 50)" });
   }
+  const normalizedUserMessages: Array<{
+    role: "user" | "assistant";
+    content: string;
+  }> = [];
   for (const msg of userMessages) {
-    if (!msg || typeof msg.role !== "string") {
-      return res.status(400).json({ error: "Each message must have a role" });
+    if (
+      !msg ||
+      (msg.role !== "user" && msg.role !== "assistant") ||
+      typeof msg.content !== "string"
+    ) {
+      return res.status(400).json({
+        error: "Each message must have a user/assistant role and text content",
+      });
     }
+    if (msg.content.length > 20_000) {
+      return res.status(400).json({ error: "Message is too long" });
+    }
+    normalizedUserMessages.push({
+      role: msg.role,
+      content: msg.content,
+    });
   }
 
   let config: ReturnType<typeof loadConfig>;
@@ -91,8 +190,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   let lastUserText = "";
-  for (let i = userMessages.length - 1; i >= 0; i--) {
-    const m = userMessages[i];
+  for (let i = normalizedUserMessages.length - 1; i >= 0; i--) {
+    const m = normalizedUserMessages[i];
     if (m?.role === "user" && typeof m.content === "string") {
       lastUserText = m.content;
       break;
@@ -120,22 +219,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.end();
   }
 
-  let client: OpenAI;
-  try {
-    client = createClient();
-  } catch {
-    return res.status(500).json({ error: "AI provider not configured" });
-  }
-
-  const model = requestModel || defaultModel();
   const tools = getChatTools(dataRegion, config.games);
   const dataToolName =
     dataRegion === "japan" ? "query_japan_activity" : "query_database";
-
-  const messages: ChatCompletionMessageParam[] = [
-    { role: "system", content: buildSystemPrompt(config, dataRegion) },
-    ...userMessages,
-  ];
+  const systemPrompt = buildSystemPrompt(config, dataRegion);
 
   const forceQuery = shouldForceQuery(lastUserText);
 
@@ -144,9 +231,134 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
 
+  const abortController = new AbortController();
+  const { signal } = abortController;
+  const abortRequest = () => abortController.abort();
+  const abortOnRequestClose = () => {
+    if (req.aborted) abortRequest();
+  };
+  const abortOnResponseClose = () => {
+    if (!res.writableEnded) abortRequest();
+  };
+  req.on?.("aborted", abortRequest);
+  req.on?.("close", abortOnRequestClose);
+  res.on?.("close", abortOnResponseClose);
+  if (req.aborted || res.destroyed) abortRequest();
+
+  const removeAbortListeners = () => {
+    req.off?.("aborted", abortRequest);
+    req.off?.("close", abortOnRequestClose);
+    res.off?.("close", abortOnResponseClose);
+  };
+  const canWrite = () =>
+    !signal.aborted && !res.destroyed && !res.writableEnded;
+  const writeSse = (event: Record<string, unknown>): boolean => {
+    if (!canWrite()) {
+      abortRequest();
+      return false;
+    }
+    try {
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+      return true;
+    } catch {
+      abortRequest();
+      return false;
+    }
+  };
+  const endSse = () => {
+    if (canWrite()) return res.end();
+  };
+  const endWithToolLimit = () => {
+    if (writeSse({ type: "error", error: TOOL_ROUND_LIMIT_ERROR })) {
+      return endSse();
+    }
+  };
+
+  let usingCodexSubscription = false;
   try {
-    const MAX_ROUNDS = 5;
-    for (let round = 0; round < MAX_ROUNDS; round++) {
+    if (signal.aborted) return;
+    const codexCredentials = await resolveCodexOAuthCredentials();
+    if (signal.aborted) return;
+    if (codexCredentials) {
+      usingCodexSubscription = true;
+      let input: ResponseInputItem[] = normalizedUserMessages.map(
+        ({ role, content }) => ({ role, content }),
+      );
+
+      for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+        if (signal.aborted) return;
+        const response = await runCodexResponsesRound({
+          accessToken: codexCredentials.accessToken,
+          accountId: codexCredentials.accountId,
+          model: codexCredentials.model,
+          instructions: systemPrompt,
+          input,
+          tools,
+          toolChoice:
+            round === 0 && forceQuery
+              ? {
+                  type: "function",
+                  function: { name: dataToolName },
+                }
+              : undefined,
+          onTextDelta: (content) => {
+            writeSse({ type: "content", content });
+          },
+          signal,
+        });
+        if (signal.aborted) return;
+
+        if (response.functionCalls.length === 0) {
+          if (writeSse({ type: "done" })) return endSse();
+          return;
+        }
+        if (round === MAX_TOOL_ROUNDS - 1) {
+          return endWithToolLimit();
+        }
+
+        input = response.nextInput;
+        for (const call of response.functionCalls) {
+          if (signal.aborted) return;
+          let args: Record<string, unknown>;
+          try {
+            args = JSON.parse(call.arguments);
+          } catch {
+            args = {};
+          }
+          const result = prepareToolResultForModel(
+            call.name,
+            await executeTool(call.name, args, dataRegion),
+          );
+          if (signal.aborted) return;
+          input = appendFunctionCallResultInput(input, call.call_id, result);
+          writeSse({
+            type: "tool",
+            name: call.name,
+            result: projectToolResultForClient(call.name, result),
+          });
+        }
+      }
+
+      return endWithToolLimit();
+    }
+
+    let client: OpenAI;
+    try {
+      client = createClient();
+    } catch {
+      throw new Error("AI provider not configured");
+    }
+    const model =
+      typeof requestModel === "string" && requestModel.trim()
+        ? requestModel.trim()
+        : defaultModel();
+    const messages: ChatCompletionMessageParam[] = [
+      { role: "system", content: systemPrompt },
+      ...normalizedUserMessages,
+    ];
+
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      if (signal.aborted) return;
       const completionOpts: ChatCompletionCreateParamsStreaming = {
         model,
         messages,
@@ -168,7 +380,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         completionOpts.reasoning_effort = "low";
         completionOpts.max_tokens = 32768;
       }
-      const stream = await client.chat.completions.create(completionOpts);
+      const stream = await client.chat.completions.create(completionOpts, {
+        signal,
+      });
+      if (signal.aborted) return;
 
       let content = "";
       const toolCalls: {
@@ -177,14 +392,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }[] = [];
 
       for await (const chunk of stream) {
+        if (signal.aborted) return;
         const delta = chunk.choices[0]?.delta;
         if (!delta) continue;
 
         if (delta.content) {
           content += delta.content;
-          res.write(
-            `data: ${JSON.stringify({ type: "content", content: delta.content })}\n\n`,
-          );
+          writeSse({ type: "content", content: delta.content });
         }
 
         if (delta.tool_calls) {
@@ -208,9 +422,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       }
 
+      if (signal.aborted) return;
       if (toolCalls.length === 0) {
-        res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
-        return res.end();
+        if (writeSse({ type: "done" })) return endSse();
+        return;
+      }
+      if (round === MAX_TOOL_ROUNDS - 1) {
+        return endWithToolLimit();
       }
 
       // Add assistant message with tool calls
@@ -226,36 +444,70 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Execute tools, add results
       for (const tc of toolCalls) {
+        if (signal.aborted) return;
         let args: Record<string, unknown>;
         try {
           args = JSON.parse(tc.function.arguments);
         } catch {
           args = {};
         }
-        const result = await executeTool(tc.function.name, args, dataRegion);
+        const result = prepareToolResultForModel(
+          tc.function.name,
+          await executeTool(tc.function.name, args, dataRegion),
+        );
+        if (signal.aborted) return;
         messages.push({
           role: "tool",
           tool_call_id: tc.id,
           content: JSON.stringify(result),
         });
-        res.write(
-          `data: ${JSON.stringify({ type: "tool", name: tc.function.name, result })}\n\n`,
-        );
+        writeSse({
+          type: "tool",
+          name: tc.function.name,
+          result: projectToolResultForClient(tc.function.name, result),
+        });
       }
     }
 
-    res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
-    return res.end();
+    return endWithToolLimit();
   } catch (e: unknown) {
-    console.error("Chat error:", e);
-    res.write(
-      `data: ${JSON.stringify({ type: "error", error: toUserError(e) })}\n\n`,
+    if (signal.aborted) return;
+    // Avoid logging provider/OAuth error objects because request metadata may
+    // contain authorization headers. The user receives a bounded safe error.
+    console.error(
+      "Chat error:",
+      e instanceof CodexOAuthError ? e.code : "provider_request_failed",
     );
-    return res.end();
+    if (
+      writeSse({
+        type: "error",
+        error: toUserError(e, usingCodexSubscription),
+      })
+    ) {
+      return endSse();
+    }
+  } finally {
+    removeAbortListeners();
   }
 }
 
-function toUserError(e: unknown): string {
+function toUserError(e: unknown, usingCodexSubscription = false): string {
+  if (e instanceof CodexOAuthError) {
+    if (
+      e.code === "codex_auth_reauthentication_required" ||
+      e.code === "codex_auth_stored_credentials_invalid"
+    ) {
+      return "ChatGPT connection expired — reconnect it in Settings.";
+    }
+    if (e.code === "codex_auth_rate_limited") {
+      return "ChatGPT/Codex is rate limited — wait a moment and retry.";
+    }
+    if (e.code === "codex_auth_storage_unavailable") {
+      return "ChatGPT credential storage is unavailable — retry in a moment.";
+    }
+    return e.message;
+  }
+
   const err = e as {
     status?: number;
     message?: string;
@@ -265,6 +517,9 @@ function toUserError(e: unknown): string {
   const providerType = err?.error?.type;
   const providerMsg = err?.error?.message;
 
+  if (status === 401 && usingCodexSubscription) {
+    return "ChatGPT connection was rejected — reconnect it in Settings.";
+  }
   if (status === 401) return "AI provider auth failed — check your API key.";
   if (status === 429) return "Rate limited by AI provider — wait a moment and retry.";
   if (status === 529 || providerType === "overloaded_error") {
