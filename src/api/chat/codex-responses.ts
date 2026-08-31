@@ -109,7 +109,12 @@ export function toResponsesFunctionTools(
 export function toResponsesToolChoice(
   toolChoice: ChatCompletionToolChoiceOption | undefined,
 ): ToolChoiceOptions | ToolChoiceFunction | undefined {
-  if (toolChoice === undefined || typeof toolChoice === "string") {
+  if (toolChoice === undefined) return undefined;
+  if (
+    toolChoice === "none" ||
+    toolChoice === "auto" ||
+    toolChoice === "required"
+  ) {
     return toolChoice;
   }
   if (toolChoice.type === "function") {
