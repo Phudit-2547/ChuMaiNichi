@@ -1,4 +1,4 @@
-import rawConfig from "../../../config.json";
+import rawConfig from "../../../config.json" with { type: "json" };
 import type { Game } from "./games";
 
 export type { Game };
