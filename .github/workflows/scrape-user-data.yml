@@ -85,12 +85,13 @@ jobs:
             -e MAIMAI_SERVICE_API_KEY="$MAIMAI_SERVICE_API_KEY" \
             ghcr.io/leomotors/maimai-scraper:v1
 
-      - name: Recover maimai rating image
+      - name: Retry maimai image generation (120-second timeout)
         if: steps.games.outputs.maimai == 'true' && steps.scrape_maimai.outcome == 'failure'
+        timeout-minutes: 10
         env:
           MAIMAI_SERVICE_URL: ${{ secrets.MAIMAI_SERVICE_URL || 'https://maimai.wonderhoy.me' }}
         run: |
-          echo "::warning::The maimai scraper failed; attempting image recovery from saved data"
+          echo "::warning::The maimai scraper failed; retrying the upstream renderer with 120-second waits"
           docker run \
             --rm \
             -v ${{ github.workspace }}/outputs:/app/outputs \
@@ -120,12 +121,13 @@ jobs:
             -e CHUNI_SERVICE_API_KEY="$CHUNI_SERVICE_API_KEY" \
             ghcr.io/leomotors/chunithm-scraper:v6
 
-      - name: Recover chunithm rating image
+      - name: Retry chunithm image generation (120-second timeout)
         if: steps.games.outputs.chunithm == 'true' && steps.scrape_chunithm.outcome == 'failure'
+        timeout-minutes: 10
         env:
           CHUNI_SERVICE_URL: ${{ secrets.CHUNI_SERVICE_URL || 'https://chuni.wonderhoy.me' }}
         run: |
-          echo "::warning::The CHUNITHM scraper failed; attempting image recovery from saved data"
+          echo "::warning::The CHUNITHM scraper failed; retrying the upstream renderer with 120-second waits"
           docker run \
             --rm \
             -v ${{ github.workspace }}/outputs:/app/outputs \
