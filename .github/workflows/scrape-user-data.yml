@@ -68,7 +68,9 @@ jobs:
         run: mkdir -p outputs
 
       - name: Scrape maimai
+        id: scrape_maimai
         if: steps.games.outputs.maimai == 'true'
+        continue-on-error: true
         env:
           MAIMAI_SERVICE_URL: ${{ secrets.MAIMAI_SERVICE_URL || 'https://maimai.wonderhoy.me' }}
           MAIMAI_SERVICE_API_KEY: ${{ secrets.MAIMAI_SERVICE_API_KEY }}
@@ -83,8 +85,27 @@ jobs:
             -e MAIMAI_SERVICE_API_KEY="$MAIMAI_SERVICE_API_KEY" \
             ghcr.io/leomotors/maimai-scraper:v1
 
+      - name: Recover maimai rating image
+        if: steps.games.outputs.maimai == 'true' && steps.scrape_maimai.outcome == 'failure'
+        env:
+          MAIMAI_SERVICE_URL: ${{ secrets.MAIMAI_SERVICE_URL || 'https://maimai.wonderhoy.me' }}
+        run: |
+          echo "::warning::The maimai scraper failed; attempting image recovery from saved data"
+          docker run \
+            --rm \
+            -v ${{ github.workspace }}/outputs:/app/outputs \
+            -v ${{ github.workspace }}/scripts/render-rating-image.mjs:/app/render-rating-image.mjs:ro \
+            -e GAME=maimai \
+            -e SERVICE_URL="$MAIMAI_SERVICE_URL" \
+            -e VERSION="${{ steps.games.outputs.maimai_version }}" \
+            --entrypoint node \
+            ghcr.io/leomotors/maimai-scraper:v1 \
+            /app/render-rating-image.mjs
+
       - name: Scrape chunithm
+        id: scrape_chunithm
         if: steps.games.outputs.chunithm == 'true'
+        continue-on-error: true
         env:
           CHUNI_SERVICE_URL: ${{ secrets.CHUNI_SERVICE_URL || 'https://chuni.wonderhoy.me' }}
           CHUNI_SERVICE_API_KEY: ${{ secrets.CHUNI_SERVICE_API_KEY }}
@@ -98,6 +119,23 @@ jobs:
             -e CHUNI_SERVICE_URL="$CHUNI_SERVICE_URL" \
             -e CHUNI_SERVICE_API_KEY="$CHUNI_SERVICE_API_KEY" \
             ghcr.io/leomotors/chunithm-scraper:v6
+
+      - name: Recover chunithm rating image
+        if: steps.games.outputs.chunithm == 'true' && steps.scrape_chunithm.outcome == 'failure'
+        env:
+          CHUNI_SERVICE_URL: ${{ secrets.CHUNI_SERVICE_URL || 'https://chuni.wonderhoy.me' }}
+        run: |
+          echo "::warning::The CHUNITHM scraper failed; attempting image recovery from saved data"
+          docker run \
+            --rm \
+            -v ${{ github.workspace }}/outputs:/app/outputs \
+            -v ${{ github.workspace }}/scripts/render-rating-image.mjs:/app/render-rating-image.mjs:ro \
+            -e GAME=chunithm \
+            -e SERVICE_URL="$CHUNI_SERVICE_URL" \
+            -e VERSION="${{ steps.games.outputs.chunithm_version }}" \
+            --entrypoint node \
+            ghcr.io/leomotors/chunithm-scraper:v6 \
+            /app/render-rating-image.mjs
 
       - name: Install uv and dependencies
         uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
