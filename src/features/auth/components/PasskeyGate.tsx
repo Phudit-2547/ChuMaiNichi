@@ -52,9 +52,11 @@ export default function PasskeyGate({
         <Fingerprint size={32} aria-hidden="true" />
         <h2 className="m-0 text-xl">ChuMaiNichi</h2>
         <p className="text-sm text-muted-foreground">
-          {setup
-            ? "Create your first Passkey using your dashboard password. Future sign-ins use your fingerprint, face or device PIN."
-            : "Sign in with your Passkey using your fingerprint, face or device PIN."}
+          {setup === null
+            ? "Checking Passkey sign-in setup."
+            : setup
+              ? "Create your first Passkey using your dashboard password. Future sign-ins use your fingerprint, face or device PIN."
+              : "Sign in with your Passkey using your fingerprint, face or device PIN."}
         </p>
         {setup && (
           <input
