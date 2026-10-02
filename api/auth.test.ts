@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import handler from "./auth";
+import { newSessionCookie } from "../src/api/session";
 
 const originalEnv = { ...process.env };
 
@@ -22,6 +23,7 @@ function createMockRequest(
 
 function createMockResponse(): VercelResponse {
   const res: Partial<VercelResponse> = {
+    setHeader: vi.fn(),
     status: vi.fn().mockReturnThis(),
     json: vi.fn().mockReturnThis(),
   };
@@ -111,5 +113,27 @@ describe("api/auth.ts", () => {
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({ ok: true });
     });
+  });
+});
+
+describe("Passkey session probe", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it("checks a session without Neon and rejects the old password", () => {
+    vi.stubEnv("PASSKEY_ORIGIN", "https://dashboard.example.com");
+    vi.stubEnv("SESSION_SECRET", "a".repeat(64));
+    vi.stubEnv("DASHBOARD_PASSWORD", "old-password");
+    vi.stubEnv("DATABASE_URL", "");
+    const res = createMockResponse();
+    handler(
+      createMockRequest({ headers: { cookie: newSessionCookie() } }),
+      res,
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    const denied = createMockResponse();
+    handler(
+      createMockRequest({ headers: { authorization: "Bearer old-password" } }),
+      denied,
+    );
+    expect(denied.status).toHaveBeenCalledWith(401);
   });
 });

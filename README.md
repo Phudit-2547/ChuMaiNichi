@@ -34,7 +34,7 @@ A personal dashboard for CHUNITHM and maimai DX arcade rhythm-game players. It k
 - **AI agent with tool use** — chat with an LLM that can query your database and recommend songs; optionally connect a ChatGPT plan through Codex device login.
 - **Song suggestion engine (maimai)** — greedy algorithm that finds the minimum-effort path to a target DX rating.
 - **Discord notifications** — daily summary of play count, rating changes, and money spent.
-- **Password-gated** — frontend prompts for a password on first visit; all `/api/*` routes require it.
+- **Passkeys** — sign in with a fingerprint, face or device PIN; protected APIs use an HttpOnly session cookie.
 - **Free infrastructure tier** — Vercel Hobby, Neon free, and GitHub Actions can host the dashboard without infrastructure charges; ChatGPT plans or API usage are separate.
 
 ## Tech stack
@@ -148,7 +148,9 @@ Then import your fork at [vercel.com/new](https://vercel.com/new) and set these 
 | Variable | Value |
 |---|---|
 | `DATABASE_URL` | Same Neon connection string |
-| `DASHBOARD_PASSWORD` | A strong password — the dashboard will prompt for it |
+| `DASHBOARD_PASSWORD` | Existing password used only to create the first Passkey; remove after setup |
+| `PASSKEY_ORIGIN` | Exact dashboard HTTPS origin, without a trailing slash |
+| `SESSION_SECRET` | Generate once with `openssl rand -hex 32`; keep server-side |
 | `GITHUB_PAT` | Fine-grained PAT with `actions: write` scope on your fork |
 | `GITHUB_REPO` | `<your-username>/ChuMaiNichi` |
 | `OPENAI_API_KEY` or `GEMINI_API_KEY` | Optional fallback AI provider when ChatGPT is not connected |
@@ -160,7 +162,7 @@ Step-by-step walkthrough: [How To Deploy A Vercel Project With Environment Varia
 
 ### 8. Visit your dashboard
 
-Open the URL Vercel assigns (`<your-project>.vercel.app`). Enter the `DASHBOARD_PASSWORD` from step 7 when prompted — it's stored in `localStorage`, so you only enter it once per browser.
+Open the exact URL configured in `PASSKEY_ORIGIN`. Enter your existing `DASHBOARD_PASSWORD` once to create the first Passkey, then sign in with your device. In Settings → Security, add a backup Passkey before removing `DASHBOARD_PASSWORD` from Vercel. Passwords and session tokens are no longer stored in localStorage.
 
 To use the Codex allowance included with an eligible ChatGPT plan, open **Settings → ChatGPT subscription**, choose **Connect**, then enter the displayed one-time code on the OpenAI verification page. You can choose GPT-5.6 Sol, Terra, or Luna in the same section; the server validates and stores the selection, and the next Assistant message uses it. Only opaque, short-lived login state reaches the browser; the resulting OAuth tokens are encrypted with `CODEX_OAUTH_ENCRYPTION_KEY` and stored in Neon. A server-side login nonce lets Disconnect or a newer login invalidate an in-flight flow. Refresh-token rotation is fail-closed: after an ambiguous timeout or crash the server will not replay the old token, and Settings will ask you to **Reset connection** and connect again.
 
@@ -193,7 +195,9 @@ Single file at repo root, committed to git. Edits require a redeploy to take eff
 | Variable | Required | Description |
 |---|---|---|
 | `DATABASE_URL` | yes | Neon PostgreSQL connection string |
-| `DASHBOARD_PASSWORD` | yes | Bearer-token password for all `/api/*` routes |
+| `DASHBOARD_PASSWORD` | first setup only | Authorizes the first Passkey; never used for normal sign-in in Passkey mode |
+| `PASSKEY_ORIGIN` | yes | Exact HTTPS origin, e.g. `https://your-project.vercel.app` |
+| `SESSION_SECRET` | yes | At least 32 random bytes; generate with `openssl rand -hex 32` |
 | `GITHUB_PAT` | yes | Fine-grained PAT for triggering `workflow_dispatch` |
 | `GITHUB_REPO` | yes | `<your-username>/ChuMaiNichi` |
 | `OPENAI_API_KEY` | optional fallback | OpenAI-compatible key (used if ChatGPT is disconnected and `GEMINI_API_KEY` is not set) |
@@ -225,7 +229,7 @@ Single file at repo root, committed to git. Edits require a redeploy to take eff
 - `query_database` — generates and runs read-only SQL against your Neon database. A shared application-layer guard excludes the private OAuth table and PostgreSQL system catalogs, and restricts callable SQL functions to a small analytics allowlist.
 - `maimai_suggest_songs` (maimai only) — given your current scores, finds songs where extra practice most efficiently raises your DX rating (greedy search over top-35 old + top-15 new).
 
-The SQL guard keeps the dashboard and AI query paths from reading `codex_oauth_credentials`, but it is application-layer defense rather than PostgreSQL role isolation. Keep the guard centralized and its adversarial tests when extending the query vocabulary.
+The SQL guard keeps the dashboard and AI query paths from reading `codex_oauth_credentials` and the `dashboard_*` authentication tables, but it is application-layer defense rather than PostgreSQL role isolation. Keep the guard centralized and its adversarial tests when extending the query vocabulary.
 
 ## Project structure
 
@@ -258,3 +262,13 @@ See `CLAUDE.md` for the full database schema, rating formula, and song-suggestio
 ## License
 
 [MIT](LICENSE).
+
+### Passkey setup and recovery
+
+Set both `PASSKEY_ORIGIN` and `SESSION_SECRET` before deploying this UI. Any partial Passkey configuration fails closed for protected APIs. With neither variable set, the server retains the legacy Bearer-password mode only for migration compatibility; the new UI requires Passkeys. Do not remove both variables after migration.
+
+Passkeys are tied to the origin hostname. Use the same stable production URL for enrollment and sign-in; preview URLs cannot reuse production Passkeys. Local testing supports `http://localhost:5173` with a separate database and secret. Enrollment and sign-in require Neon; an already-issued session can be checked without a database round-trip. Authentication tables are created lazily by `/api/passkey`.
+
+Sessions expire after 12 hours. Sign out clears this browser's HttpOnly cookies; rotating `SESSION_SECRET` invalidates all outstanding sessions. Passkey counters and challenges use atomic database updates, and bootstrap registration allows exactly one first credential even under concurrent requests. Settings can add up to 10 Passkeys.
+
+Keep a synced or backup Passkey. If every Passkey is lost, a database administrator can reset enrollment by running `UPDATE dashboard_passkeys SET credentials = '[]'::jsonb WHERE id = 1; DELETE FROM dashboard_auth_challenges;`, restoring a temporary `DASHBOARD_PASSWORD`, and rotating `SESSION_SECRET` before enrolling again. This resets every registered device; there is no password fallback once a credential exists.

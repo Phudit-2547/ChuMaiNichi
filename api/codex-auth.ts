@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { passkeysEnabled } from "../src/api/session.js";
 import { checkAuth } from "../src/api/auth.js";
 import {
   CodexOAuthError,
@@ -62,10 +63,7 @@ function sendSafeError(error: unknown, res: VercelResponse) {
  * Private/experimental Codex-subscription auth endpoint.
  * Access and refresh tokens are never returned to the browser.
  */
-export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse,
-) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Cache-Control", "private, no-store, max-age=0");
 
   if (req.method !== "GET" && req.method !== "POST") {
@@ -73,8 +71,16 @@ export default async function handler(
   }
 
   const password = process.env.DASHBOARD_PASSWORD;
-  const hasPassword = Boolean(password?.trim());
-  if (hasPassword && !checkAuth(req.headers.authorization, password)) {
+  const hasPassword = Boolean(password?.trim()) || passkeysEnabled();
+  if (
+    hasPassword &&
+    !checkAuth(
+      req.headers.authorization,
+      password,
+      req.headers.cookie,
+      req.headers.origin,
+    )
+  ) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
@@ -94,7 +100,14 @@ export default async function handler(
         "Codex subscription auth requires DASHBOARD_PASSWORD",
       );
     }
-    if (!checkAuth(req.headers.authorization, password)) {
+    if (
+      !checkAuth(
+        req.headers.authorization,
+        password,
+        req.headers.cookie,
+        req.headers.origin,
+      )
+    ) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 

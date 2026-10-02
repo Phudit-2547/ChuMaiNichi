@@ -6,7 +6,7 @@ import {
   lazy,
   Suspense,
 } from "react";
-import PasswordGate from "./features/auth/components/PasswordGate";
+import PasskeyGate from "./features/auth/components/PasskeyGate";
 import HeatmapSkeleton from "./features/heatmap/components/heatmap-skeleton/HeatmapSkeleton";
 import AuthLoading from "./features/auth/components/AuthLoading";
 import { APP_CONFIG } from "./global/lib/config";
@@ -297,7 +297,7 @@ function App() {
   }
 
   if (authed === null) return <AuthLoading />;
-  if (!authed) return <PasswordGate onAuthenticated={() => setAuthed(true)} />;
+  if (!authed) return <PasskeyGate onAuthenticated={() => setAuthed(true)} />;
 
   return (
     <TooltipProvider>

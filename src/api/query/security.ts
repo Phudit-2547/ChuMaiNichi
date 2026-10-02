@@ -1,8 +1,10 @@
-const PRIVATE_CREDENTIAL_TABLE = /\bcodex_oauth_credentials\b/i;
+const PRIVATE_CREDENTIAL_TABLE =
+  /\b(?:codex_oauth_credentials|dashboard_passkeys|dashboard_auth_challenges|dashboard_auth_attempts)\b/i;
 const UNICODE_ESCAPED_IDENTIFIER = /\bU\s*&\s*"/i;
 const ESCAPE_STRING = /\bE\s*'/i;
 const DOLLAR_QUOTE = /\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/;
-const SYSTEM_CATALOG = /\b(?:pg_catalog|information_schema|pg_[A-Za-z0-9_$]*)\b/i;
+const SYSTEM_CATALOG =
+  /\b(?:pg_catalog|information_schema|pg_[A-Za-z0-9_$]*)\b/i;
 
 // Generic dashboard SQL intentionally supports a small analytics vocabulary.
 // Keeping callable functions allowlisted prevents SELECT-only escape hatches

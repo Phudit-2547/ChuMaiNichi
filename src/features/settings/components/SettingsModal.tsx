@@ -2,7 +2,7 @@ import { MonitorCog, Moon, Settings as Gear, Sun, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import ChatGptConnectionSection from "./ChatGptConnectionSection";
 import useSettingsStore, { type ThemeMode } from "../stores/settings-store";
-import useAuthStore from "@/features/auth/stores/auth-store";
+import { passkeyError, registerPasskey, signOut } from "@/global/lib/passkey";
 import { APP_CONFIG } from "@/global/lib/config";
 import type { DataRegion } from "@/global/lib/regions";
 import {
@@ -24,6 +24,8 @@ export default function SettingsModal({
   onOpenChange,
   region,
 }: SettingsModalProps) {
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authMessage, setAuthMessage] = useState("");
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const {
     themeMode,
@@ -34,9 +36,28 @@ export default function SettingsModal({
     setShowToolCalls,
   } = useSettingsStore();
 
-  const handleSignOut = () => {
-    useAuthStore.getState().clearPassword();
-    window.location.reload();
+  const handleSignOut = async () => {
+    setAuthBusy(true);
+    try {
+      await signOut();
+      window.location.reload();
+    } catch (err) {
+      setAuthMessage(passkeyError(err));
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+  const addPasskey = async () => {
+    setAuthBusy(true);
+    setAuthMessage("");
+    try {
+      await registerPasskey();
+      setAuthMessage("Passkey added. You can use it for your next sign-in.");
+    } catch (err) {
+      setAuthMessage(passkeyError(err));
+    } finally {
+      setAuthBusy(false);
+    }
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -106,6 +127,24 @@ export default function SettingsModal({
             </Row>
           </section>
 
+          <section className="modal-section">
+            <h3>Security</h3>
+            <Row label="Passkeys" sub="Add a backup device or security key">
+              <button
+                type="button"
+                className="quiet-btn"
+                disabled={authBusy}
+                onClick={addPasskey}
+              >
+                Add Passkey
+              </button>
+            </Row>
+            {authMessage && (
+              <p role="status" className="text-sm">
+                {authMessage}
+              </p>
+            )}
+          </section>
           <ChatGptConnectionSection active={open} />
 
           <section className="modal-section">
@@ -115,7 +154,9 @@ export default function SettingsModal({
                 label="Cost per play"
                 sub="Set in config.json. Redeploy to change."
               >
-                <span className="row-value">฿{APP_CONFIG.currency_per_play}</span>
+                <span className="row-value">
+                  ฿{APP_CONFIG.currency_per_play}
+                </span>
               </Row>
             ) : (
               <Row label="Source" sub="Historical activity imported locally">
@@ -136,9 +177,7 @@ export default function SettingsModal({
                   : (["maimai", "chunithm", "ongeki"] as const)
                 ).map((g) => (
                   <span key={g} className="game-badge" data-game={g}>
-                    {g === "chunithm" || g === "ongeki"
-                      ? g.toUpperCase()
-                      : g}
+                    {g === "chunithm" || g === "ongeki" ? g.toUpperCase() : g}
                   </span>
                 ))}
               </div>
@@ -151,7 +190,8 @@ export default function SettingsModal({
             <div>
               <strong>Sign out?</strong>
               <p>
-                Remove the saved dashboard password from this browser.
+                End this browser’s session. Your Passkeys stay available for
+                your next sign-in.
               </p>
             </div>
             <div className="modal-confirm__actions">
@@ -165,6 +205,7 @@ export default function SettingsModal({
               <button
                 type="button"
                 className="danger-btn"
+                disabled={authBusy}
                 onClick={handleSignOut}
               >
                 Sign out

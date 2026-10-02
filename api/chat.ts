@@ -137,7 +137,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  if (!checkAuth(req.headers.authorization, process.env.DASHBOARD_PASSWORD)) {
+  if (!checkAuth(
+    req.headers.authorization,
+    process.env.DASHBOARD_PASSWORD,
+    req.headers.cookie,
+    req.headers.origin,
+  )) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
