@@ -1,20 +1,55 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { PasskeyConfigurationError } from "./passkey-errors.js";
 
 export const SESSION_SECONDS = 12 * 60 * 60;
 export function passkeysEnabled() {
   return Boolean(process.env.PASSKEY_ORIGIN || process.env.SESSION_SECRET);
 }
 export function authConfig() {
-  const origin = new URL(process.env.PASSKEY_ORIGIN ?? "");
-  const secret = process.env.SESSION_SECRET;
+  const rawOrigin = process.env.PASSKEY_ORIGIN?.trim();
+  if (!rawOrigin) {
+    throw new PasskeyConfigurationError(
+      "passkey_origin_missing",
+      "Set PASSKEY_ORIGIN to this dashboard's HTTPS URL in Vercel Production, then redeploy.",
+    );
+  }
+  let origin: URL;
+  try {
+    origin = new URL(rawOrigin);
+  } catch {
+    throw new PasskeyConfigurationError(
+      "passkey_origin_invalid",
+      "PASSKEY_ORIGIN must be a complete HTTPS URL. Update it in Vercel Production, then redeploy.",
+    );
+  }
+  // Copying a root URL from the address bar commonly includes a trailing slash.
+  // Normalize it without accepting paths, credentials, query strings or hashes.
   if (
-    !secret ||
-    Buffer.byteLength(secret) < 32 ||
-    origin.origin !== process.env.PASSKEY_ORIGIN ||
+    origin.pathname !== "/" ||
+    origin.search ||
+    origin.hash ||
+    origin.username ||
+    origin.password ||
     (origin.protocol !== "https:" &&
       !(origin.protocol === "http:" && origin.hostname === "localhost"))
   ) {
-    throw new Error("Invalid Passkey configuration");
+    throw new PasskeyConfigurationError(
+      "passkey_origin_invalid",
+      "PASSKEY_ORIGIN must be an HTTPS origin without a path, query or fragment. Update it in Vercel Production, then redeploy.",
+    );
+  }
+  const secret = process.env.SESSION_SECRET;
+  if (!secret || !secret.trim()) {
+    throw new PasskeyConfigurationError(
+      "passkey_session_secret_missing",
+      "Set SESSION_SECRET in Vercel Production to the output of openssl rand -hex 32, then redeploy.",
+    );
+  }
+  if (Buffer.byteLength(secret.trim()) < 32) {
+    throw new PasskeyConfigurationError(
+      "passkey_session_secret_invalid",
+      "SESSION_SECRET is too short. Save the output of openssl rand -hex 32 in Vercel Production, then redeploy.",
+    );
   }
   return {
     origin: origin.origin,

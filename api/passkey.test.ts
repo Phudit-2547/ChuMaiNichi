@@ -55,8 +55,65 @@ beforeEach(() => {
   mocks.register.mockResolvedValue(true);
   mocks.counter.mockResolvedValue(true);
 });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
 describe("Passkey endpoints", () => {
+  it("loads first-enrollment status when a copied URL ends with a slash", async () => {
+    vi.stubEnv("PASSKEY_ORIGIN", "https://dashboard.example.com/\n");
+    const res = response();
+    await handler({ method: "GET", headers: {} } as VercelRequest, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({ setup: true });
+  });
+  it.each([
+    ["PASSKEY_ORIGIN", "", "passkey_origin_missing"],
+    ["PASSKEY_ORIGIN", "invalid://private-value", "passkey_origin_invalid"],
+    ["SESSION_SECRET", "", "passkey_session_secret_missing"],
+    ["SESSION_SECRET", "private-value", "passkey_session_secret_invalid"],
+  ])(
+    "identifies %s configuration failures without leaking values",
+    async (name, value, code) => {
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      vi.stubEnv(name, value);
+      const res = response();
+      await handler({ method: "GET", headers: {} } as VercelRequest, res);
+      expect(res.status).toHaveBeenCalledWith(503);
+      expect(res.json).toHaveBeenCalledWith({
+        error: expect.stringContaining(name),
+        code,
+      });
+      expect(mocks.init).not.toHaveBeenCalled();
+      expect(JSON.stringify(vi.mocked(res.json).mock.calls)).not.toContain(
+        "private-value",
+      );
+      expect(log).toHaveBeenCalledWith("passkey request failed", {
+        stage: "configuration",
+        code,
+      });
+    },
+  );
+  it("reports database failures without exposing connection strings in responses or logs", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.init.mockRejectedValue(
+      new Error("postgres://private-password@private-host/database"),
+    );
+    const res = response();
+    await handler({ method: "GET", headers: {} } as VercelRequest, res);
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalledWith({
+      error: expect.stringContaining("storage"),
+      code: "passkey_storage_unavailable",
+    });
+    expect(
+      JSON.stringify([vi.mocked(res.json).mock.calls, log.mock.calls]),
+    ).not.toContain("private-password");
+    expect(log).toHaveBeenCalledWith("passkey request failed", {
+      stage: "storage",
+      code: "passkey_storage_unavailable",
+    });
+  });
   it("rejects cross-origin setup before touching storage", async () => {
     const res = response();
     await handler(

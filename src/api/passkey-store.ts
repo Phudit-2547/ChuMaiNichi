@@ -1,5 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 import type { WebAuthnCredential } from "@simplewebauthn/server";
+import { PasskeyConfigurationError } from "./passkey-errors.js";
 
 export type StoredPasskey = Omit<WebAuthnCredential, "publicKey"> & {
   publicKey: string;
@@ -10,8 +11,11 @@ export type Challenge = {
   bootstrap: boolean;
 };
 export function passkeyStore() {
-  if (!process.env.DATABASE_URL)
-    throw new Error("Passkey storage is unavailable");
+  if (!process.env.DATABASE_URL?.trim())
+    throw new PasskeyConfigurationError(
+      "passkey_database_url_missing",
+      "Set the existing DATABASE_URL in Vercel Production, then redeploy. Passkeys need access to your dashboard database.",
+    );
   const sql = neon(process.env.DATABASE_URL);
   return {
     async init() {

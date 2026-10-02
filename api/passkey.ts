@@ -17,11 +17,16 @@ import {
   verifyToken,
 } from "../src/api/session.js";
 import { passkeyStore } from "../src/api/passkey-store.js";
+import {
+  passkeyFailure,
+  type PasskeyStage,
+} from "../src/api/passkey-errors.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Cache-Control", "private, no-store");
   if (req.method !== "GET" && req.method !== "POST")
     return res.status(405).json({ error: "Method not allowed" });
+  let stage: PasskeyStage = "configuration";
   try {
     const config = authConfig();
     if (req.method === "POST" && req.headers.origin !== config.origin)
@@ -34,6 +39,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ]);
       return res.status(200).json({ ok: true });
     }
+    stage = "storage";
     const store = passkeyStore();
     await store.init();
     const credentials = await store.credentials();
@@ -71,6 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       } else if (credentials.length === 0)
         return res.status(409).json({ error: "Create your first Passkey" });
+      stage = "options";
       const options = register
         ? await generateRegistrationOptions({
             rpName: "ChuMaiNichi",
@@ -92,6 +99,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             userVerification: "required",
           });
       const id = randomBytes(32).toString("base64url");
+      stage = "storage";
       await store.challenge(id, {
         challenge: options.challenge,
         purpose: register ? "register" : "login",
@@ -117,6 +125,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res
           .status(401)
           .json({ error: "Sign in before adding a Passkey" });
+      stage = "verification";
       const result = await verifyRegistrationResponse({
         response: body.response,
         expectedChallenge: challenge.challenge,
@@ -127,6 +136,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!result.verified || !result.registrationInfo)
         return res.status(401).json({ error: "Passkey verification failed" });
       const credential = result.registrationInfo.credential;
+      stage = "storage";
       if (
         !(await store.register(
           {
@@ -145,6 +155,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
       if (!credential)
         return res.status(401).json({ error: "Passkey not recognized" });
+      stage = "verification";
       const result = await verifyAuthenticationResponse({
         response: body.response,
         credential: {
@@ -158,6 +169,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         expectedRPID: config.rpID,
         requireUserVerification: true,
       });
+      stage = "storage";
       if (
         !result.verified ||
         !(await store.counter(
@@ -175,14 +187,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       authCookie("challenge", "", 0),
     ]);
     return res.status(200).json({ ok: true });
-  } catch {
-    // Never expose database URLs, credentials or authenticator responses.
-    return res
-      .status(503)
-      .json({
-        error:
-          "Passkey sign-in is unavailable. Check server settings or retry.",
-      });
+  } catch (error) {
+    const failure = passkeyFailure(error, stage);
+    // Do not log raw exception messages: driver errors can contain credentials.
+    console.error("passkey request failed", { stage, code: failure.body.code });
+    return res.status(failure.status).json(failure.body);
   }
 }
 

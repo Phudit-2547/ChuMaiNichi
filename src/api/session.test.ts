@@ -19,6 +19,24 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe("Passkey sessions", () => {
+  it("accepts a copied root URL with whitespace and a trailing slash", () => {
+    vi.stubEnv("PASSKEY_ORIGIN", "  https://dashboard.example.com/\n");
+    expect(authConfig().origin).toBe("https://dashboard.example.com");
+    const cookie = newSessionCookie();
+    expect(hasSession(cookie, "https://dashboard.example.com")).toBe(true);
+    expect(hasSession(cookie, "https://other.example.com")).toBe(false);
+  });
+  it.each([
+    "https://dashboard.example.com/path",
+    "https://dashboard.example.com/?query=1",
+    "https://dashboard.example.com/#fragment",
+    "https://user:password@dashboard.example.com",
+    "http://dashboard.example.com",
+  ])("continues rejecting unsafe or non-origin configuration: %s", (origin) => {
+    vi.stubEnv("PASSKEY_ORIGIN", origin);
+    expect(() => authConfig()).toThrow();
+    expect(checkAuth("Bearer old-password", "old-password")).toBe(false);
+  });
   it("rejects the legacy password once Passkeys are configured", () => {
     expect(checkAuth("Bearer old-password", "old-password")).toBe(false);
   });
