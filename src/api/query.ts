@@ -31,10 +31,7 @@ export async function runQuery(
     );
   const privateBoundaryError = privateSqlBoundaryError(trimmed);
   if (privateBoundaryError)
-    throw new QueryException(
-      "FORBIDDEN_QUERY",
-      privateBoundaryError,
-    );
+    throw new QueryException("FORBIDDEN_QUERY", privateBoundaryError);
 
   try {
     const sql = neon(dbUrl);
@@ -79,15 +76,17 @@ export async function handleRequest(
   dbUrl: string | undefined,
   getBody: () => Promise<{ sql: unknown; params?: unknown[] }>,
   skipAuth = false,
+  cookie?: string,
+  origin?: string,
 ): Promise<unknown> {
   if (method !== "POST")
     throw new QueryException("METHOD_NOT_ALLOWED", "Method not allowed");
 
-  if (!skipAuth && !checkAuth(authHeader, process.env.DASHBOARD_PASSWORD))
-    throw new QueryException(
-      "INVALID_CREDENTIALS",
-      "Incorrect dashboard password",
-    );
+  if (
+    !skipAuth &&
+    !checkAuth(authHeader, process.env.DASHBOARD_PASSWORD, cookie, origin)
+  )
+    throw new QueryException("INVALID_CREDENTIALS", "Sign in to the dashboard");
 
   if (!dbUrl)
     throw new QueryException("DATABASE_URL_NOT_SET", "DATABASE_URL not set");

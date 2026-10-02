@@ -222,7 +222,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const githubRepo = process.env.GITHUB_REPO ?? "";
   const workflowRef = getWorkflowRef();
 
-  if (!checkAuth(req.headers.authorization, process.env.DASHBOARD_PASSWORD)) {
+  if (!checkAuth(
+    req.headers.authorization,
+    process.env.DASHBOARD_PASSWORD,
+    req.headers.cookie,
+    req.headers.origin,
+  )) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 

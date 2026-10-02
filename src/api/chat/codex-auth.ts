@@ -1,3 +1,4 @@
+import { passkeysEnabled } from "../session.js";
 import {
   createCipheriv,
   createDecipheriv,
@@ -613,7 +614,7 @@ function resolveRuntimeConfig(
 ): RuntimeConfig | null {
   const dashboardPassword =
     dependencies.dashboardPassword ?? process.env.DASHBOARD_PASSWORD;
-  if (!dashboardPassword?.trim()) return null;
+  if (!dashboardPassword?.trim() && !passkeysEnabled()) return null;
 
   const rawKey =
     dependencies.encryptionKey ?? process.env.CODEX_OAUTH_ENCRYPTION_KEY;
@@ -661,7 +662,7 @@ function requireDisconnectConfig(
 ): DisconnectConfig {
   const dashboardPassword =
     dependencies.dashboardPassword ?? process.env.DASHBOARD_PASSWORD;
-  if (!dashboardPassword?.trim()) {
+  if (!dashboardPassword?.trim() && !passkeysEnabled()) {
     throw new CodexOAuthError(
       "codex_auth_not_configured",
       503,
@@ -718,7 +719,7 @@ async function resolveChatRuntimeConfig(
     // enabled. But if secure storage still contains a credential, silently
     // selecting a metered provider would be a billing surprise. Detect that
     // recoverable misconfiguration without ever decrypting the row.
-    if (dashboardPassword?.trim() && availableStore) {
+    if ((dashboardPassword?.trim() || passkeysEnabled()) && availableStore) {
       const record = await safeReadStore(availableStore);
       if (record?.encryptedCredentials) {
         throw new CodexOAuthError(
@@ -743,7 +744,7 @@ async function resolveChatRuntimeConfig(
       "CODEX_OAUTH_ENCRYPTION_KEY is invalid",
     );
   }
-  if (!dashboardPassword?.trim()) {
+  if (!dashboardPassword?.trim() && !passkeysEnabled()) {
     throw new CodexOAuthError(
       "codex_auth_not_configured",
       503,
@@ -1128,7 +1129,7 @@ export async function getCodexOAuthStatus(
   };
   const dashboardPassword =
     dependencies.dashboardPassword ?? process.env.DASHBOARD_PASSWORD;
-  if (!dashboardPassword?.trim()) return disconnected;
+  if (!dashboardPassword?.trim() && !passkeysEnabled()) return disconnected;
 
   const config = resolveRuntimeConfig(dependencies);
   if (!config) {

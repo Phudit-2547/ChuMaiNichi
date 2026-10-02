@@ -3,7 +3,10 @@ import type { Connect } from "vite";
 import type { IncomingMessage, ServerResponse } from "http";
 import { getStatusCode, handleRequest } from "../src/api/query.js";
 import { QueryErrorHandler } from "../src/api/query/errors.js";
-import { handleViteError, handleVercelError } from "../src/api/error-handling.js";
+import {
+  handleViteError,
+  handleVercelError,
+} from "../src/api/error-handling.js";
 
 export async function viteHandler(
   req: Connect.IncomingMessage,
@@ -26,7 +29,9 @@ export async function viteHandler(
             }
           });
         }),
-      true, // skipAuth in dev
+      false,
+      req.headers.cookie,
+      req.headers.origin,
     );
     res.setHeader("Content-Type", "application/json");
     res.statusCode = 200;
@@ -44,6 +49,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       req.headers.authorization,
       process.env.DATABASE_URL,
       async () => req.body ?? {},
+      false,
+      req.headers.cookie,
+      req.headers.origin,
     );
     return res.status(200).json(result);
   } catch (e) {

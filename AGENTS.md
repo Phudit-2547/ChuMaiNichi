@@ -16,7 +16,7 @@ This repo merges two previous repos:
 ```
 Browser (React SPA on Vercel)
     │
-    ├── GET  /api/auth    → password check only (no DB) — the login gate
+    ├── GET  /api/auth    → signed session check (no DB) — the login gate
     ├── POST /api/query   → Neon PostgreSQL (read-only SQL; client retries cold starts)
     ├── POST /api/chat    → Codex subscription or OpenAI-compatible API (tool-use, streaming)
     ├── GET/POST /api/codex-auth → ChatGPT device login/status/disconnect
@@ -82,7 +82,7 @@ ChuMaiNichi/
 │   └── init.sql                  # Schema: International + Japan tables
 ├── api/                          # Vercel serverless functions (thin handlers)
 │   ├── query.ts                  # DB proxy (read-only SELECT only)
-│   ├── auth.ts                   # Login probe — password check ONLY, no DB
+│   ├── auth.ts                   # Session probe — signed cookie only, no DB
 │   ├── chat.ts                   # AI agent proxy (streaming, tool-use)
 │   ├── codex-auth.ts             # ChatGPT device login/status/disconnect
 │   ├── refresh.ts                # Trigger + poll GitHub Actions workflow
@@ -92,7 +92,7 @@ ChuMaiNichi/
 │   └── *.test.ts                 # Vitest suites for auth + refresh
 ├── src/                          # React frontend (single-page app, NO router)
 │   ├── api/                      # Server-side logic imported by api/*.ts handlers
-│   │   ├── auth.ts               # checkAuth(): sha256 + timingSafeEqual
+│   │   ├── auth.ts               # checkAuth(): signed session; legacy migration mode
 │   │   ├── query.ts              # handleRequest/runQuery, SELECT-only guard
 │   │   ├── query/errors.ts       # QueryException + status-code mapping
 │   │   ├── config.ts             # loadConfig() reads config.json (server)
@@ -100,7 +100,7 @@ ChuMaiNichi/
 │   │   ├── vite-adapter.ts       # Emulates Vercel functions in `vite dev`
 │   │   └── chat/                 # prompt, tools, providers, encrypted Codex OAuth
 │   ├── features/                 # Feature-first UI (components + stores + lib)
-│   │   ├── auth/                 # PasswordGate, AuthLoading, auth-store (zustand)
+│   │   ├── auth/                 # PasskeyGate, AuthLoading, auth-store (zustand)
 │   │   ├── heatmap/              # Heatmap, GameHeatmap, stats, fetch
 │   │   ├── chat/                 # ChatPanel, composer, streaming render
 │   │   ├── settings/            # SettingsModal, settings-store
@@ -300,17 +300,19 @@ Achievement is score / 10000 (e.g., 1005000 = 100.5%).
 
 ## Vercel API routes specification
 
-Every route validates the dashboard password with `checkAuth` (`src/api/auth.ts`,
-sha256 + `timingSafeEqual`) except `/api/cover`, which proxies public art. When
-`DASHBOARD_PASSWORD` is unset, `checkAuth` returns `true` (auth disabled).
+Protected routes use `checkAuth` and HttpOnly session cookies when `PASSKEY_ORIGIN` or `SESSION_SECRET` is set. Partial configuration fails closed. With neither set, the server retains legacy Bearer-password behavior for migration compatibility only. `/api/cover` remains public. Never remove both Passkey variables after migration.
 
 ### GET /api/auth
-- Login probe. Validates `DASHBOARD_PASSWORD` **only** — no database, no AI provider.
-- Returns `200 { ok: true }` on match, `401` otherwise.
-- **Why it exists:** the frontend `authenticate()` calls this, so a correct
-  password signs in even when the database is cold, unreachable, or
-  `DATABASE_URL` is unset. Login is decoupled from database availability;
-  DB errors surface in the data panels instead of blocking the gate.
+- Checks the signed 12-hour session without a database or provider request.
+- Returns `200 { ok: true }` or `401`.
+
+### GET/POST /api/passkey
+- `GET` reports whether first enrollment is needed. `POST` validates the exact configured Origin.
+- `register-options` requires the existing password only when there are zero credentials; subsequent registration requires a session. First enrollment is serialized through a singleton database UPDATE.
+- `register-verify` and `login-verify` require a signed browser challenge cookie plus a durable, single-use, five-minute challenge. WebAuthn verifies RP ID, origin and user verification.
+- `login-options` uses discoverable Passkeys. Credentials and counters are persisted in `dashboard_passkeys`; challenge and rate-limit state use `dashboard_auth_challenges` and `dashboard_auth_attempts`. These tables are excluded from dashboard and AI SQL access.
+- `logout` clears cookies without a database request. Rotation of `SESSION_SECRET` invalidates all sessions.
+- Authentication tables are created lazily; Passkey enrollment/sign-in require Neon. Settings adds backup Passkeys, up to 10.
 
 ### POST /api/query
 - Body: `{ sql: string, params?: any[] }`
@@ -331,12 +333,12 @@ sha256 + `timingSafeEqual`) except `/api/cover`, which proxies public art. When
 - Returns `{ model: string }` — the active provider's model name for the chat UI. A connected Codex credential takes precedence; returns `503` rather than advertising a display default when neither Codex nor a fallback provider is configured.
 
 ### GET/POST /api/codex-auth
-- Experimental, single-user ChatGPT/Codex subscription connection. It is separate from the dashboard password identity.
+- Experimental, single-user ChatGPT/Codex subscription connection. It is separate from the dashboard Passkey identity.
 - `GET` returns safe connection/configuration metadata plus the server-owned Sol/Terra/Luna model options; it never returns OAuth tokens. It can return `reset_required: true` when encrypted state exists but the key is unavailable or a refresh outcome became ambiguous.
 - `POST { action: "start" }` starts Codex device login and returns a one-time user code plus OpenAI verification URL.
 - `POST { action: "poll", login_token }` completes the exchange server-side; `POST { action: "disconnect" }` clears the credential and invalidates pending login/refresh work while preserving a monotonic tombstone revision.
 - `POST { action: "set_model", model }` accepts only `gpt-5.6-sol`, `gpt-5.6-terra`, or `gpt-5.6-luna`. The selection is stored separately from ciphertext and does not advance the OAuth revision or disturb refresh ownership.
-- Start, poll, status decryption, and chat require `DASHBOARD_PASSWORD`, `DATABASE_URL`, and `CODEX_OAUTH_ENCRYPTION_KEY`. Authenticated model selection and Disconnect/Reset require only the password and database so preferences remain manageable and a credential encrypted with a lost or malformed key remains removable.
+- Start, poll, status decryption, and chat require dashboard authentication configuration, `DATABASE_URL`, and `CODEX_OAUTH_ENCRYPTION_KEY`. Authenticated model selection and Disconnect/Reset require only dashboard authentication configuration and database so preferences remain manageable and a credential encrypted with a lost or malformed key remains removable.
 - Access/refresh tokens are AES-256-GCM encrypted in Neon; the browser holds only short-lived encrypted login state while connecting. A durable login nonce prevents stale device flows from overwriting newer state. Refresh-token rotation uses a non-stealable durable marker: ambiguous timeout/crash outcomes remain blocked and require authenticated Reset instead of replaying a potentially consumed refresh token.
 
 ### GET /api/rating-image?game=maimai|chunithm
@@ -456,7 +458,9 @@ The tool itself does not clamp. Instead the staging guard lives in `src/api/chat
 | `CODEX_MODEL` | Initial Codex model until Settings saves a server-side selection; supported values are `gpt-5.6-sol`, `gpt-5.6-terra` (default), and `gpt-5.6-luna` |
 | `GITHUB_PAT` | Fine-grained PAT for triggering workflow_dispatch |
 | `GITHUB_REPO` | `Phudit-2547/ChuMaiNichi` |
-| `DASHBOARD_PASSWORD` | **Required.** Authenticated `/api/*` routes require `Authorization: Bearer <password>`. The `PasswordGate` prompts on first visit; the password is stored via a zustand `persist` store (localStorage key `user-state`) and sent as the Bearer token. Login is verified against `/api/auth` (password only — no DB round-trip). Without this, anyone can use your AI proxy and query your database. |
+| `DASHBOARD_PASSWORD` | Existing password for first Passkey enrollment only. Remove after creating a backup Passkey. |
+| `PASSKEY_ORIGIN` | Exact stable HTTPS dashboard origin, without trailing slash. Local testing: `http://localhost:5173`. |
+| `SESSION_SECRET` | At least 32 random bytes. Generate with `openssl rand -hex 32`; rotation invalidates outstanding sessions. |
 
 **AI provider detection:** a connected Codex OAuth credential takes precedence. When disconnected, `api/chat.ts` checks `GEMINI_API_KEY` first, then `OPENAI_API_KEY`. Do not silently fall back to a metered API key after a connected Codex request fails; surface the reconnect/quota error instead. Gemini is accessed via its OpenAI-compatible endpoint using the same `openai` SDK.
 
@@ -475,8 +479,8 @@ The tool itself does not clamp. Instead the staging guard lives in `src/api/chat
 3. Create Neon account (free, no credit card) → create project → copy `DATABASE_URL`
 4. Add GitHub repo secrets: `DATABASE_URL`, `SEGA_USERNAME`, `SEGA_PASSWORD`, `DISCORD_WEBHOOK_URL`
 5. Trigger first scrape manually (workflow runs `init.sql` automatically on first run)
-6. Import forked repo in Vercel (free Hobby plan) → add `DATABASE_URL`, `DASHBOARD_PASSWORD`, `GITHUB_PAT`, `GITHUB_REPO`, plus either `CODEX_OAUTH_ENCRYPTION_KEY` for ChatGPT login or an API provider key (provider keys may remain as a disconnected fallback)
-7. Visit `<username>.vercel.app`; for ChatGPT usage, connect under Settings and complete the device-code verification
+6. Import forked repo in Vercel (free Hobby plan) → add `DATABASE_URL`, `DASHBOARD_PASSWORD` (first enrollment), `PASSKEY_ORIGIN`, `SESSION_SECRET`, `GITHUB_PAT`, `GITHUB_REPO`, plus either `CODEX_OAUTH_ENCRYPTION_KEY` for ChatGPT login or an API provider key (provider keys may remain as a disconnected fallback)
+7. Visit the configured origin, enroll a Passkey using the old password, add a backup in Settings → Security, then remove `DASHBOARD_PASSWORD`. For ChatGPT usage, connect under Settings and complete device-code verification
 8. Infrastructure can remain 0 THB on the listed free tiers; any ChatGPT plan or metered API usage is separate
 
 ## Constraints and gotchas

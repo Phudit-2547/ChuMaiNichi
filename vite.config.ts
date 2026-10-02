@@ -5,6 +5,7 @@ import type { Plugin } from "vite";
 import path from "path";
 
 import { viteHandler as queryViteHandler } from "./api/query";
+import passkeyHandler from "./api/passkey";
 import authHandler from "./api/auth";
 import chatHandler from "./api/chat";
 import codexAuthHandler from "./api/codex-auth";
@@ -23,33 +24,19 @@ function devApiProxy(): Plugin {
     name: "dev-api-proxy",
     configureServer(server) {
       server.middlewares.use("/api/query", queryViteHandler);
-      server.middlewares.use(
-        "/api/auth",
-        toViteMiddleware(authHandler, { skipAuth: true }),
-      );
-      server.middlewares.use(
-        "/api/chat",
-        toViteMiddleware(chatHandler, { skipAuth: true }),
-      );
+      server.middlewares.use("/api/passkey", toViteMiddleware(passkeyHandler));
+      server.middlewares.use("/api/auth", toViteMiddleware(authHandler));
+      server.middlewares.use("/api/chat", toViteMiddleware(chatHandler));
       server.middlewares.use(
         "/api/codex-auth",
-        toViteMiddleware(codexAuthHandler, { skipAuth: true }),
+        toViteMiddleware(codexAuthHandler),
       );
-      server.middlewares.use(
-        "/api/refresh",
-        toViteMiddleware(refreshHandler, { skipAuth: true }),
-      );
-      server.middlewares.use(
-        "/api/model",
-        toViteMiddleware(modelHandler, { skipAuth: true }),
-      );
-      server.middlewares.use(
-        "/api/cover",
-        toViteMiddleware(coverHandler),
-      );
+      server.middlewares.use("/api/refresh", toViteMiddleware(refreshHandler));
+      server.middlewares.use("/api/model", toViteMiddleware(modelHandler));
+      server.middlewares.use("/api/cover", toViteMiddleware(coverHandler));
       server.middlewares.use(
         "/api/rating-image",
-        toViteMiddleware(ratingImageHandler, { skipAuth: true }),
+        toViteMiddleware(ratingImageHandler),
       );
     },
   };
