@@ -1,5 +1,5 @@
 import rawConfig from "../../../config.json" with { type: "json" };
-import type { Game } from "./games";
+import type { Game } from "./games.js";
 
 export type { Game };
 
