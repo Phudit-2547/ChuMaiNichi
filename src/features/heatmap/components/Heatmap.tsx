@@ -176,6 +176,21 @@ export default function Heatmap({
         )}
       </div>
 
+      {!loading && !error && region === "international" &&
+        data.some((row) => row.scrape_failed || row.failure_reason) && (
+          <div role="alert" className="content-panel p-4 mb-4 text-sm text-destructive">
+            <p>Some daily counts need verification. Totals and streaks may be incomplete.</p>
+            <ul>
+              {data.filter((row) => row.scrape_failed || row.failure_reason).map((row) => (
+                <li key={row.play_date}>
+                  {row.play_date}: {row.scrape_failed ? "Scrape failed. " : ""}
+                  {row.failure_reason || "Backfill required."}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
       {loading && (
         <div className="flex flex-col gap-8" aria-label="Loading play data">
           {visibleGames.map((game) => (

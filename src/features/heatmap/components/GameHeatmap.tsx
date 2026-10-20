@@ -51,7 +51,8 @@ function formatCellText({
       : `No record for ${formattedDate}`;
   }
 
-  const count = value ?? 0;
+  if (value == null) return `Play count unknown for ${formattedDate}. Backfill required.`;
+  const count = value;
   const label = count === 1 ? unit : `${unit}s`;
   const rating = ratingLookup[dateKey];
   const inferred = inferredDates.has(dateKey);
@@ -97,7 +98,7 @@ export function GameHeatmap({
 
     const gameData = data.map((d) => ({
       date: d.play_date,
-      value: Number(d[PLAY_KEY[game]] ?? 0),
+      value: d[PLAY_KEY[game]] == null ? null : Number(d[PLAY_KEY[game]]),
     }));
 
     const recordedDates = new Set(data.map((d) => d.play_date));

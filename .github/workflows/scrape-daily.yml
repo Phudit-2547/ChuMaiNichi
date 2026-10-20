@@ -7,6 +7,22 @@ on:
         description: 'Date to backfill (YYYY-MM-DD). Leave empty for normal run.'
         required: false
         default: ''
+      repair_plan:
+        description: 'Verified daily repair JSON (dry-run by default; leave empty for scrape)'
+        required: false
+        default: ''
+      repair_apply:
+        description: 'Apply the reviewed repair plan'
+        type: boolean
+        default: false
+      repair_expected_sha256:
+        description: 'REPAIR_SHA256 from the dry-run; required to apply'
+        required: false
+        default: ''
+
+concurrency:
+  group: daily-play-${{ github.repository }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -14,6 +30,7 @@ permissions:
 jobs:
   run-scraper:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout Repository
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -25,6 +42,7 @@ jobs:
           enable-cache: true
 
       - name: Cache Playwright browsers
+        if: ${{ !inputs.repair_plan }}
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: ~/.cache/ms-playwright
@@ -33,6 +51,7 @@ jobs:
             ${{ runner.os }}-playwright-
 
       - name: Restore session cookies
+        if: ${{ !inputs.repair_plan }}
         id: sega-cookie-cache
         uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
@@ -43,9 +62,13 @@ jobs:
 
       - name: Install Dependencies
         working-directory: scraper
+        env:
+          REPAIR_PLAN: ${{ inputs.repair_plan }}
         run: |
-          uv sync
-          uv run playwright install
+          uv sync --frozen
+          if [ -z "$REPAIR_PLAN" ]; then
+            uv run playwright install --with-deps firefox
+          fi
 
       - name: Run Scraper
         working-directory: scraper
@@ -54,26 +77,61 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SEGA_USERNAME: ${{ secrets.SEGA_USERNAME }}
           SEGA_PASSWORD: ${{ secrets.SEGA_PASSWORD }}
+          PYTHONUNBUFFERED: '1'
+          REPAIR_PLAN: ${{ inputs.repair_plan }}
+          REPAIR_APPLY: ${{ inputs.repair_apply }}
+          REPAIR_EXPECTED_SHA256: ${{ inputs.repair_expected_sha256 }}
           BACKFILL_DATE: ${{ github.event.inputs.backfill_date }}
         run: |
-          if [ -n "$BACKFILL_DATE" ]; then
+          if [ -n "$REPAIR_PLAN" ]; then
+            uv run python repair_daily_play.py
+          elif [ -n "$BACKFILL_DATE" ]; then
             uv run python main.py --backfill "$BACKFILL_DATE"
           else
             uv run python main.py
           fi
 
       - name: Save session cookies
-        if: always()
+        if: ${{ always() && !inputs.repair_plan }}
         uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: scraper/cookies
           key: ${{ steps.sega-cookie-cache.outputs.cache-primary-key }}
 
       - name: Upload scraper diagnostics
-        if: always()
+        if: ${{ always() && !inputs.repair_plan }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: scraper-diagnostics-${{ github.run_number }}-${{ github.run_attempt }}
           path: scraper/traces/*.txt
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Notify workflow failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 - <<'PYTHON'
+          import json, os, time, urllib.request
+          url = os.environ.get("DISCORD_WEBHOOK_URL")
+          if not url:
+              print("::warning::DISCORD_WEBHOOK_URL is not configured; failure alert not delivered")
+              raise SystemExit(0)
+          payload = json.dumps({
+              "content": "⚠️ ChuMaiNichi scrape/repair failed or needs backfill. Daily counts may be incomplete. " + os.environ["RUN_URL"],
+              "allowed_mentions": {"parse": []},
+          }).encode()
+          for attempt in range(3):
+              try:
+                  req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json", "User-Agent": "ChuMaiNichi/1.0"})
+                  with urllib.request.urlopen(req, timeout=10):
+                      print("Failure alert delivered")
+                  break
+              except Exception as exc:
+                  print(f"::warning::Failure alert attempt {attempt + 1}/3: {type(exc).__name__}")
+                  if attempt == 2:
+                      raise SystemExit(1)
+                  time.sleep(2 ** attempt)
+          PYTHON

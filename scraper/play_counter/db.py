@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 
 import asyncpg
@@ -23,7 +24,18 @@ def _validate_game(game: str) -> None:
 async def connect_db():
     if not DATABASE_URL:
         raise RuntimeError(MISSING_DATABASE_URL_MESSAGE)
-    return await asyncpg.connect(DATABASE_URL)
+    # Retry connection establishment only: never replay a possibly committed write.
+    for attempt in range(1, 5):
+        try:
+            return await asyncpg.connect(DATABASE_URL, timeout=20, command_timeout=30)
+        except (OSError, TimeoutError, asyncpg.CannotConnectNowError,
+                asyncpg.TooManyConnectionsError) as exc:
+            # Exception type is useful even for TimeoutError with an empty message.
+            # Do not log the DSN or server message (which can contain credentials).
+            print(f"[WARN] Database connection attempt {attempt}/4: {type(exc).__name__}")
+            if attempt == 4:
+                raise
+            await asyncio.sleep(2 ** attempt)
 
 
 async def init_schema() -> None:
@@ -62,6 +74,23 @@ async def get_previous_cumulative(game: str, today_str: str) -> int:
             date_obj,
         )
         return row[col] if row and row[col] is not None else 0
+    finally:
+        await conn.close()
+
+
+async def get_previous_observation(game: str, today_str: str):
+    """Only real successful observations are safe baselines, never carry-forwards."""
+    _validate_game(game)
+    conn = await connect_db()
+    try:
+        return await conn.fetchrow(
+            f"""SELECT play_date, {game}_cumulative AS cumulative
+                FROM public.daily_play
+                WHERE play_date < $1 AND {game}_cumulative IS NOT NULL
+                  AND scrape_failed = FALSE
+                ORDER BY play_date DESC LIMIT 1""",
+            datetime.strptime(today_str, "%Y-%m-%d").date(),
+        )
     finally:
         await conn.close()
 
@@ -107,8 +136,8 @@ async def upsert_daily_play(
              maimai_rating, chunithm_rating, scrape_failed, failure_reason)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
         ON CONFLICT (play_date) DO UPDATE
-          SET maimai_play_count=EXCLUDED.maimai_play_count,
-              chunithm_play_count=EXCLUDED.chunithm_play_count,
+          SET maimai_play_count=COALESCE(EXCLUDED.maimai_play_count, daily_play.maimai_play_count),
+              chunithm_play_count=COALESCE(EXCLUDED.chunithm_play_count, daily_play.chunithm_play_count),
               maimai_cumulative=EXCLUDED.maimai_cumulative,
               chunithm_cumulative=EXCLUDED.chunithm_cumulative,
               maimai_rating=EXCLUDED.maimai_rating,
@@ -151,7 +180,7 @@ async def upsert_daily_play_single_game(
     date_str: str,
     cumulative: int,
     rating: float | int | Decimal | None,
-) -> None:
+) -> str | None:
     """Upsert one game's columns for a date without clobbering the other game.
 
     Used by the chuumai-tools import path (refresh button) so maimai and chunithm
@@ -167,8 +196,13 @@ async def upsert_daily_play_single_game(
             Decimal("0.01"), rounding=ROUND_HALF_UP
         )
 
-    previous = await get_previous_cumulative(game, date_str)
-    new_plays = 0 if previous == 0 else max(0, cumulative - previous)
+    from play_counter.attribution import daily_count
+
+    previous = await get_previous_observation(game, date_str)
+    new_plays, reason = daily_count(previous, date_str, cumulative)
+    if reason:
+        reason = f"{game}: {reason}"
+        print(f"[WARN] {reason}")
 
     play_count_col = f"{game}_play_count"
     cumulative_col = f"{game}_cumulative"
@@ -176,24 +210,27 @@ async def upsert_daily_play_single_game(
 
     query = f"""
         INSERT INTO public.daily_play
-            (play_date, {play_count_col}, {cumulative_col}, {rating_col})
-        VALUES ($1, $2, $3, $4)
+            (play_date, {play_count_col}, {cumulative_col}, {rating_col}, failure_reason)
+        VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (play_date) DO UPDATE SET
-            {play_count_col} = EXCLUDED.{play_count_col},
+            {play_count_col} = COALESCE(EXCLUDED.{play_count_col}, daily_play.{play_count_col}),
             {cumulative_col} = EXCLUDED.{cumulative_col},
-            {rating_col} = EXCLUDED.{rating_col}
+            {rating_col} = EXCLUDED.{rating_col},
+            failure_reason = COALESCE(daily_play.failure_reason, EXCLUDED.failure_reason)
     """
     date_obj = datetime.strptime(date_str, "%Y-%m-%d")
 
     conn = await connect_db()
     try:
-        await conn.execute(query, date_obj, new_plays, cumulative, rating)
+        await conn.execute(query, date_obj, new_plays, cumulative, rating, reason)
         print(
             f"[OK] daily_play upsert: {date_str} {game} "
             f"cumulative={cumulative}, rating={rating}, new_plays={new_plays}"
         )
     finally:
         await conn.close()
+
+    return reason
 
 
 async def test_db_connection():
@@ -202,11 +239,11 @@ async def test_db_connection():
         return False
 
     try:
-        conn = await asyncpg.connect(DATABASE_URL)
+        conn = await connect_db()
         await conn.close()
         print("[OK] Cloud DB connection OK")
     except Exception as e:
-        print(f"Database connection failed: {e}")
+        print(f"Database connection failed: {type(e).__name__}")
         return False
 
     return True

@@ -3,8 +3,9 @@ import sys
 from datetime import datetime, timezone, timedelta
 
 from play_counter.config import CONFIG
+from play_counter.attribution import daily_count
 from play_counter.daily_play_notifier import send_notification
-from play_counter.db import get_previous_cumulative, get_previous_rating, init_schema, test_db_connection, upsert_daily_play
+from play_counter.db import get_previous_cumulative, get_previous_observation, get_previous_rating, init_schema, test_db_connection, upsert_daily_play
 from play_counter.reports.monthly import generate_monthly_report
 from play_counter.reports.weekly import generate_weekly_report
 from play_counter.scraper import fetch_player_data
@@ -65,21 +66,16 @@ async def main():
             sys.exit(1)
         return
 
+    BKK = timezone(timedelta(hours=7))
+    today = datetime.now(BKK)
+    today_str = today.strftime("%Y-%m-%d")
+
     # Test DB connection first
     if not await test_db_connection():
         print("Exiting: Database is unreachable.")
         sys.exit(1)
 
     await init_schema()
-
-    BKK = timezone(timedelta(hours=7))
-    today = datetime.now(BKK)
-    today_str = today.strftime("%Y-%m-%d")
-
-    if today.day == 1:
-        await generate_monthly_report()
-    if today.weekday() == 0:
-        await generate_weekly_report()
 
     # Fetch all player data in one browser session per game.
     # maimai returns both cumulative count and record-page daily count.
@@ -108,43 +104,22 @@ async def main():
             if ratings[game] is None or ratings[game] == 0:
                 ratings[game] = await get_previous_rating(game, today_str)
 
-    # Calculate new plays (dual logic)
-    # prev_cumulative = the *_cumulative value from the most recent DB record (yesterday's baseline)
-    # On first run: prev_cumulative is 0, so new_plays=0 (don't record prior plays)
-    # On subsequent runs: new_plays = today's cumulative - prev_cumulative (actual delta)
-    # maimai: if the record page contains the full target date, prefer TRACK 01 count
-    # because it is calendar-day exact. Otherwise fall back to cumulative delta.
-    prev_cumulative = {
-        game: await get_previous_cumulative(game, today_str)
-        for game in cumulative
-    }
+    # Preserve the observation date: a recovery delta can cover several days.
     new_plays = {}
-    for game in cumulative:
-        if prev_cumulative[game] == 0:
-            delta_plays = 0
-        else:
-            delta_plays = max(0, cumulative[game] - prev_cumulative[game])
-
-        record_play_count = player_data[game].get("record_play_count")
-        record_complete = player_data[game].get("record_play_count_complete", False)
-        if game == "maimai" and record_complete and record_play_count is not None:
-            new_plays[game] = record_play_count
-            print(
-                f"[OK] maimai daily plays from record page: {record_play_count} "
-                f"(cumulative delta was {delta_plays})"
-            )
-        else:
-            new_plays[game] = delta_plays
-            if game == "maimai":
-                if prev_cumulative[game] == 0:
-                    print(
-                        "[WARN] maimai first-run baseline only: record page was "
-                        "unavailable or unsafe, so today's count is stored as 0."
-                    )
-                else:
-                    print(
-                        f"[OK] maimai daily plays from cumulative delta: {delta_plays}"
-                    )
+    attribution_errors = []
+    for game, data in player_data.items():
+        if data.get("failed", False):
+            new_plays[game] = None
+            continue
+        previous = await get_previous_observation(game, today_str)
+        exact = (data.get("record_play_count")
+                 if game == "maimai" and data.get("record_play_count_complete")
+                 else None)
+        new_plays[game], reason = daily_count(previous, today_str, cumulative[game], exact)
+        if reason:
+            attribution_errors.append(f"{game}: {reason}")
+        print(f"[OK] {game} daily plays: {new_plays[game]}")
+    failure_reason = " | ".join(filter(None, [failure_reason, *attribution_errors]))
 
     # Insert with ratings and failure info
     await upsert_daily_play(
@@ -156,20 +131,26 @@ async def main():
         ratings.get("maimai"),
         ratings.get("chunithm"),
         scrape_failed=scrape_failed,
-        failure_reason=failure_reason if scrape_failed else None,
+        failure_reason=failure_reason or None,
     )
 
     for game in ("chunithm", "maimai"):
         data = player_data.get(game)
-        if data is not None and not data.get("failed", False):
-            send_notification(game, new_plays.get(game, 0))
+        if (data is not None and not data.get("failed", False)
+                and new_plays.get(game) is not None):
+            if not send_notification(game, new_plays.get(game, 0)):
+                raise RuntimeError(f"{game}: daily notification delivery failed")
 
-    if scrape_failed:
+    if scrape_failed or attribution_errors:
         print(
-            "[ERROR] One or more game scrapers failed after database "
-            "carry-forward; failing the workflow."
+            "[ERROR] Scrape or daily attribution incomplete: " + failure_reason
         )
         raise SystemExit(1)
+
+    if today.day == 1:
+        await generate_monthly_report()
+    if today.weekday() == 0:
+        await generate_weekly_report()
 
 
 if __name__ == "__main__":

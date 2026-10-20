@@ -208,8 +208,8 @@ class TestScanOutputsDirectory:
     def test_scan_finds_json_files(self, tmp_path):
         """Finds all JSON files in outputs directory."""
         # Create dummy JSON files
-        (tmp_path / "maimai_data.json").write_text(json.dumps(MAIMAI_FULL_DATA))
-        (tmp_path / "chunithm_data.json").write_text(json.dumps(CHUNITHM_FULL_DATA))
+        (tmp_path / "full-maimai.json").write_text(json.dumps(MAIMAI_FULL_DATA))
+        (tmp_path / "full-chunithm.json").write_text(json.dumps(CHUNITHM_FULL_DATA))
         (tmp_path / "other.txt").write_text("not json")
 
         files = list(scan_outputs_directory(tmp_path))
@@ -244,7 +244,7 @@ class TestImportUserData:
     async def test_import_maimai_data(self, mock_conn):
         """Successfully imports maimai data."""
         with patch("import_user_data.connect_db", return_value=mock_conn):
-            result = await import_user_data(MAIMAI_FULL_DATA)
+            result = await import_user_data(MAIMAI_FULL_DATA, "maimai")
             
         assert result["game"] == "maimai"
         assert "scraped_at" in result
@@ -258,7 +258,7 @@ class TestImportUserData:
     async def test_import_chunithm_data(self, mock_conn):
         """Successfully imports chunithm data."""
         with patch("import_user_data.connect_db", return_value=mock_conn):
-            result = await import_user_data(CHUNITHM_FULL_DATA)
+            result = await import_user_data(CHUNITHM_FULL_DATA, "chunithm")
             
         assert result["game"] == "chunithm"
         assert "scraped_at" in result

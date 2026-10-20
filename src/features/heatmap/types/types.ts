@@ -7,8 +7,10 @@ export type HeatmapGame = Game | "ongeki";
 
 export interface DailyRow {
   play_date: string;
-  maimai_play_count: number;
-  chunithm_play_count: number;
+  scrape_failed?: boolean;
+  failure_reason?: string | null;
+  maimai_play_count: number | null;
+  chunithm_play_count: number | null;
   ongeki_track_count?: number;
   inferred_games?: HeatmapGame[];
   maimai_rating?: number | null;
