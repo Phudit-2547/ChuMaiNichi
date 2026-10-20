@@ -69,7 +69,8 @@ def plan():
     return {'baseline_date': '2026-10-18',
             'baseline': {'maimai': 732, 'chunithm': 338},
             'end': {'maimai': 733, 'chunithm': 339},
-            'days': [{'date': '2026-10-19', 'maimai': 1, 'chunithm': 1},
+            'days': [{'date': '2026-10-19', 'maimai': 1, 'chunithm': 1,
+                      'rating_source_date': '2026-10-20'},
                      {'date': '2026-10-20', 'maimai': 0, 'chunithm': 0}]}
 
 
@@ -88,7 +89,7 @@ def test_backfill_restores_both_days_without_inventing_ratings():
     assert [r['chunithm_play_count'] for r in changes] == [1, 0]
     assert [r['maimai_cumulative'] for r in changes] == [733, 733]
     assert [r['chunithm_cumulative'] for r in changes] == [339, 339]
-    assert changes[0]['maimai_rating'] is None
+    assert changes[0]['maimai_rating'] == 14561
     assert changes[1]['maimai_rating'] == 14561
 
 
@@ -235,3 +236,10 @@ def test_missing_source_rating_rejected():
     before[-1]['maimai_rating'] = None
     with pytest.raises(ValueError, match='source rating is missing'):
         build_repair(data, before)
+
+
+def test_incomplete_rating_backfill_is_rejected_before_writes():
+    data = plan()
+    del data['days'][0]['rating_source_date']
+    with pytest.raises(ValueError, match='complete backfill requires a verified rating source'):
+        build_repair(data, rows())

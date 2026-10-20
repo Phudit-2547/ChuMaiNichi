@@ -524,8 +524,9 @@ The tool itself does not clamp. Instead the staging guard lives in `src/api/chat
   dispatch the same plan with `repair_apply=true` and `repair_expected_sha256`.
   The repair locks the table, validates both cumulative anchors and the reviewed
   row fingerprint, writes the whole interval in one transaction, and verifies
-  the result before commit. Existing ratings are preserved; absent historical
-  ratings remain NULL unless a day explicitly supplies `rating_source_date`.
+  the result before commit. Existing ratings are preserved; missing historical
+  ratings require an explicit `rating_source_date`, otherwise the repair fails
+  before writing. A completed repair must include both games' ratings.
   That source must be a successful later observation within the repair interval
   with identical cumulative totals for both games (no intervening plays), and
   non-null ratings. This fills missing ratings only and preserves existing ones.

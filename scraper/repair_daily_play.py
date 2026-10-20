@@ -77,6 +77,9 @@ def build_repair(plan, rows):
                 # historical ratings always win over a later observation.
                 if result[f"{game}_rating"] is None:
                     result[f"{game}_rating"] = source[f"{game}_rating"]
+        for game in GAMES:
+            if result[f"{game}_rating"] is None:
+                raise ValueError(f"{game}: rating missing for {when}; complete backfill requires a verified rating source")
         changes.append(result)
     digest = hashlib.sha256(json.dumps(
         {"plan": plan, "before": [dict(r) for r in rows]},
