@@ -23,7 +23,7 @@ from typing import Any
 import asyncpg
 from pydantic import BaseModel, ValidationError
 
-from play_counter.db import init_schema, upsert_daily_play_single_game
+from play_counter.db import connect_db, init_schema, upsert_daily_play_single_game
 
 BKK = timezone(timedelta(hours=7))
 
@@ -93,12 +93,6 @@ MISSING_DATABASE_URL_MESSAGE = (
 )
 
 
-async def connect_db():
-    """Create a database connection."""
-    database_url = os.environ.get("DATABASE_URL")
-    if not database_url:
-        raise RuntimeError(MISSING_DATABASE_URL_MESSAGE)
-    return await asyncpg.connect(database_url)
 
 
 async def import_user_data(data: dict[str, Any], game: str) -> dict[str, Any]:
@@ -439,6 +433,7 @@ async def main(outputs_dir: Path | None = None):
     today_str = datetime.now(BKK).strftime("%Y-%m-%d")
 
     imported_count = 0
+    failures = []
     for json_file in json_files:
         try:
             print(f"Processing {json_file.name}...")
@@ -470,12 +465,17 @@ async def main(outputs_dir: Path | None = None):
             else:
                 cumulative, rating = stats
                 try:
-                    await upsert_daily_play_single_game(game, today_str, cumulative, rating)
+                    reason = await upsert_daily_play_single_game(game, today_str, cumulative, rating)
+                    if reason:
+                        failures.append(reason)
                 except Exception as e:
-                    print(f"[ERROR] daily_play upsert failed for {game}: {e}")
+                    print(f"[ERROR] daily_play upsert failed for {game}: {type(e).__name__}")
+                    failures.append(f"{game}: daily_play write failed")
         except ValidationError as e:
+            failures.append("Invalid scraper output")
             print(f"[ERROR] Invalid data in {json_file.name}: {e}")
         except Exception as e:
+            failures.append("Import failed")
             print(f"[ERROR] Failed to import {json_file.name}: {e}")
     
     # Prune old snapshots after all imports
@@ -488,6 +488,8 @@ async def main(outputs_dir: Path | None = None):
             await conn.close()
     
     print(f"Done. Imported {imported_count} file(s)")
+    if failures:
+        raise RuntimeError("; ".join(failures))
 
 
 if __name__ == "__main__":

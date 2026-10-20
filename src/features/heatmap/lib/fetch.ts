@@ -8,7 +8,7 @@ const TABLE_BY_REGION: Record<DataRegion, string> = {
 
 const COLUMNS_BY_REGION: Record<DataRegion, string> = {
   international: `play_date::text, maimai_play_count, chunithm_play_count,
-                  maimai_rating, chunithm_rating`,
+                  maimai_rating, chunithm_rating, scrape_failed, failure_reason`,
   japan: `play_date::text, maimai_play_count, chunithm_play_count,
           ongeki_track_count, inferred_games`,
 };

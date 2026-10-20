@@ -8,12 +8,12 @@ on:
         required: false
         default: ''
 
+concurrency:
+  group: daily-play-${{ github.repository }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
-
-concurrency:
-  group: scrape-user-data
-  cancel-in-progress: true
 
 jobs:
   scrape-user-data:
@@ -155,3 +155,32 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           uv run python import_user_data.py "${{ github.workspace }}/outputs"
+
+      - name: Notify workflow failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 - <<'PYTHON'
+          import json, os, time, urllib.request
+          url = os.environ.get("DISCORD_WEBHOOK_URL")
+          if not url:
+              print("::warning::DISCORD_WEBHOOK_URL is not configured; failure alert not delivered")
+              raise SystemExit(0)
+          payload = json.dumps({
+              "content": "⚠️ ChuMaiNichi scrape/repair failed or needs backfill. Daily counts may be incomplete. " + os.environ["RUN_URL"],
+              "allowed_mentions": {"parse": []},
+          }).encode()
+          for attempt in range(3):
+              try:
+                  req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json", "User-Agent": "ChuMaiNichi/1.0"})
+                  with urllib.request.urlopen(req, timeout=10):
+                      print("Failure alert delivered")
+                  break
+              except Exception as exc:
+                  print(f"::warning::Failure alert attempt {attempt + 1}/3: {type(exc).__name__}")
+                  if attempt == 2:
+                      raise SystemExit(1)
+                  time.sleep(2 ** attempt)
+          PYTHON

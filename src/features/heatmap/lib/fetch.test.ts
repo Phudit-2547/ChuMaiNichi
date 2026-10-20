@@ -46,6 +46,8 @@ describe("region-aware heatmap queries", () => {
     expect(sql).toContain("FROM daily_play");
     expect(sql).toContain("maimai_rating");
     expect(sql).toContain("chunithm_rating");
+    expect(sql).toContain("scrape_failed");
+    expect(sql).toContain("failure_reason");
     expect(sql).not.toContain("ongeki_track_count");
     expect(sql).not.toContain("inferred_games");
   });

@@ -503,3 +503,28 @@ The tool itself does not clamp. Instead the staging guard lives in `src/api/chat
 - Python for scraper only.
 - Prefer simplest solution that works. Do not over-engineer.
 - When in doubt about platform pricing or limits, search and verify — do not guess.
+
+## Daily scraper recovery
+
+- All Python DB connections in the daily scraper and user-data importer retry
+  transient connection failures up to four times (20-second connect timeout;
+  2/4/8-second backoff). Writes are not automatically replayed.
+- `get_previous_observation` excludes failed/carry-forward rows. If a cumulative
+  increase spans a gap, the current daily count is NULL unless a complete maimai
+  record page proves it. The real cumulative observation is retained for the next
+  day. `failure_reason` also records attribution gaps when `scrape_failed=false`:
+  the scrape succeeded but daily history needs repair. The UI shows these warnings.
+- Both scraper workflows serialize daily-play writes and send a Discord failure
+  alert independently of DB availability. Score Refresh exits nonzero on failed
+  daily writes or ambiguous attribution instead of silently reporting success.
+- For confirmed historical counts, dispatch `scrape-daily.yml` with `repair_plan`
+  JSON: `baseline_date`, `baseline` and `end` cumulative objects keyed by game,
+  and consecutive `days` objects containing `date`, `maimai`, and `chunithm`.
+  Default is read-only dry-run. Review its proposed rows and `REPAIR_SHA256`, then
+  dispatch the same plan with `repair_apply=true` and `repair_expected_sha256`.
+  The repair locks the table, validates both cumulative anchors and the reviewed
+  row fingerprint, writes the whole interval in one transaction, and verifies
+  the result before commit. Existing ratings are preserved; absent historical
+  ratings remain NULL. Never commit personal repair plans or database exports.
+- Legacy `backfill_date` only marks a date failed with carried-forward values;
+  it does not recover known plays. Use the verified repair plan for actual counts.
