@@ -2,6 +2,8 @@
 
 REPAIR_PLAN is JSON with baseline_date, days [{date, maimai, chunithm}],
 baseline {maimai, chunithm}, and end {maimai, chunithm} cumulative anchors.
+A day may specify rating_source_date: a later successful observation within
+the interval with the same cumulative totals (no intervening plays).
 Dry-run by default. Applying requires REPAIR_APPLY=true and the SHA256 printed
 by the dry-run in REPAIR_EXPECTED_SHA256. No credentials are printed.
 """
@@ -58,6 +60,23 @@ def build_repair(plan, rows):
             result[f"{game}_cumulative"] = cumulative[game]
             # Never invent a historical rating; retain it only if already recorded.
             result[f"{game}_rating"] = old.get(f"{game}_rating")
+        source_date = day.get("rating_source_date")
+        if source_date:
+            source_day = date.fromisoformat(source_date)
+            if not when <= source_day <= end:
+                raise ValueError("Rating source must be within the repaired interval after the target")
+            source = by_date.get(source_day)
+            if not source or source["scrape_failed"]:
+                raise ValueError("Rating source must be a successful observation")
+            for game in GAMES:
+                if source[f"{game}_cumulative"] != result[f"{game}_cumulative"]:
+                    raise ValueError(f"{game}: intervening plays; cannot use source rating")
+                if source.get(f"{game}_rating") is None:
+                    raise ValueError(f"{game}: source rating is missing")
+                # Explicit opt-in based on a verified no-play interval. Existing
+                # historical ratings always win over a later observation.
+                if result[f"{game}_rating"] is None:
+                    result[f"{game}_rating"] = source[f"{game}_rating"]
         changes.append(result)
     digest = hashlib.sha256(json.dumps(
         {"plan": plan, "before": [dict(r) for r in rows]},
@@ -98,6 +117,8 @@ async def repair(plan, apply=False, expected_digest=None):
                         chunithm_play_count=EXCLUDED.chunithm_play_count,
                         maimai_cumulative=EXCLUDED.maimai_cumulative,
                         chunithm_cumulative=EXCLUDED.chunithm_cumulative,
+                        maimai_rating=COALESCE(daily_play.maimai_rating, EXCLUDED.maimai_rating),
+                        chunithm_rating=COALESCE(daily_play.chunithm_rating, EXCLUDED.chunithm_rating),
                         scrape_failed=FALSE, failure_reason=NULL
                 """, row["play_date"], row["maimai_play_count"], row["chunithm_play_count"],
                     row["maimai_cumulative"], row["chunithm_cumulative"],

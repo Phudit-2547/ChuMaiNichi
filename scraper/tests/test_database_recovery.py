@@ -189,3 +189,49 @@ async def test_repair_apply_verifies_in_transaction(monkeypatch):
     await repairer.repair(plan(), apply=True, expected_digest=digest)
     assert conn.execute.await_count == 3
     assert transaction.__aexit__.await_args.args == (None, None, None)
+
+
+def test_rating_backfill_from_confirmed_no_play_interval():
+    data = plan()
+    data['days'][0]['rating_source_date'] = '2026-10-20'
+    changes, _ = build_repair(data, rows())
+    assert changes[0]['maimai_rating'] == 14561
+    assert changes[0]['chunithm_rating'] == 15.26
+    assert changes[0]['maimai_play_count'] == 1
+    assert changes[1]['chunithm_play_count'] == 0
+
+
+def test_rating_backfill_preserves_existing_historical_rating():
+    data = plan()
+    data['days'][0]['rating_source_date'] = '2026-10-20'
+    before = rows() + [{'play_date': date(2026, 10, 19), 'maimai_rating': 14560,
+                        'chunithm_rating': 15.25}]
+    changes, _ = build_repair(data, before)
+    assert changes[0]['maimai_rating'] == 14560
+    assert changes[0]['chunithm_rating'] == 15.25
+
+
+def test_rating_backfill_rejects_intervening_plays():
+    data = plan()
+    data['days'][0]['maimai'] = 0
+    data['days'][1]['maimai'] = 1
+    data['days'][0]['rating_source_date'] = '2026-10-20'
+    with pytest.raises(ValueError, match='intervening plays'):
+        build_repair(data, rows())
+
+
+@pytest.mark.parametrize('source_date', ['2026-10-18', '2026-10-21'])
+def test_rating_source_outside_interval_rejected(source_date):
+    data = plan()
+    data['days'][0]['rating_source_date'] = source_date
+    with pytest.raises(ValueError, match='within the repaired interval'):
+        build_repair(data, rows())
+
+
+def test_missing_source_rating_rejected():
+    data = plan()
+    data['days'][0]['rating_source_date'] = '2026-10-20'
+    before = rows()
+    before[-1]['maimai_rating'] = None
+    with pytest.raises(ValueError, match='source rating is missing'):
+        build_repair(data, before)
