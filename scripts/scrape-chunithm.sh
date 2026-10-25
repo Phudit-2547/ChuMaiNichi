@@ -20,16 +20,27 @@ if [[ -z "${SEGA_USERNAME:-}" || -z "${SEGA_PASSWORD:-}" ]]; then
   exit 1
 fi
 
+CHUNITHM_VERSION=$(node -e '
+const fs = require("fs");
+const config = JSON.parse(fs.readFileSync("config.json", "utf8"));
+const version = config.game_versions?.chunithm?.scraper;
+if (typeof version !== "string" || version.length === 0) process.exit(1);
+process.stdout.write(version);
+') || {
+  echo "Error: config.json is missing game_versions.chunithm.scraper"
+  exit 1
+}
+
 OUT_DIR="$(pwd)/scripts/outputs"
 rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR"
 
-echo "Running chunithm scraper..."
+echo "Running chunithm scraper for $CHUNITHM_VERSION..."
 docker run --rm \
   -v "$OUT_DIR:/app/outputs" \
   -e "USERNAME=$SEGA_USERNAME" \
   -e "PASSWORD=$SEGA_PASSWORD" \
-  -e VERSION=XVRSX \
+  -e "VERSION=$CHUNITHM_VERSION" \
   -e TZ=Asia/Bangkok \
   -e LANG=th_TH.UTF-8 \
   ghcr.io/leomotors/chunithm-scraper:v6
