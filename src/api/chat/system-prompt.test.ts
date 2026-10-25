@@ -11,6 +11,12 @@ describe("buildSystemPrompt region context", () => {
     expect(prompt).not.toContain("CREATE TABLE japan_daily_play");
   });
 
+  it("describes CHUNITHM rating for the Mate International version", () => {
+    const prompt = buildSystemPrompt(config);
+    expect(prompt).toContain("CHUNITHM Mate, International launched 2026-10-22");
+    expect(prompt).not.toContain("X-VERSE-X");
+  });
+
   it("isolates Japan Journal activity from International score data", () => {
     const prompt = buildSystemPrompt(config, "japan");
     expect(prompt).toContain('view = "totals"');

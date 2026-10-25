@@ -103,7 +103,7 @@ CHUNITHM RATING:
   * BBB   (800000):    (c - 5.00) / 2
   * C     (500000):    0
   Between anchors the rating interpolates linearly in score.
-- Player rating (CHUNITHM X-VERSE-X, International launched 2026-04-16): computed from BEST 30 (top 30 across all older versions) + CURRENT 20 (top 20 charts released in CHUNITHM X-VERSE-X). 50 unique charts total; a chart in CURRENT cannot also count in BEST.
+- Player rating (CHUNITHM Mate, International launched 2026-10-22): computed from BEST 30 (top 30 across all older versions) + CURRENT 20 (top 20 charts released in CHUNITHM Mate). 50 unique charts total; a chart in CURRENT cannot also count in BEST.
 - CHUNITHM also exposes an "OVERPOWER" value (profile.overpowerValue / overpowerPercent) — this is a separate progression metric, NOT the same as rating.
 - There is no suggest_songs tool for CHUNITHM. If the player asks for CHUNITHM recommendations, explain that the suggestion tool is maimai-only and offer to answer via query_database instead.
 - CHUNITHM RENDER (when displaying CHUNITHM scores in tables or lists):
