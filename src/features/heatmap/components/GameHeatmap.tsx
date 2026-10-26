@@ -18,6 +18,7 @@ import {
   timestampToDateKey,
 } from "../lib/inference";
 import { StatsBar } from "./StatsBar";
+import { isEditableDate } from "../../../global/lib/play-log";
 import { Legend } from "./Legend";
 
 const CELL_SIZE = 15;
@@ -28,6 +29,7 @@ function formatCellText({
   value,
   recordedDates,
   ratingLookup,
+  ticketLookup = {},
   ratingSeparator,
   todayKey,
   unit,
@@ -39,6 +41,7 @@ function formatCellText({
   value: number | null | undefined;
   recordedDates: Set<string>;
   ratingLookup: Record<string, number>;
+  ticketLookup?: Record<string, number>;
   ratingSeparator: string;
   todayKey: string;
   unit: "play" | "track";
@@ -58,6 +61,8 @@ function formatCellText({
   const inferred = inferredDates.has(dateKey);
   const marker = inferred && !accessible ? "*" : "";
   let line = `${count} ${label}${marker} on ${formattedDate}`;
+  const tickets = ticketLookup[dateKey];
+  if (tickets) line += `${ratingSeparator}${tickets} ${tickets === 1 ? "ticket" : "tickets"}`;
   if (rating != null) line += `${ratingSeparator}Rating: ${rating.toFixed(2)}`;
   if (inferred) {
     line += `${ratingSeparator}${accessible ? "Inferred from Journal context" : INFERENCE_NOTE}`;
@@ -69,14 +74,17 @@ export function GameHeatmap({
   game,
   data,
   year,
+  onEditDay,
 }: {
   game: HeatmapGame;
   data: DailyRow[];
   year: number;
+  onEditDay?: (date: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const calRef = useRef<CalHeatmap | null>(null);
   const [tapInfo, setTapInfo] = useState("");
+  const [tapDate, setTapDate] = useState<string | null>(null);
   const unit = ACTIVITY_UNIT[game];
 
   const stats = useMemo(
@@ -111,6 +119,12 @@ export function GameHeatmap({
         if (rating != null) ratingLookup[d.play_date] = Number(rating);
       }
     }
+    const ticketLookup: Record<string, number> = {};
+    if (game !== "ongeki")
+      for (const d of data) {
+        const tickets = d.tickets?.[game];
+        if (tickets) ticketLookup[d.play_date] = tickets;
+      }
 
     const cal = new CalHeatmap();
     let cancelled = false;
@@ -178,6 +192,7 @@ export function GameHeatmap({
                   value,
                   recordedDates,
                   ratingLookup,
+              ticketLookup,
                   ratingSeparator: "\n",
                   todayKey,
                   unit,
@@ -232,6 +247,7 @@ export function GameHeatmap({
               value: datum.v,
               recordedDates,
               ratingLookup,
+              ticketLookup,
               ratingSeparator: ". ",
               todayKey,
               unit,
@@ -272,6 +288,7 @@ export function GameHeatmap({
         year: "numeric",
       });
 
+      setTapDate(dateKey);
       setTapInfo(
         formatCellText({
           dateKey,
@@ -279,6 +296,7 @@ export function GameHeatmap({
           value: datum.v,
           recordedDates,
           ratingLookup,
+          ticketLookup,
           ratingSeparator: " · ",
           todayKey,
           unit,
@@ -331,12 +349,23 @@ export function GameHeatmap({
         {stats.currentStreak} days. Longest streak: {stats.longestStreak} days.
       </span>
       <div className="flex items-center justify-between mt-2 min-h-[1.6em]">
-        <p
-          className={`text-xs text-muted-foreground m-0 transition-colors duration-150 ${tapInfo ? "text-foreground" : ""}`}
-          aria-live="polite"
-        >
-          {tapInfo || "Click a cell for details"}
-        </p>
+        <div className="flex items-center gap-2 min-w-0">
+          <p
+            className={`text-xs text-muted-foreground m-0 transition-colors duration-150 ${tapInfo ? "text-foreground" : ""}`}
+            aria-live="polite"
+          >
+            {tapInfo || "Click a cell for details"}
+          </p>
+          {onEditDay && tapDate && isEditableDate(tapDate) && (
+            <button
+              type="button"
+              className="quiet-btn glass-control shrink-0 rounded-md border border-border px-2.5 py-1 text-xs"
+              onClick={() => onEditDay(tapDate)}
+            >
+              Edit day
+            </button>
+          )}
+        </div>
         <Legend game={game} showInference={inferredDates.size > 0} />
       </div>
     </div>

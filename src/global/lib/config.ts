@@ -15,6 +15,13 @@ export interface AppConfig {
     };
   };
   currency_per_play: number;
+  tickets: Record<Game, TicketDef[]>;
+}
+
+export interface TicketDef {
+  id: string;
+  label: string;
+  extra_credits: number;
 }
 
 export const APP_CONFIG = rawConfig as AppConfig;

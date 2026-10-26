@@ -23,6 +23,7 @@ from typing import Any
 import asyncpg
 from pydantic import BaseModel, ValidationError
 
+from fill_daily_play import fill_missing_days
 from play_counter.db import connect_db, init_schema, upsert_daily_play_single_game
 
 BKK = timezone(timedelta(hours=7))
@@ -431,6 +432,14 @@ async def main(outputs_dir: Path | None = None):
     print(f"Found {len(json_files)} JSON file(s)")
     
     today_str = datetime.now(BKK).strftime("%Y-%m-%d")
+
+    # A day with no row means no play; record it now so today's counter delta
+    # is attributed to today even if the nightly fill has not run yet.
+    conn = await connect_db()
+    try:
+        await fill_missing_days(conn, datetime.now(BKK).date() - timedelta(days=1))
+    finally:
+        await conn.close()
 
     imported_count = 0
     failures = []

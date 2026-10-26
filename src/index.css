@@ -3876,3 +3876,346 @@ rect.heatmap-today {
   .icon-btn--chat { width: 38px; }
   .text-btn--refresh { width: 38px; height: 38px; }
 }
+
+/* Play log editor */
+.play-log__head {
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.play-log__nav {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.play-log__nav:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.play-log__title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.play-log__date {
+  min-height: 44px;
+  padding: 0 0.5rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.play-log__date:hover {
+  background: var(--glass-control-hover-bg);
+}
+
+.play-log__date-input {
+  height: 40px;
+  padding: 0 0.5rem;
+  border: 1px solid var(--glass-control-border);
+  border-radius: 8px;
+  background: var(--glass-control-bg);
+  color: var(--foreground);
+  font: inherit;
+}
+
+.play-log__today {
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--color-accent-hover) 14%, transparent);
+  color: var(--color-accent-hover);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.play-log__head .modal-close {
+  margin-left: 0;
+  width: 44px;
+  height: 44px;
+}
+
+.play-log__body {
+  min-height: 12rem;
+}
+
+.play-log__body[data-loading="true"] {
+  opacity: 0.5;
+  transition: opacity 120ms ease;
+}
+
+/* Pinned near the top so a body height change never moves the header controls. */
+[data-slot="dialog-content"].modal.play-log {
+  top: max(1rem, 8dvh);
+  translate: -50% 0;
+  max-height: calc(100dvh - max(1rem, 8dvh) - 1rem);
+}
+
+.play-log__game {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.9rem 1.25rem 0.8rem;
+  border-bottom: 1px solid var(--glass-hairline);
+}
+
+.play-log__game-name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--foreground);
+}
+
+.play-log__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--game-accent);
+}
+
+.play-log__stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+}
+
+.play-log__step {
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  border: 1px solid var(--glass-control-border);
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.play-log__step--add {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  border-color: color-mix(in oklch, var(--game-accent) 45%, var(--glass-control-border));
+  background: color-mix(in oklch, var(--game-accent) 14%, var(--glass-control-bg));
+}
+
+.play-log__step:disabled,
+.play-log__chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.play-log__count {
+  width: 72px;
+  height: 52px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 2rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.play-log__count:hover,
+.play-log__count:focus {
+  border-color: var(--glass-control-border);
+}
+
+.play-log__count:focus-visible,
+.play-log__nav:focus-visible,
+.play-log__date:focus-visible,
+.play-log__step:focus-visible,
+.play-log__chip:focus-visible,
+.play-log__chip-remove:focus-visible {
+  outline: none;
+  border-color: var(--accent-border);
+  box-shadow: var(--glass-focus-ring);
+}
+
+.play-log__hint,
+.play-log__status,
+.play-log__footer p {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted-foreground);
+  text-align: center;
+}
+
+.play-log__tickets {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.375rem;
+}
+
+.play-log__ticket {
+  display: flex;
+  gap: 2px;
+}
+
+.play-log__chip {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--glass-control-border);
+  color: var(--foreground);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.play-log__chip[data-active="true"] {
+  border-color: color-mix(in oklch, var(--game-accent) 45%, var(--glass-control-border));
+  background: color-mix(in oklch, var(--game-accent) 12%, var(--glass-control-bg));
+  font-weight: 600;
+}
+
+.play-log__chip-extra {
+  font-size: 0.72rem;
+  color: var(--muted-foreground);
+}
+
+.play-log__badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 0.3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--foreground);
+  color: var(--background);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.play-log__chip-remove {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--glass-control-border);
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.play-log__status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.play-log__status > span + span::before {
+  content: "·";
+  margin-right: 0.375rem;
+}
+
+.play-log__saving,
+.play-log__saved,
+.play-log__problem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.play-log__saved svg {
+  color: var(--color-success);
+}
+
+.play-log__problem {
+  color: var(--color-destructive);
+}
+
+.play-log__retry-inline {
+  min-height: 32px;
+  padding: 0 0.6rem;
+  border: 1px solid var(--glass-control-border);
+  border-radius: 8px;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.play-log__message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  min-height: 12rem;
+  color: var(--muted-foreground);
+  font-size: 0.85rem;
+}
+
+.play-log__message p {
+  margin: 0;
+}
+
+.play-log__retry,
+.play-log__done {
+  min-height: 44px;
+  padding: 0 1.25rem;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.play-log__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem 1rem;
+}
+
+@media (max-width: 480px) {
+  [data-slot="dialog-content"].modal.play-log {
+    inset: auto 0 0 0;
+    width: 100%;
+    max-width: none;
+    max-height: 92dvh;
+    translate: none;
+    border-radius: 16px 16px 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+@media (max-width: 360px) {
+  .text-btn--log .text-btn__label { display: none; }
+  .text-btn--log {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    justify-content: center;
+  }
+}

@@ -11,6 +11,14 @@ describe("buildSystemPrompt region context", () => {
     expect(prompt).not.toContain("CREATE TABLE japan_daily_play");
   });
 
+  it("explains logged tickets, spending, and nightly no-play days", () => {
+    const prompt = buildSystemPrompt(config);
+    expect(prompt).toContain("CREATE TABLE daily_ticket");
+    expect(prompt).toContain("(plays + SUM(count * extra_credits)");
+    expect(prompt).toContain("a 0-play day is a day without play");
+    expect(buildSystemPrompt(config, "japan")).not.toContain("daily_ticket");
+  });
+
   it("describes CHUNITHM rating for the Mate International version", () => {
     const prompt = buildSystemPrompt(config);
     expect(prompt).toContain("CHUNITHM Mate, International launched 2026-10-22");

@@ -1,0 +1,78 @@
+name: Fill Days Without Play
+
+on:
+  schedule:
+    - cron: "15 17 * * *" # 00:15 Asia/Bangkok: fills through the day that just ended
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'List the days that would be filled without writing'
+        type: boolean
+        default: false
+
+concurrency:
+  group: daily-play-${{ github.repository }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  fill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Install uv and Python 3.12
+        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Dependencies
+        working-directory: scraper
+        run: uv sync --frozen
+
+      - name: Fill missing days
+        working-directory: scraper
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          PYTHONUNBUFFERED: '1'
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            uv run python fill_daily_play.py --dry-run
+          else
+            uv run python fill_daily_play.py
+          fi
+
+      - name: Notify workflow failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 - <<'PYTHON'
+          import json, os, time, urllib.request
+          url = os.environ.get("DISCORD_WEBHOOK_URL")
+          if not url:
+              print("::warning::DISCORD_WEBHOOK_URL is not configured; failure alert not delivered")
+              raise SystemExit(0)
+          payload = json.dumps({
+              "content": "⚠️ ChuMaiNichi nightly fill failed. Days without play were not recorded. " + os.environ["RUN_URL"],
+              "allowed_mentions": {"parse": []},
+          }).encode()
+          for attempt in range(3):
+              try:
+                  req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json", "User-Agent": "ChuMaiNichi/1.0"})
+                  with urllib.request.urlopen(req, timeout=10):
+                      print("Failure alert delivered")
+                  break
+              except Exception as exc:
+                  print(f"::warning::Failure alert attempt {attempt + 1}/3: {type(exc).__name__}")
+                  if attempt == 2:
+                      raise SystemExit(1)
+                  time.sleep(2 ** attempt)
+          PYTHON

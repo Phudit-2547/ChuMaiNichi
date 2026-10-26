@@ -79,7 +79,7 @@ async def get_previous_cumulative(game: str, today_str: str) -> int:
 
 
 async def get_previous_observation(game: str, today_str: str):
-    """Only real successful observations are safe baselines, never carry-forwards."""
+    """Successful observations, including nightly no-play rows; never flagged carry-forwards."""
     _validate_game(game)
     conn = await connect_db()
     try:

@@ -13,6 +13,7 @@ import refreshHandler from "./api/refresh";
 import modelHandler from "./api/model";
 import coverHandler from "./api/cover";
 import ratingImageHandler from "./api/rating-image";
+import dailyPlayHandler from "./api/daily-play";
 import { toViteMiddleware } from "./src/api/vite-adapter";
 
 /**
@@ -38,6 +39,7 @@ function devApiProxy(): Plugin {
         "/api/rating-image",
         toViteMiddleware(ratingImageHandler),
       );
+      server.middlewares.use("/api/daily-play", toViteMiddleware(dailyPlayHandler));
     },
   };
 }

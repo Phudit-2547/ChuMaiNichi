@@ -10,6 +10,18 @@
     }
   },
   "currency_per_play": 40,
+  "tickets": {
+    "maimai": [
+      { "id": "area_x2", "label": "AREA BOOST x2", "extra_credits": 1 },
+      { "id": "area_x3", "label": "AREA BOOST x3", "extra_credits": 2 }
+    ],
+    "chunithm": [
+      { "id": "map_x2", "label": "MAP PROGRESS x2", "extra_credits": 1 },
+      { "id": "map_x3", "label": "MAP PROGRESS x3", "extra_credits": 2 },
+      { "id": "map_x4", "label": "MAP PROGRESS x4", "extra_credits": 3 },
+      { "id": "exp_x6", "label": "EXP BOOST x6.0", "extra_credits": 1 }
+    ]
+  },
   "discord_notification": {
     "default": {
       "username": "毎日みのり",
