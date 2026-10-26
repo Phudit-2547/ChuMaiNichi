@@ -1,4 +1,4 @@
-import { MessageCircle, RotateCw, Settings } from "lucide-react";
+import { MessageCircle, NotebookPen, RotateCw, Settings } from "lucide-react";
 import useShellStore from "../stores/shell-store";
 
 interface HeaderProps {
@@ -7,6 +7,8 @@ interface HeaderProps {
   refreshing?: boolean;
   refreshStatus?: string;
   refreshAvailable?: boolean;
+  onLog?: () => void;
+  logAvailable?: boolean;
 }
 
 export default function Header({
@@ -15,6 +17,8 @@ export default function Header({
   refreshing = false,
   refreshStatus = "",
   refreshAvailable = true,
+  onLog,
+  logAvailable = false,
 }: HeaderProps) {
   const { chatOpen, toggleChat } = useShellStore();
 
@@ -129,6 +133,21 @@ export default function Header({
       </div>
       <div className="app-header__spacer" />
       <div className="app-header__actions" data-header-actions="score-controls">
+        {logAvailable && onLog && (
+          <button
+            type="button"
+            className="app-header__action app-header__action--primary app-header__action--log text-btn text-btn--log glass-control glass-control--primary"
+            onClick={onLog}
+            title="Log plays for today"
+            aria-label="Log plays for today"
+            data-header-action="log"
+            data-priority="primary"
+            data-state="idle"
+          >
+            <NotebookPen size={16} />
+            <span className="text-btn__label text-btn__label--primary">Log</span>
+          </button>
+        )}
         {refreshAvailable && (
           <button
             type="button"

@@ -18,6 +18,7 @@ Browser (React SPA on Vercel)
     │
     ├── GET  /api/auth    → signed session check (no DB) — the login gate
     ├── POST /api/query   → Neon PostgreSQL (read-only SQL; client retries cold starts)
+    ├── GET/PUT /api/daily-play → day editor: plays + paid tickets (compare-and-set writes)
     ├── POST /api/chat    → Codex subscription or OpenAI-compatible API (tool-use, streaming)
     ├── GET/POST /api/codex-auth → ChatGPT device login/status/disconnect
     ├── POST /api/refresh → GitHub API (trigger workflow_dispatch) + GET poll
@@ -25,6 +26,7 @@ Browser (React SPA on Vercel)
 
 GitHub Actions (cron + manual trigger)
     ├── scrape-daily.yml        → Playwright scraper → Neon → Discord webhook
+    ├── fill-daily-play.yml     → nightly: days with no row → 0 plays, carried totals (no SEGA login)
     └── scrape-user-data.yml    → chuumai-tools Docker → Neon (no git commit)
 
 Neon PostgreSQL (free tier, serverless — scales to zero, so first query pays a warmup cost)
@@ -32,6 +34,7 @@ Neon PostgreSQL (free tier, serverless — scales to zero, so first query pays a
     ├── japan_daily_play   — Journal-derived Japan activity, including ONGEKI tracks
     ├── user_scores        — International JSONB snapshots from chuumai-tools scraper
     ├── user_rating_images — rendered rating-frame images (served by /api/rating-image)
+    ├── daily_ticket       — paid tickets logged in the day editor
     └── codex_oauth_credentials — encrypted Codex credential + model preference
 ```
 
@@ -58,7 +61,8 @@ Neon PostgreSQL (free tier, serverless — scales to zero, so first query pays a
 ```
 ChuMaiNichi/
 ├── .github/workflows/
-│   ├── scrape-daily.yml          # Cron: daily at 22:00 Asia/Bangkok
+│   ├── scrape-daily.yml          # Manual: SEGA scrape, backfill, verified repair
+│   ├── fill-daily-play.yml       # Cron: 00:15 Asia/Bangkok, records days without play
 │   ├── scrape-user-data.yml      # Manual: workflow_dispatch for user.json
 │   └── refresh-songs.yml         # Weekly: cache maimai-songs.json from wonderhoy API
 ├── scraper/                      # Python — migrated from Chunimai-tracker
@@ -74,6 +78,7 @@ ChuMaiNichi/
 │   │       ├── constants.py      # URLs, webhook refs, cost per play
 │   │       └── date_helpers.py
 │   ├── import_user_data.py       # NEW: parse chuumai-tools output → Neon
+│   ├── fill_daily_play.py        # Nightly: missing dates → 0 plays + previous totals/ratings
 │   ├── import_japan_journal.py    # Dry-run-first Obsidian Journal → japan_daily_play
 │   ├── japan_daily_attribution.json # Audited counts for omitted Journal totals
 │   ├── main.py
@@ -82,6 +87,7 @@ ChuMaiNichi/
 │   └── init.sql                  # Schema: International + Japan tables
 ├── api/                          # Vercel serverless functions (thin handlers)
 │   ├── query.ts                  # DB proxy (read-only SELECT only)
+│   ├── daily-play.ts             # Day editor read/write (thin; logic in src/api/daily-play.ts)
 │   ├── auth.ts                   # Session probe — signed cookie only, no DB
 │   ├── chat.ts                   # AI agent proxy (streaming, tool-use)
 │   ├── codex-auth.ts             # ChatGPT device login/status/disconnect
@@ -94,6 +100,7 @@ ChuMaiNichi/
 │   ├── api/                      # Server-side logic imported by api/*.ts handlers
 │   │   ├── auth.ts               # checkAuth(): signed session; legacy migration mode
 │   │   ├── query.ts              # handleRequest/runQuery, SELECT-only guard
+│   │   ├── daily-play.ts         # Play/ticket compare-and-set SQL, validation, handler order
 │   │   ├── query/errors.ts       # QueryException + status-code mapping
 │   │   ├── config.ts             # loadConfig() reads config.json (server)
 │   │   ├── error-handling.ts     # Vite/Vercel error responders
@@ -102,6 +109,7 @@ ChuMaiNichi/
 │   ├── features/                 # Feature-first UI (components + stores + lib)
 │   │   ├── auth/                 # PasskeyGate, AuthLoading, auth-store (zustand)
 │   │   ├── heatmap/              # Heatmap, GameHeatmap, stats, fetch
+│   │   ├── play-log/             # PlayLogDialog (day editor), save queue, store
 │   │   ├── chat/                 # ChatPanel, composer, streaming render
 │   │   ├── settings/            # SettingsModal, settings-store
 │   │   ├── shell/                # Header, shell-store
@@ -109,7 +117,8 @@ ChuMaiNichi/
 │   ├── global/
 │   │   ├── lib/                  # api.ts (fetch wrappers), auth.ts, config.ts,
 │   │   │                         #   maimai-rating.ts, maimai-suggest.ts,
-│   │   │                         #   chunithm-rating.ts, error-handling.ts, games.ts
+│   │   │                         #   chunithm-rating.ts, error-handling.ts, games.ts,
+│   │   │                         #   play-log.ts (day-editor contract shared with the API)
 │   │   └── components/ui/        # shadcn primitives
 │   ├── App.tsx                   # Single page: gate → main view + sidebar + modal
 │   ├── index.css
@@ -142,6 +151,7 @@ The one file friends edit after forking. Read by GitHub Actions (which scrapers 
 |---|---|---|
 | `games` | `["maimai"]`, `["chunithm"]`, or `["maimai", "chunithm"]` | Controls which scrapers run in Actions, which heatmap columns render, and whether `maimai_suggest_songs` is available (maimai only) |
 | `currency_per_play` | Number (THB) | Used in spending calculations on the dashboard |
+| `tickets` | Per game: `[{ id, label, extra_credits }]` | Paid-ticket chips in the day editor; spending adds `extra_credits` per ticket |
 
 **Do NOT put secrets in this file.** It is committed to git and publicly visible.
 
@@ -168,6 +178,7 @@ Single-page app. No `react-router-dom`. No client-side routing.
 - **International**: configured maimai/CHUNITHM heatmaps, rating images, Refresh, and score-aware chat
 - **Japan**: Journal-derived maimai/CHUNITHM heatmaps plus ONGEKI tracks; no Refresh, rating image, or spending calculation
 - **Chat panel**: Right sidebar with isolated history per region. Japan uses a static structured activity tool and cannot issue free-form SQL. International retains the generic read-only SQL tool; its direct Japan-table guard prevents accidental mixing but is not a database security boundary because both contexts share `DATABASE_URL`.
+- **Log button + day editor**: International only, left of Refresh. Opens `PlayLogDialog` on today's Asia/Bangkok date (bottom sheet ≤480px). Per game: −/count/+ and paid-ticket chips; every change saves on its own; ‹ › and a date picker move within the last 366 days. The heatmap's cell details offer **Edit day**
 - **Settings modal**: Overlay triggered by gear icon. Theme toggle and display preferences. Stored in `localStorage`
 - **Game selection and currency**: `config.json` controls International only; the Japan view always uses its Journal schema
 - **Refresh button**: In header or settings. Calls `/api/refresh` to trigger `scrape-user-data.yml`
@@ -188,6 +199,7 @@ Single config file at repo root. Friends edit this once after forking.
 |---|---|---|
 | `games` | `["maimai"]`, `["chunithm"]`, or `["maimai", "chunithm"]` | Controls International scrapers/heatmaps and whether `maimai_suggest_songs` is available |
 | `currency_per_play` | Integer (THB) | Used to calculate money spent in reports and Discord notifications |
+| `tickets` | Per game: `[{ id, label, extra_credits }]` | Paid-ticket chips in the day editor; spending adds `extra_credits` per ticket |
 
 **Who reads it:**
 - GitHub Actions workflows: decides which Docker scrapers to run and which Playwright portals to scrape
@@ -259,11 +271,23 @@ CREATE TABLE IF NOT EXISTS codex_oauth_credentials (
     refresh_lock_until     TIMESTAMPTZ,
     updated_at             TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Table 6: Paid tickets logged in the day editor; each rides on one play.
+CREATE TABLE IF NOT EXISTS public.daily_ticket (
+    play_date     DATE    NOT NULL,
+    game          TEXT    NOT NULL CHECK (game IN ('maimai', 'chunithm')),
+    ticket        TEXT    NOT NULL,       -- config.json tickets[game][].id
+    count         INTEGER NOT NULL CHECK (count BETWEEN 0 AND 99),
+    extra_credits INTEGER NOT NULL CHECK (extra_credits BETWEEN 0 AND 9),
+    PRIMARY KEY (play_date, game, ticket)
+);
 ```
 
-All five tables are created idempotently by `scraper/init.sql`, which runs during a scraper invocation (not on Vercel). The OAuth route also lazily creates/migrates its own table so subscription login does not depend on a later scraper run. Before the first scrape, `/api/rating-image` treats a missing `user_rating_images` table as a 404 so the UI hides cleanly.
+The tables above are created idempotently by `scraper/init.sql`, which runs during a scraper invocation (not on Vercel). The OAuth route also lazily creates/migrates its own table so subscription login does not depend on a later scraper run. Before the first scrape, `/api/rating-image` treats a missing `user_rating_images` table as a 404 so the UI hides cleanly.
 
 **Critical schema rules:** `daily_play` remains International-only and has ONE row per date with columns for BOTH games; any upsert logic that loops per game and inserts twice is a bug. `japan_daily_play` also has ONE row per date, adds ONGEKI tracks, and is written only by the dry-run-first Journal importer. Never merge cumulative values across these tables.
+
+**Day editor rule:** A missing `daily_play` date means no play. A write that creates a row copies the previous row's totals and ratings with the other game at 0; a count change is added to that day's and every later day's `{game}_cumulative` (NULL totals stay NULL); typing a total for an unknown (NULL) count leaves every total alone, because those came from SEGA's counter. Tickets never exceed that day's plays for the game, and spending = (plays + Σ `count × extra_credits`) × `currency_per_play`. `extra_credits` is copied from the catalog when a ticket is first logged.
 
 **Japan attribution rule:** An explicit `-` means the cumulative value is unchanged from the previous day. A game omitted from a Journal total is not automatically a dash; `import_japan_journal.py` must find a non-negative audited daily count in `japan_daily_attribution.json` or block the import. The 2026-06-01 maimai count is a user-estimated 1 play; the 2026-06-06 snapshot therefore contributes the remaining 4 plays. Both cells are listed in `inferred_games` and must display an explanatory `*` in the Japan UI. Reserve `inferred_games` for judgment-based ambiguous splits; deterministic differences between audited totals do not receive a marker.
 
@@ -329,6 +353,11 @@ Protected routes use `checkAuth` and HttpOnly session cookies when `PASSKEY_ORIG
   (4 attempts total) so a waking Neon instance resolves transparently. It never
   retries 4xx (auth/bad-query) or caller-aborted requests.
 
+### GET/PUT /api/daily-play
+- `GET ?date=YYYY-MM-DD` → `{ day: DayState }` (`src/global/lib/play-log.ts`): per configured game `{ plays, tickets }`; a missing row reads as 0 plays.
+- `PUT` body is exactly `{ date, game, count, expected }` or `{ date, game, ticket, count, expected }`; `expected` is the value the client last saw. Writes are single-statement compare-and-set: `200 { day }`, `409 { code: "CONFLICT", day }`, or `400 { code: "TICKETS_EXCEED_PLAYS", day }`.
+- Order: 405 → 503 when neither Passkeys nor `DASHBOARD_PASSWORD` is configured (writes are never open) → 403 unless `Origin` equals `PASSKEY_ORIGIN` (Passkey mode) → 401 → 429 (60 writes/minute, Passkey mode) → 400 validation (date within the last 366 Bangkok days and not in the future, configured game, catalog ticket, counts 0–99) → write. `Cache-Control: private, no-store`. The server never retries a write; `extra_credits` always comes from the server catalog.
+
 ### GET /api/model
 - Returns `{ model: string }` — the active provider's model name for the chat UI. A connected Codex credential takes precedence; returns `503` rather than advertising a display default when neither Codex nor a fallback provider is configured.
 
@@ -371,13 +400,20 @@ Protected routes use `checkAuth` and HttpOnly session cookies when `PASSKEY_ORIG
 ## GitHub Actions workflows
 
 ### scrape-daily.yml
-- Cron: `0 15 * * *` (22:00 Asia/Bangkok)
-- Also: `workflow_dispatch` for manual trigger
+- Trigger: `workflow_dispatch` only (the schedule was removed on 2026-09-02)
 - Reads `config.json` to determine which games to scrape
 - Steps: `uv sync` → `uv run python main.py` → (scraper writes to Neon + sends Discord notification)
 - On first run: executes `init.sql` to create tables if they don't exist (idempotent)
 - Uses `astral-sh/setup-uv@v5` (NOT `actions/setup-python`)
 - Secrets needed: `DATABASE_URL`, `SEGA_USERNAME`, `SEGA_PASSWORD`, `DISCORD_WEBHOOK_URL`
+
+### fill-daily-play.yml
+- Cron: `15 17 * * *` (00:15 Asia/Bangkok), plus `workflow_dispatch` with a `dry_run` option
+- Runs `scraper/fill_daily_play.py`: every date after the first `daily_play` row, through yesterday (Asia/Bangkok), that has no row gets 0 plays and the previous row's cumulative totals and ratings
+- A missing date means the owner did not play. Existing rows are never changed (`ON CONFLICT DO NOTHING`); a day copied from a `scrape_failed` row keeps the flag so unverified totals never become scraper baselines
+- `import_user_data.py` (Refresh) runs the same fill through yesterday before attributing today's counter delta, so a late or skipped nightly run never leaves a gap
+- Shares the `daily-play` concurrency group with `scrape-daily.yml`; posts a Discord alert on failure
+- Secrets needed: `DATABASE_URL` (no SEGA login); `DISCORD_WEBHOOK_URL` for the failure alert
 
 ### scrape-user-data.yml
 - Trigger: `workflow_dispatch` only (from Refresh button or manual)
@@ -509,7 +545,9 @@ The tool itself does not clamp. Instead the staging guard lives in `src/api/chat
 - All Python DB connections in the daily scraper and user-data importer retry
   transient connection failures up to four times (20-second connect timeout;
   2/4/8-second backoff). Writes are not automatically replayed.
-- `get_previous_observation` excludes failed/carry-forward rows. If a cumulative
+- `get_previous_observation` excludes failed and flagged carry-forward rows
+  (`scrape_failed=true`). Nightly no-play rows copied from a successful row count as
+  observations, because a missing day means no play. If a cumulative
   increase spans a gap, the current daily count is NULL unless a complete maimai
   record page proves it. The real cumulative observation is retained for the next
   day. `failure_reason` also records attribution gaps when `scrape_failed=false`:

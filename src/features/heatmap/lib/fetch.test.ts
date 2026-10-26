@@ -52,3 +52,39 @@ describe("region-aware heatmap queries", () => {
     expect(sql).not.toContain("inferred_games");
   });
 });
+
+describe("International ticket counts", () => {
+  beforeEach(() => {
+    queryDBMock.mockReset();
+  });
+
+  it("merges logged tickets into the day rows", async () => {
+    queryDBMock
+      .mockResolvedValueOnce([
+        { play_date: "2026-10-26", maimai_play_count: 3, chunithm_play_count: 0 },
+        { play_date: "2026-10-25", maimai_play_count: 0, chunithm_play_count: 0 },
+      ])
+      .mockResolvedValueOnce([{ play_date: "2026-10-26", game: "maimai", tickets: 2 }]);
+
+    const rows = await fetchData(2026, false);
+
+    expect(String(queryDBMock.mock.calls[1][0])).toContain("FROM daily_ticket");
+    expect(queryDBMock.mock.calls[1][1]).toEqual(["2026-01-01", "2026-12-31"]);
+    expect(rows[0].tickets).toEqual({ maimai: 2 });
+    expect(rows[1].tickets).toBeUndefined();
+  });
+
+  it("still returns plays when the ticket query fails", async () => {
+    queryDBMock
+      .mockResolvedValueOnce([{ play_date: "2026-10-26", maimai_play_count: 3, chunithm_play_count: 0 }])
+      .mockRejectedValueOnce(new Error("relation daily_ticket does not exist"));
+
+    await expect(fetchData(2026, false)).resolves.toHaveLength(1);
+  });
+
+  it("does not query tickets for Japan", async () => {
+    queryDBMock.mockResolvedValue([]);
+    await fetchData(2026, false, undefined, "japan");
+    expect(queryDBMock).toHaveBeenCalledTimes(1);
+  });
+});

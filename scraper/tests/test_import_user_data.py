@@ -332,3 +332,40 @@ class TestMaxSnapshotsConstant:
     def test_max_snapshots_value(self):
         """MAX_SNAPSHOTS_PER_GAME should be 5."""
         assert MAX_SNAPSHOTS_PER_GAME == 5
+
+
+@pytest.mark.asyncio
+async def test_refresh_records_missing_days_before_attributing_today(monkeypatch, tmp_path):
+    import import_user_data as importer
+    from datetime import date as real_date, timedelta
+
+    calls = []
+    conn = AsyncMock()
+
+    async def fake_connect():
+        return conn
+
+    async def fake_fill(c, through):
+        calls.append(("fill", through))
+        return []
+
+    async def fake_upsert(game, day, cumulative, rating):
+        calls.append(("upsert", day))
+        return None
+
+    monkeypatch.setattr(importer, "scan_outputs_directory", lambda _d: [tmp_path / "full.json"])
+    monkeypatch.setattr(importer, "read_json_file", lambda _f: MAIMAI_FULL_DATA)
+    monkeypatch.setattr(importer, "init_schema", AsyncMock())
+    monkeypatch.setattr(importer, "import_user_data", AsyncMock())
+    monkeypatch.setattr(importer, "find_image_for_game", lambda *_a: None)
+    monkeypatch.setattr(importer, "extract_daily_stats", lambda *_a: (735, 14561))
+    monkeypatch.setattr(importer, "prune_old_snapshots", AsyncMock())
+    monkeypatch.setattr(importer, "connect_db", fake_connect)
+    monkeypatch.setattr(importer, "fill_missing_days", fake_fill)
+    monkeypatch.setattr(importer, "upsert_daily_play_single_game", fake_upsert)
+
+    await importer.main(tmp_path)
+
+    today = real_date.fromisoformat(calls[1][1])
+    assert calls[0] == ("fill", today - timedelta(days=1))
+    assert calls[1][0] == "upsert"

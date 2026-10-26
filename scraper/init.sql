@@ -11,6 +11,17 @@ CREATE TABLE IF NOT EXISTS public.daily_play (
     failure_reason       TEXT
 );
 
+-- Paid tickets logged by hand; each rides on one play. extra_credits is copied
+-- from config.json when first logged so a later catalog edit keeps past spending.
+CREATE TABLE IF NOT EXISTS public.daily_ticket (
+    play_date     DATE    NOT NULL,
+    game          TEXT    NOT NULL CHECK (game IN ('maimai', 'chunithm')),
+    ticket        TEXT    NOT NULL,
+    count         INTEGER NOT NULL CHECK (count BETWEEN 0 AND 99),
+    extra_credits INTEGER NOT NULL CHECK (extra_credits BETWEEN 0 AND 9),
+    PRIMARY KEY (play_date, game, ticket)
+);
+
 -- Japan play history is journal-derived and intentionally isolated from the
 -- International scraper table above.  ONGEKI is measured in tracks, not plays.
 -- BEGIN JAPAN_DAILY_PLAY

@@ -25,6 +25,8 @@ import useSettingsStore, {
 import Header from "./features/shell/components/Header";
 import useShellStore from "./features/shell/stores/shell-store";
 import { RegionSwitch } from "./features/heatmap/components/RegionSwitch";
+import PlayLogDialog from "./features/play-log/components/PlayLogDialog";
+import usePlayLogStore from "./features/play-log/stores/play-log-store";
 
 const Heatmap = lazy(() => import("./features/heatmap/components/Heatmap"));
 const RatingImage = lazy(
@@ -241,6 +243,8 @@ function App() {
     dataRegion,
     setDataRegion,
   } = useShellStore();
+  const openPlayLog = usePlayLogStore((state) => state.openDay);
+  const savedNonce = usePlayLogStore((state) => state.savedNonce);
   const themeMode = useSettingsStore((state) => state.themeMode);
   useEffectiveTheme(themeMode);
   useLiquidGlassPointer();
@@ -270,6 +274,11 @@ function App() {
     mql.addEventListener("change", handler);
     return () => mql.removeEventListener("change", handler);
   }, [setChatOpen]);
+
+  useEffect(() => {
+    if (dataRegion !== "international" && usePlayLogStore.getState().open)
+      usePlayLogStore.getState().close(false);
+  }, [dataRegion]);
 
   async function handleRefresh() {
     if (dataRegion !== "international") return;
@@ -313,6 +322,8 @@ function App() {
           refreshing={refreshing}
           refreshStatus={refreshStatus}
           refreshAvailable={dataRegion === "international"}
+          onLog={() => openPlayLog()}
+          logAvailable={dataRegion === "international"}
         />
         <main className="app-main">
           <div className="app-main__inner">
@@ -332,7 +343,7 @@ function App() {
                 key={dataRegion}
                 games={APP_CONFIG.games}
                 region={dataRegion}
-                refreshNonce={refreshNonce}
+                refreshNonce={refreshNonce + savedNonce}
               />
             </Suspense>
             {dataRegion === "international" && (
@@ -349,6 +360,7 @@ function App() {
           <ChatPanel key={dataRegion} region={dataRegion} />
         </div>
       </div>
+      {dataRegion === "international" && <PlayLogDialog />}
       <SettingsModal
         open={settingsOpen}
         onOpenChange={setSettingsOpen}

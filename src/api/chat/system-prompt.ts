@@ -11,6 +11,15 @@ CREATE TABLE daily_play (
   failure_reason       TEXT
 );
 
+CREATE TABLE daily_ticket (
+  play_date     DATE NOT NULL,
+  game          TEXT NOT NULL,      -- 'maimai' or 'chunithm'
+  ticket        TEXT NOT NULL,      -- catalog id, e.g. 'area_x2'
+  count         INTEGER NOT NULL,   -- tickets bought that day (0 rows are kept)
+  extra_credits INTEGER NOT NULL,   -- extra credits per ticket
+  PRIMARY KEY (play_date, game, ticket)
+);
+
 CREATE TABLE user_scores (
   id         SERIAL PRIMARY KEY,
   game       TEXT NOT NULL,
@@ -123,9 +132,11 @@ ${SCHEMA_DDL}
 RULES:
 - daily_play has ONE row per date with columns for BOTH games. Dates use Asia/Bangkok timezone.
 - user_scores stores JSONB snapshots from chuumai-tools (latest ~5 kept per game).
+- Play counts are logged by the owner. A missing past day is filled nightly as 0 plays with the previous day's totals and ratings: a 0-play day is a day without play, not missing data.
+- daily_ticket holds paid tickets bought on plays (one ticket per credit, never more tickets than plays). Spending for a game on a day = (plays + SUM(count * extra_credits) of that game's tickets) × currency per play. Without tickets that is plays × currency per play.
 
 WHICH TABLE TO QUERY:
-- daily_play → aggregate / timeline questions: play counts per day, rating over time, currency spent, streaks, scrape failures.
+- daily_play → aggregate / timeline questions: play counts per day, rating over time, currency spent, streaks, scrape failures. Join daily_ticket (on play_date and game) for spending that includes tickets.
 - user_scores → ANY per-song, per-chart, or profile question: best scores, a specific song's achievement, top 30/35 best or top 15/20 current, player name, OVERPOWER, last-played date, play history.
 - When the user asks about THEIR scores / profile / specific songs, ALWAYS go to user_scores. Do NOT try to answer per-song questions from daily_play (it does not contain them).
 - user_scores.game literals are EXACTLY 'maimai' or 'chunithm' (always lowercase). SQL is case-sensitive — 'Maimai' or 'CHUNITHM' return zero rows.

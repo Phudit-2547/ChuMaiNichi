@@ -17,6 +17,7 @@ import {
 import { GameHeatmap } from "./GameHeatmap";
 import { YearDropdown } from "./YearDropdown";
 import HeatmapSkeletonBlock from "./heatmap-skeleton/HeatmapSkeletonBlock";
+import usePlayLogStore from "../../play-log/stores/play-log-store";
 
 export default function Heatmap({
   games,
@@ -36,6 +37,7 @@ export default function Heatmap({
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const isInitialLoad = useRef(true);
+  const openPlayLog = usePlayLogStore((state) => state.openDay);
   const visibleGames: HeatmapGame[] =
     region === "japan" ? JAPAN_GAMES : games;
 
@@ -237,6 +239,7 @@ export default function Heatmap({
                 game={game}
                 data={data}
                 year={selectedYear}
+                onEditDay={region === "international" ? openPlayLog : undefined}
               />
             ) : (
               <div className="heatmap-empty content-panel p-8 text-center text-muted-foreground border border-border rounded-lg">

@@ -15,6 +15,7 @@ export interface DailyRow {
   inferred_games?: HeatmapGame[];
   maimai_rating?: number | null;
   chunithm_rating?: number | null;
+  tickets?: Partial<Record<Game, number>>;
 }
 
 export interface HeatmapStats {
