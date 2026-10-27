@@ -3,9 +3,11 @@ import {
   bangkokToday,
   dayCredits,
   earliestEditableDate,
+  formatRating,
   isCount,
   isEditableDate,
   isIsoDate,
+  isRating,
 } from "./play-log";
 
 describe("play log dates", () => {
@@ -49,5 +51,19 @@ describe("dayCredits", () => {
         ticketCredits: { area_x2: 3, old_pass: 2 },
       }),
     ).toMatchObject({ tickets: 2, extraCredits: 5, credits: 8 });
+  });
+});
+
+describe("ratings", () => {
+  it("accepts maimai whole numbers and CHUNITHM two-decimal values within bounds", () => {
+    expect([0, 14561, 20000].every((n) => isRating("maimai", n))).toBe(true);
+    expect([-1, 20001, 14561.5, "14561", null, NaN].some((n) => isRating("maimai", n))).toBe(false);
+    expect([0, 15.26, 15.3, 20].every((n) => isRating("chunithm", n))).toBe(true);
+    expect([15.265, 20.01, -0.01, "15.26"].some((n) => isRating("chunithm", n))).toBe(false);
+  });
+
+  it("formats each game's rating the way the game shows it", () => {
+    expect(formatRating("maimai", 14561)).toBe("14561");
+    expect(formatRating("chunithm", 15.3)).toBe("15.30");
   });
 });

@@ -1,12 +1,18 @@
 import type { Game } from "../../../global/lib/games";
-import { MAX_COUNT, ticketCatalog, type DayState, type DayWrite } from "../../../global/lib/play-log";
+import {
+  isRatingWrite,
+  MAX_COUNT,
+  ticketCatalog,
+  type DayState,
+  type DayWrite,
+} from "../../../global/lib/play-log";
 import type { SaveResult } from "./api";
 
-// Per-key compare-and-set saving for one day. A key is a game ("maimai") or a
-// game's ticket ("maimai:area_x2"). Each game sends one request at a time, in
-// an order the server's ticket rule accepts; taps meanwhile only move
-// `desired`, and the next request carries the last confirmed `server` value as
-// `expected`.
+// Per-key compare-and-set saving for one day. A key is a game's plays
+// ("maimai"), one of its tickets ("maimai:area_x2") or its rating
+// ("maimai/rating"). Each game sends one request at a time, in an order the
+// server's ticket rule accepts; taps meanwhile only move `desired`, and the
+// next request carries the last confirmed `server` value as `expected`.
 
 export type KeyStatus =
   | "idle"
@@ -38,14 +44,20 @@ export function keyFor(game: Game, ticket?: string): string {
   return ticket ? `${game}:${ticket}` : game;
 }
 
-export function parseKey(key: string): { game: Game; ticket?: string } {
+export function ratingKey(game: Game): string {
+  return `${game}/rating`;
+}
+
+export function parseKey(key: string): { game: Game; ticket?: string; rating?: true } {
+  if (key.endsWith("/rating")) return { game: key.slice(0, -"/rating".length) as Game, rating: true };
   const [game, ticket] = key.split(":");
   return { game: game as Game, ticket };
 }
 
 function valueIn(day: DayState, key: string): number | null {
-  const { game, ticket } = parseKey(key);
+  const { game, ticket, rating } = parseKey(key);
   const gameDay = day.games[game];
+  if (rating) return gameDay?.rating ?? null;
   if (!gameDay) return 0;
   return ticket ? (gameDay.tickets[ticket] ?? 0) : gameDay.plays;
 }
@@ -57,7 +69,7 @@ function dayKeys(day: DayState): string[] {
     const ids = new Set(ticketCatalog(game).map((t) => t.id));
     for (const [id, count] of Object.entries(day.games[game]?.tickets ?? {}))
       if (count > 0) ids.add(id);
-    keys.push(keyFor(game), ...[...ids].map((id) => keyFor(game, id)));
+    keys.push(keyFor(game), ...[...ids].map((id) => keyFor(game, id)), ratingKey(game));
   }
   return keys;
 }
@@ -87,11 +99,22 @@ export function queueFromDay(day: DayState): Queue {
   return { date: day.date, keys, credits: creditsIn(day) };
 }
 
-/** A fresh read refreshes idle keys and leaves keys with unsaved or in-flight changes alone. */
-export function mergeDay(queue: Queue, day: DayState): Queue {
+/**
+ * A fresh read refreshes idle keys and leaves keys with unsaved or in-flight
+ * changes alone. keepNotices keeps a conflict notice on screen, for a re-read
+ * the user did not ask for.
+ */
+export function mergeDay(queue: Queue, day: DayState, keepNotices = false): Queue {
   const keys = { ...queue.keys };
-  for (const key of dayKeys(day))
-    if (!keys[key] || isIdle(keys[key])) keys[key] = settled(valueIn(day, key));
+  for (const key of dayKeys(day)) {
+    const prev = keys[key];
+    if (prev && !isIdle(prev)) continue;
+    const next = settled(valueIn(day, key));
+    keys[key] =
+      keepNotices && (prev?.status === "conflict" || prev?.status === "exceeds")
+        ? { ...next, status: prev.status, message: prev.message }
+        : next;
+  }
   return { ...queue, keys, credits: creditsIn(day) };
 }
 
@@ -126,7 +149,8 @@ export function pendingWrite(queue: Queue, key: string): DayWrite | null {
     state.status === "unauthorized"
   )
     return null;
-  const { game, ticket } = parseKey(key);
+  const { game, ticket, rating } = parseKey(key);
+  if (rating) return { date: queue.date, game, rating: state.desired, expected: state.server };
   const write = { date: queue.date, game, count: state.desired, expected: state.server };
   return ticket ? { ...write, ticket } : write;
 }
@@ -135,7 +159,7 @@ export function pendingWrite(queue: Queue, key: string): DayWrite | null {
  * The next request for one game, or null while one of its requests is in
  * flight. Order: more plays, fewer tickets, more tickets, fewer plays, so a
  * ticket never lands before the play it rides on and plays never drop below
- * tickets still being removed.
+ * tickets still being removed. The rating goes last.
  */
 export function nextWrite(queue: Queue, game: Game): { key: string; write: DayWrite } | null {
   const keys = Object.keys(queue.keys).filter((key) => parseKey(key).game === game);
@@ -144,6 +168,7 @@ export function nextWrite(queue: Queue, game: Game): { key: string; write: DayWr
     .map((key) => ({ key, write: pendingWrite(queue, key) }))
     .filter((c): c is { key: string; write: DayWrite } => c.write != null)
     .map((c) => {
+      if (isRatingWrite(c.write)) return { ...c, rank: 4 };
       const rising = c.write.count > (c.write.expected ?? 0);
       const isPlays = !parseKey(c.key).ticket;
       const rank = isPlays ? (rising ? 0 : 3) : rising ? 2 : 1;
@@ -215,9 +240,12 @@ export function applyResult(queue: Queue, key: string, date: string, result: Sav
           ...settled(value),
           status: result.kind,
           message:
-            result.kind === "conflict"
-              ? "Changed on another device. Showing the latest."
-              : result.message,
+            result.kind !== "conflict"
+              ? result.message
+              : parseKey(key).rating
+                ? // An earlier day's rating can carry into this one, even from this device.
+                  "Changed since this day loaded. Showing the latest."
+                : "Changed on another device. Showing the latest.",
         };
       }
       return { ...queue, keys, credits: creditsIn(result.day) };

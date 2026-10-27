@@ -7,17 +7,26 @@ import {
   nextWrite,
   pendingWrite,
   queueFromDay,
+  ratingKey,
   retryFailed,
   setDesired,
   stepDesired,
 } from "./save-queue";
 
 const DATE = "2026-10-26";
-function day(maimai: number | null, tickets: Record<string, number> = {}, chunithm = 0): DayState {
+function day(
+  maimai: number | null,
+  tickets: Record<string, number> = {},
+  chunithm = 0,
+  rating: number | null = 14561,
+): DayState {
   return {
     date: DATE,
     exists: true,
-    games: { maimai: { plays: maimai, tickets }, chunithm: { plays: chunithm, tickets: {} } },
+    games: {
+      maimai: { plays: maimai, rating, tickets },
+      chunithm: { plays: chunithm, rating: 15.26, tickets: {} },
+    },
   };
 }
 
@@ -25,9 +34,11 @@ describe("save queue", () => {
   it("builds one key per game and catalog ticket", () => {
     const q = queueFromDay(day(2, { area_x2: 1 }));
     expect(Object.keys(q.keys)).toEqual([
-      "maimai", "maimai:area_x2", "maimai:area_x3",
+      "maimai", "maimai:area_x2", "maimai:area_x3", "maimai/rating",
       "chunithm", "chunithm:map_x2", "chunithm:map_x3", "chunithm:map_x4", "chunithm:exp_x6",
+      "chunithm/rating",
     ]);
+    expect(q.keys["chunithm/rating"]).toMatchObject({ server: 15.26, desired: 15.26 });
     expect(q.keys["maimai:area_x2"]).toMatchObject({ server: 1, desired: 1 });
   });
 
@@ -136,5 +147,59 @@ describe("save queue", () => {
     expect(q.keys.maimai.desired).toBe(5);
     expect(stepDesired(queueFromDay(day(0)), "maimai", -1).keys.maimai.desired).toBe(0);
     expect(stepDesired(queueFromDay(day(null)), "maimai", 1).keys.maimai.desired).toBeNull();
+  });
+});
+
+describe("rating saves", () => {
+  it("sends the typed rating with the last confirmed one as expected", () => {
+    const q = setDesired(queueFromDay(day(2)), ratingKey("maimai"), 14600);
+    expect(pendingWrite(q, ratingKey("maimai"))).toEqual({
+      date: DATE, game: "maimai", rating: 14600, expected: 14561,
+    });
+  });
+
+  it("sends a first rating against an unset one", () => {
+    const q = setDesired(queueFromDay(day(2, {}, 0, null)), ratingKey("maimai"), 14600);
+    expect(pendingWrite(q, ratingKey("maimai"))).toMatchObject({ rating: 14600, expected: null });
+    expect(pendingWrite(queueFromDay(day(2, {}, 0, null)), ratingKey("maimai"))).toBeNull();
+  });
+
+  it("saves the rating after the game's play and ticket changes", () => {
+    let q = queueFromDay(day(0));
+    q = setDesired(q, ratingKey("maimai"), 14600);
+    q = setDesired(q, "maimai", 1);
+    expect(nextWrite(q, "maimai")?.key).toBe("maimai");
+    q = applyResult(markSent(q, "maimai"), "maimai", DATE, { kind: "saved", day: day(1) });
+    expect(nextWrite(q, "maimai")?.key).toBe("maimai/rating");
+  });
+
+  it("adopts a rating changed on another device", () => {
+    let q = markSent(setDesired(queueFromDay(day(2)), ratingKey("maimai"), 14600), ratingKey("maimai"));
+    q = applyResult(q, ratingKey("maimai"), DATE, { kind: "conflict", day: day(2, {}, 0, 14700) });
+    expect(q.keys["maimai/rating"]).toMatchObject({
+      server: 14700, desired: 14700, status: "conflict",
+      message: "Changed since this day loaded. Showing the latest.",
+    });
+  });
+
+  it("keeps a conflict notice through a re-read the user did not ask for", () => {
+    let q = markSent(setDesired(queueFromDay(day(2)), ratingKey("maimai"), 14600), ratingKey("maimai"));
+    q = applyResult(q, ratingKey("maimai"), DATE, { kind: "conflict", day: day(2, {}, 0, 14700) });
+    expect(mergeDay(q, day(2, {}, 0, 14700), true).keys["maimai/rating"]).toMatchObject({
+      server: 14700, status: "conflict",
+    });
+    expect(mergeDay(q, day(2, {}, 0, 14700)).keys["maimai/rating"]).toMatchObject({ status: "idle" });
+  });
+
+  it("does not treat the rating key as a ticket", () => {
+    let q = setDesired(queueFromDay(day(2)), ratingKey("chunithm"), 15.3);
+    expect(nextWrite(q, "chunithm")?.write).toEqual({
+      date: DATE, game: "chunithm", rating: 15.3, expected: 15.26,
+    });
+    q = applyResult(markSent(q, ratingKey("chunithm")), ratingKey("chunithm"), DATE, {
+      kind: "saved",
+      day: { ...day(2), games: { ...day(2).games, chunithm: { plays: 0, rating: 15.3, tickets: {} } } },
+    });
+    expect(q.keys["chunithm/rating"]).toMatchObject({ server: 15.3, status: "saved" });
   });
 });

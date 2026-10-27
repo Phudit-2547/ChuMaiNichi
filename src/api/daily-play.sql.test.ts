@@ -1,6 +1,6 @@
 import { Client, neonConfig } from "@neondatabase/serverless";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { readDay, writePlays, writeTicket, type Sql, type Tables } from "./daily-play";
+import { readDay, writePlays, writeRating, writeTicket, type Sql, type Tables } from "./daily-play";
 
 // Runs the route's SQL against session-only TEMP tables; set TEST_DATABASE_URL to run.
 const url = process.env.TEST_DATABASE_URL;
@@ -60,6 +60,14 @@ describe.skipIf(!url)("daily-play SQL", () => {
     writePlays(sql, { date, game, count, expected }, T);
   const ticket = (date: string, id: string, count: number, expected: number | null, extra = 1) =>
     writeTicket(sql, { date, game: "maimai", ticket: id, count, expected }, extra, T);
+  const rating = (date: string, value: number, expected: number | null, game: "maimai" | "chunithm" = "maimai") =>
+    writeRating(sql, { date, game, rating: value, expected }, T);
+  async function ratings(column: "maimai_rating" | "chunithm_rating") {
+    const { rows } = await client.query(
+      `SELECT to_char(play_date, 'MM-DD') d, ${column}::text r FROM pg_temp.daily_play ORDER BY play_date`,
+    );
+    return Object.fromEntries(rows.map((row: { d: string; r: string | null }) => [row.d, row.r]));
+  }
 
   it("creates a missing day from the previous row's totals and ratings", async () => {
     await seed(["2026-10-24", 0, 0, 735, 339, 14561, "15.26"]);
@@ -132,6 +140,7 @@ describe.skipIf(!url)("daily-play SQL", () => {
     expect(await plays("2026-10-20", 1, 2)).toBe(true);
     expect((await readDay(sql, "2026-10-20", T)).games.maimai).toEqual({
       plays: 1,
+      rating: 14561,
       tickets: { area_x2: 0, area_x3: 1 },
       ticketCredits: { area_x2: 1, area_x3: 1 },
     });
@@ -157,9 +166,160 @@ describe.skipIf(!url)("daily-play SQL", () => {
       date: "2026-10-26",
       exists: false,
       games: {
-        maimai: { plays: 0, tickets: {}, ticketCredits: {} },
-        chunithm: { plays: 0, tickets: {}, ticketCredits: {} },
+        maimai: { plays: 0, rating: null, tickets: {}, ticketCredits: {} },
+        chunithm: { plays: 0, rating: null, tickets: {}, ticketCredits: {} },
       },
     });
+  });
+
+  it("reads a missing day's rating from the previous row", async () => {
+    await seed(["2026-10-24", 0, 0, 735, 339, 14561, "15.26"]);
+    const read = await readDay(sql, "2026-10-26", T);
+    expect([read.games.maimai?.rating, read.games.chunithm?.rating]).toEqual([14561, 15.26]);
+  });
+
+  it("sets a rating and carries it through the following days without plays", async () => {
+    await seed(
+      ["2026-10-20", 2, 0, 735, 339, 14561, "15.26"],
+      ["2026-10-21", 0, 3, 735, 342, 14561, "15.26"],
+      ["2026-10-22", 0, 0, 735, 342, 14561, "15.26"],
+      ["2026-10-23", 1, 0, 736, 342, 14561, "15.26"],
+      ["2026-10-24", 0, 0, 736, 342, 14561, "15.26"],
+    );
+    expect(await rating("2026-10-20", 14600, 14561)).toBe(true);
+    expect(await ratings("maimai_rating")).toEqual({
+      "10-20": "14600", "10-21": "14600", "10-22": "14600", "10-23": "14561", "10-24": "14561",
+    });
+    expect(await ratings("chunithm_rating")).toMatchObject({ "10-20": "15.26", "10-24": "15.26" });
+    expect(await day("2026-10-20")).toMatchObject({ m: 2, mc: 735 });
+  });
+
+  it("stops carrying at a different rating or an unknown play count", async () => {
+    await seed(
+      ["2026-10-20", 2, 0, 735, 339, 14561, "15.26"],
+      ["2026-10-21", 0, 0, 735, 339, 14580, "15.26"],
+      ["2026-10-22", 0, 0, 735, 339, 14561, "15.26"],
+    );
+    expect(await rating("2026-10-20", 14600, 14561)).toBe(true);
+    expect(await ratings("maimai_rating")).toEqual({ "10-20": "14600", "10-21": "14580", "10-22": "14561" });
+
+    await client.query("TRUNCATE pg_temp.daily_play");
+    await seed(
+      ["2026-10-20", 2, 0, 735, 339, 14561, "15.26"],
+      ["2026-10-21", null, 0, 737, 339, 14561, "15.26"],
+    );
+    expect(await rating("2026-10-20", 14600, 14561)).toBe(true);
+    expect(await ratings("maimai_rating")).toEqual({ "10-20": "14600", "10-21": "14561" });
+  });
+
+  it("never rewrites a later rating recorded on a day with plays", async () => {
+    await seed(
+      ["2026-10-20", 1, 0, 734, 339, 14500, "15.26"],
+      ["2026-10-21", 0, 0, 734, 339, 14500, "15.26"],
+      ["2026-10-22", 0, 0, 734, 339, 14500, "15.26"],
+      ["2026-10-23", 2, 0, 736, 339, 14650, "15.26"],
+      ["2026-10-24", 0, 0, 736, 339, 14650, "15.26"],
+    );
+    expect(await rating("2026-10-21", 14650, 14500)).toBe(true);
+    expect(await rating("2026-10-21", 14500, 14650)).toBe(true);
+    expect(await ratings("maimai_rating")).toEqual({
+      "10-20": "14500", "10-21": "14500", "10-22": "14500", "10-23": "14650", "10-24": "14650",
+    });
+  });
+
+  it("edits a CHUNITHM rating stored with a float's full binary expansion", async () => {
+    const noisy = "15.2599999999999997868371792719699442386627197265625";
+    await seed(
+      ["2026-04-10", 0, 1, 700, 300, 14000, noisy],
+      ["2026-04-11", 0, 0, 700, 300, 14000, noisy],
+    );
+    expect((await readDay(sql, "2026-04-11", T)).games.chunithm?.rating).toBe(15.26);
+    expect(await rating("2026-04-10", 15.3, 15.26, "chunithm")).toBe(true);
+    expect(await ratings("chunithm_rating")).toEqual({ "04-10": "15.3", "04-11": "15.3" });
+
+    await client.query("TRUNCATE pg_temp.daily_play");
+    await seed(["2026-04-10", 0, 1, 700, 300, 14000, noisy]);
+    expect(await rating("2026-04-12", 15.3, 15.26, "chunithm")).toBe(true);
+    expect(await day("2026-04-12")).toMatchObject({ c: 0, cr: "15.3" });
+  });
+
+  it("keeps a day it creates flagged when the previous row is unverified", async () => {
+    await seed(["2026-10-23", 0, 0, 735, 339, 14561, "15.26"]);
+    await client.query(
+      `INSERT INTO pg_temp.daily_play VALUES ('2026-10-24',NULL,0,735,339,14561,15.26,TRUE,'Scrape failed')`,
+    );
+    expect(await rating("2026-10-25", 14600, 14561)).toBe(true);
+    expect(await plays("2026-10-26", 1, 0, "chunithm")).toBe(true);
+    const { rows } = await client.query(
+      `SELECT to_char(play_date, 'MM-DD') d, scrape_failed f, failure_reason r
+       FROM pg_temp.daily_play WHERE play_date >= '2026-10-25' ORDER BY play_date`,
+    );
+    expect(rows).toEqual([
+      { d: "10-25", f: true, r: "Logged in the day editor; totals continue from 2026-10-24, which is unverified." },
+      { d: "10-26", f: true, r: "Logged in the day editor; totals continue from 2026-10-25, which is unverified." },
+    ]);
+    expect(await plays("2026-10-27", 1, 0)).toBe(true);
+    expect(await day("2026-10-27")).toMatchObject({ f: true });
+  });
+
+  it("leaves a new day unflagged after a verified row", async () => {
+    await seed(["2026-10-24", 0, 0, 735, 339, 14561, "15.26"]);
+    expect(await rating("2026-10-26", 14600, 14561)).toBe(true);
+    expect(await plays("2026-10-27", 1, 0)).toBe(true);
+    expect(await day("2026-10-26")).toMatchObject({ f: false });
+    expect(await day("2026-10-27")).toMatchObject({ f: false });
+  });
+
+  it("corrects a mistyped rating back through the same run", async () => {
+    await seed(
+      ["2026-10-20", 2, 0, 735, 339, 14561, "15.26"],
+      ["2026-10-21", 0, 0, 735, 339, 14561, "15.26"],
+    );
+    expect(await rating("2026-10-20", 1456, 14561)).toBe(true);
+    expect(await rating("2026-10-20", 14600, 1456)).toBe(true);
+    expect(await ratings("maimai_rating")).toEqual({ "10-20": "14600", "10-21": "14600" });
+  });
+
+  it("stores CHUNITHM ratings with their decimals", async () => {
+    await seed(["2026-10-20", 0, 1, 735, 340, 14561, "15.26"]);
+    expect(await rating("2026-10-20", 15.3, 15.26, "chunithm")).toBe(true);
+    expect(await day("2026-10-20")).toMatchObject({ mr: "14561", cr: "15.3" });
+  });
+
+  it("rejects a stale expected rating without changing anything", async () => {
+    await seed(
+      ["2026-10-20", 2, 0, 735, 339, 14561, "15.26"],
+      ["2026-10-21", 0, 0, 735, 339, 14561, "15.26"],
+    );
+    expect(await rating("2026-10-20", 14600, 14500)).toBe(false);
+    expect(await rating("2026-10-20", 14600, null)).toBe(false);
+    expect(await ratings("maimai_rating")).toEqual({ "10-20": "14561", "10-21": "14561" });
+  });
+
+  it("creates a missing day with 0 plays and the previous totals", async () => {
+    await seed(["2026-10-24", 0, 0, 735, 339, 14561, "15.26"]);
+    expect(await rating("2026-10-26", 15.3, 15.26, "chunithm")).toBe(true);
+    expect(await day("2026-10-26")).toEqual({
+      m: 0, c: 0, mc: 735, cc: 339, mr: "14561", cr: "15.3", f: false,
+    });
+    expect(await rating("2026-10-25", 14600, 14000)).toBe(false);
+    expect(await day("2026-10-25")).toBeNull();
+  });
+
+  it("sets a first rating where none was recorded", async () => {
+    await seed(
+      ["2026-10-20", 2, 0, 735, 339, null, "15.26"],
+      ["2026-10-21", 0, 0, 735, 339, null, "15.26"],
+      ["2026-10-22", 1, 0, 736, 339, 14650, "15.26"],
+    );
+    expect(await rating("2026-10-20", 14600, null)).toBe(true);
+    expect(await ratings("maimai_rating")).toEqual({ "10-20": "14600", "10-21": "14600", "10-22": "14650" });
+  });
+
+  it("lets plays be logged on a day created by a rating", async () => {
+    await seed(["2026-10-24", 0, 0, 735, 339, 14561, "15.26"]);
+    expect(await rating("2026-10-26", 14600, 14561)).toBe(true);
+    expect(await plays("2026-10-26", 2, 0)).toBe(true);
+    expect(await day("2026-10-26")).toMatchObject({ m: 2, mc: 737, mr: "14600" });
   });
 });

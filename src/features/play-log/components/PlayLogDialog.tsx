@@ -21,8 +21,11 @@ import {
   bangkokToday,
   dayCredits,
   earliestEditableDate,
+  formatRating,
   isEditableDate,
+  isRating,
   MAX_COUNT,
+  RATING_FORMAT,
   ticketCatalog,
   type DayState,
 } from "@/global/lib/play-log";
@@ -36,6 +39,7 @@ import {
   nextWrite,
   parseKey,
   queueFromDay,
+  ratingKey,
   retryFailed,
   setDesired,
   stepDesired,
@@ -52,6 +56,7 @@ interface State {
 
 type Action =
   | { type: "load"; day: DayState; loadKey: string }
+  | { type: "refresh"; day: DayState }
   | { type: "set"; date: string; key: string; value: number }
   | { type: "step"; date: string; key: string; delta: number }
   | { type: "sent"; date: string; key: string }
@@ -67,6 +72,14 @@ function reducer(state: State, action: Action): State {
         [action.day.date]: existing ? mergeDay(existing, action.day) : queueFromDay(action.day),
       },
       loadedKey: action.loadKey,
+    };
+  }
+  if (action.type === "refresh") {
+    const existing = state.queues[action.day.date];
+    if (!existing) return state;
+    return {
+      ...state,
+      queues: { ...state.queues, [action.day.date]: mergeDay(existing, action.day, true) },
     };
   }
   const queue = state.queues[action.date];
@@ -129,10 +142,16 @@ export default function PlayLogDialog() {
         void saveWrite(write).then((result) => {
           if (result.kind === "saved") {
             savedRef.current = true;
+            const shown = usePlayLogStore.getState();
             // A save that lands after the editor closed still refreshes the heatmap.
-            if (!usePlayLogStore.getState().open) {
+            if (!shown.open) {
               savedRef.current = false;
-              usePlayLogStore.getState().close(true);
+              shown.close(true);
+            } else if (parseKey(key).rating && shown.date > sentDate) {
+              // The rating may have carried into the day on screen.
+              void fetchDay(shown.date)
+                .then((day) => dispatch({ type: "refresh", day }))
+                .catch(() => {});
             }
           }
           dispatch({ type: "result", date: sentDate, key, result });
@@ -166,7 +185,7 @@ export default function PlayLogDialog() {
       >
         <DialogTitle className="sr-only">Play log, {label}</DialogTitle>
         <DialogDescription className="sr-only">
-          Log plays and paid tickets for one day. Each change saves on its own.
+          Log plays, paid tickets and rating for one day. Each change saves on its own.
         </DialogDescription>
         <div className="modal-head play-log__head">
           <button
@@ -266,7 +285,7 @@ export default function PlayLogDialog() {
         </div>
 
         <div className="play-log__footer">
-          <p>Each tap saves on its own.</p>
+          <p>Each change saves on its own.</p>
           <button
             type="button"
             className="glass-control glass-control--primary play-log__done"
@@ -308,7 +327,9 @@ function GameBlock({
     chips.map((t) => [t.id, queue.keys[keyFor(game, t.id)]?.desired ?? 0]),
   );
   const totals = dayCredits(game, { plays, tickets, ticketCredits: queue.credits[game] });
-  const states = [playKey, ...chips.map((t) => keyFor(game, t.id))]
+  const rateKey = ratingKey(game);
+  const rating = queue.keys[rateKey]?.desired ?? null;
+  const states = [playKey, ...chips.map((t) => keyFor(game, t.id)), rateKey]
     .map((key) => queue.keys[key])
     .filter((state): state is KeyState => Boolean(state));
   const saving = states.some(
@@ -406,6 +427,14 @@ function GameBlock({
         </div>
       )}
 
+      <RatingInput
+        key={queue.date}
+        game={game}
+        value={rating}
+        label={`${name} rating`}
+        onCommit={(n) => onSet(rateKey, n)}
+      />
+
       <div className="play-log__status" role="status" aria-live="polite">
         <span>
           {plural(totals.plays, "play")}
@@ -472,5 +501,73 @@ function CountInput({
         if (e.key === "Escape" && draft != null) setDraft(null);
       }}
     />
+  );
+}
+
+const RATING_HINT: Record<Game, string> = {
+  maimai: "Type a whole number up to 20000.",
+  chunithm: "Type a number like 15.26, up to 20.",
+};
+
+/** Keeps digits and, where the game uses them, one decimal point and its decimals. */
+function cleanRating(text: string, decimals: number): string {
+  const kept = text.replace(",", ".").replace(decimals ? /[^\d.]/g : /\D/g, "");
+  const [whole, ...rest] = kept.split(".");
+  return (rest.length ? `${whole}.${rest.join("").slice(0, decimals)}` : whole).slice(0, 6);
+}
+
+function RatingInput({
+  game,
+  value,
+  label,
+  onCommit,
+}: {
+  game: Game;
+  value: number | null;
+  label: string;
+  onCommit: (n: number) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [invalid, setInvalid] = useState(false);
+  const { decimals } = RATING_FORMAT[game];
+  const commit = () => {
+    if (draft == null) return;
+    const n = Number(draft);
+    const valid = draft !== "" && isRating(game, n);
+    if (valid && n !== value) onCommit(n);
+    setInvalid(draft !== "" && !valid);
+    setDraft(null);
+  };
+  return (
+    <>
+      <label className="play-log__rating">
+        <span>Rating</span>
+        <input
+          className="play-log__rating-input"
+          type="text"
+          inputMode={decimals ? "decimal" : "numeric"}
+          aria-label={label}
+          aria-invalid={invalid || undefined}
+          data-editing={draft != null ? "true" : undefined}
+          placeholder="Not set"
+          value={draft ?? (value == null ? "" : formatRating(game, value))}
+          onFocus={(e) => e.currentTarget.select()}
+          onChange={(e) => {
+            setInvalid(false);
+            setDraft(cleanRating(e.target.value, decimals));
+          }}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+            if (e.key === "Escape" && draft != null) setDraft(null);
+          }}
+        />
+      </label>
+      {invalid && (
+        <p className="play-log__hint play-log__hint--error" role="alert">
+          {RATING_HINT[game]}
+        </p>
+      )}
+    </>
   );
 }
