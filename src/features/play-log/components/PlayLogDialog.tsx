@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useId, useReducer, useRef, useState, type CSSProperties } from "react";
 import {
   Check,
   ChevronLeft,
@@ -433,6 +433,7 @@ function GameBlock({
         value={rating}
         label={`${name} rating`}
         onCommit={(n) => onSet(rateKey, n)}
+        onStep={(delta) => onStep(rateKey, delta)}
       />
 
       <div className="play-log__status" role="status" aria-live="polite">
@@ -521,15 +522,19 @@ function RatingInput({
   value,
   label,
   onCommit,
+  onStep,
 }: {
   game: Game;
   value: number | null;
   label: string;
   onCommit: (n: number) => void;
+  onStep: (delta: number) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   const [invalid, setInvalid] = useState(false);
-  const { decimals } = RATING_FORMAT[game];
+  const inputId = useId();
+  const { max, decimals } = RATING_FORMAT[game];
+  const unit = (10 ** -decimals).toFixed(decimals);
   const commit = () => {
     if (draft == null) return;
     const n = Number(draft);
@@ -538,11 +543,27 @@ function RatingInput({
     setInvalid(draft !== "" && !valid);
     setDraft(null);
   };
+  const step = (delta: number) => {
+    // iOS keeps the field focused when a button is tapped, so apply the typed value first.
+    commit();
+    setInvalid(false);
+    onStep(delta);
+  };
   return (
     <>
-      <label className="play-log__rating">
-        <span>Rating</span>
+      <div className="play-log__rating">
+        <label htmlFor={inputId}>Rating</label>
+        <button
+          type="button"
+          className="play-log__rating-step glass-control"
+          aria-label={`Lower ${label} by ${unit}`}
+          disabled={value == null || value <= 0}
+          onClick={() => step(-1)}
+        >
+          <Minus size={16} />
+        </button>
         <input
+          id={inputId}
           className="play-log__rating-input"
           type="text"
           inputMode={decimals ? "decimal" : "numeric"}
@@ -562,7 +583,16 @@ function RatingInput({
             if (e.key === "Escape" && draft != null) setDraft(null);
           }}
         />
-      </label>
+        <button
+          type="button"
+          className="play-log__rating-step glass-control"
+          aria-label={`Raise ${label} by ${unit}`}
+          disabled={value == null || value >= max}
+          onClick={() => step(1)}
+        >
+          <Plus size={16} />
+        </button>
+      </div>
       {invalid && (
         <p className="play-log__hint play-log__hint--error" role="alert">
           {RATING_HINT[game]}

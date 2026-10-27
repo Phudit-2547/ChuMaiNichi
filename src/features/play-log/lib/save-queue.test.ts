@@ -191,6 +191,19 @@ describe("rating saves", () => {
     expect(mergeDay(q, day(2, {}, 0, 14700)).keys["maimai/rating"]).toMatchObject({ status: "idle" });
   });
 
+  it("steps a rating by its smallest unit and counts every tap", () => {
+    let q = queueFromDay(day(2));
+    q = stepDesired(stepDesired(q, ratingKey("chunithm"), 1), ratingKey("chunithm"), 1);
+    expect(q.keys["chunithm/rating"].desired).toBe(15.28);
+    q = stepDesired(q, ratingKey("maimai"), -1);
+    expect(q.keys["maimai/rating"].desired).toBe(14560);
+    expect(nextWrite(q, "chunithm")?.write).toEqual({
+      date: DATE, game: "chunithm", rating: 15.28, expected: 15.26,
+    });
+    const unset = queueFromDay(day(2, {}, 0, null));
+    expect(stepDesired(unset, ratingKey("maimai"), 1).keys["maimai/rating"].desired).toBeNull();
+  });
+
   it("does not treat the rating key as a ticket", () => {
     let q = setDesired(queueFromDay(day(2)), ratingKey("chunithm"), 15.3);
     expect(nextWrite(q, "chunithm")?.write).toEqual({

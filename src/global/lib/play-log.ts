@@ -72,6 +72,13 @@ export function formatRating(game: Game, value: number): string {
   return value.toFixed(RATING_FORMAT[game].decimals);
 }
 
+/** Moves a rating by `delta` of its smallest unit (maimai 1, CHUNITHM 0.01), within bounds. */
+export function stepRating(game: Game, value: number, delta: number): number {
+  const { max, decimals } = RATING_FORMAT[game];
+  const scale = 10 ** decimals;
+  return Math.min(max, Math.max(0, Math.round(value * scale + delta) / scale));
+}
+
 export function bangkokToday(now: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Bangkok",
