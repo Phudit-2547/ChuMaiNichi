@@ -8,6 +8,7 @@ import {
   isEditableDate,
   isIsoDate,
   isRating,
+  stepRating,
 } from "./play-log";
 
 describe("play log dates", () => {
@@ -65,5 +66,23 @@ describe("ratings", () => {
   it("formats each game's rating the way the game shows it", () => {
     expect(formatRating("maimai", 14561)).toBe("14561");
     expect(formatRating("chunithm", 15.3)).toBe("15.30");
+  });
+
+  it("steps by the smallest unit each game shows, within bounds", () => {
+    expect(stepRating("maimai", 14561, 1)).toBe(14562);
+    expect(stepRating("maimai", 14561, -1)).toBe(14560);
+    expect(stepRating("chunithm", 9.32, 1)).toBe(9.33);
+    expect(stepRating("chunithm", 0.3, -1)).toBe(0.29);
+    expect(stepRating("maimai", 0, -1)).toBe(0);
+    expect(stepRating("maimai", 20000, 1)).toBe(20000);
+    expect(stepRating("chunithm", 20, 1)).toBe(20);
+  });
+
+  it("lands on a valid rating after many steps and from a legacy float value", () => {
+    let rating = 9.32;
+    for (let i = 0; i < 37; i++) rating = stepRating("chunithm", rating, 1);
+    expect(rating).toBe(9.69);
+    expect(isRating("chunithm", rating)).toBe(true);
+    expect(stepRating("chunithm", 15.259999999999999787, 1)).toBe(15.27);
   });
 });

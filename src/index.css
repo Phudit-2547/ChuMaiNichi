@@ -4049,6 +4049,7 @@ rect.heatmap-today {
 .play-log__nav:focus-visible,
 .play-log__date:focus-visible,
 .play-log__step:focus-visible,
+.play-log__rating-step:focus-visible,
 .play-log__chip:focus-visible,
 .play-log__chip-remove:focus-visible {
   outline: none;
@@ -4074,9 +4075,26 @@ rect.heatmap-today {
   color: var(--muted-foreground);
 }
 
+.play-log__rating-step {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid var(--glass-control-border);
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.play-log__rating-step:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .play-log__rating-input {
   width: 6.5rem;
-  height: 36px;
+  height: 40px;
   border: 1px solid var(--glass-control-border);
   border-radius: 8px;
   background: transparent;

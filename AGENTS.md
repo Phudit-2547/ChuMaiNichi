@@ -178,7 +178,7 @@ Single-page app. No `react-router-dom`. No client-side routing.
 - **International**: configured maimai/CHUNITHM heatmaps, rating images, Refresh, and score-aware chat
 - **Japan**: Journal-derived maimai/CHUNITHM heatmaps plus ONGEKI tracks; no Refresh, rating image, or spending calculation
 - **Chat panel**: Right sidebar with isolated history per region. Japan uses a static structured activity tool and cannot issue free-form SQL. International retains the generic read-only SQL tool; its direct Japan-table guard prevents accidental mixing but is not a database security boundary because both contexts share `DATABASE_URL`.
-- **Log button + day editor**: International only, left of Refresh. Opens `PlayLogDialog` on today's Asia/Bangkok date (bottom sheet ≤480px). Per game: −/count/+, paid-ticket chips and a rating field; every change saves on its own; ‹ › and a date picker move within the last 366 days. The heatmap's cell details offer **Edit day**
+- **Log button + day editor**: International only, left of Refresh. Opens `PlayLogDialog` on today's Asia/Bangkok date (bottom sheet ≤480px). Per game: −/count/+, paid-ticket chips and a rating field with −/+ (maimai steps 1, CHUNITHM 0.01); every change saves on its own; ‹ › and a date picker move within the last 366 days. The heatmap's cell details offer **Edit day**
 - **Settings modal**: Overlay triggered by gear icon. Theme toggle and display preferences. Stored in `localStorage`
 - **Game selection and currency**: `config.json` controls International only; the Japan view always uses its Journal schema
 - **Refresh button**: In header or settings. Calls `/api/refresh` to trigger `scrape-user-data.yml`

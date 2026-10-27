@@ -2,6 +2,7 @@ import type { Game } from "../../../global/lib/games";
 import {
   isRatingWrite,
   MAX_COUNT,
+  stepRating,
   ticketCatalog,
   type DayState,
   type DayWrite,
@@ -130,11 +131,18 @@ export function setDesired(queue: Queue, key: string, desired: number): Queue {
   };
 }
 
-/** Moves `desired` by `delta` from its latest value, so taps between renders all count. */
+/**
+ * Moves `desired` by `delta` from its latest value, so taps between renders all
+ * count. A rating moves by its smallest unit.
+ */
 export function stepDesired(queue: Queue, key: string, delta: number): Queue {
   const current = queue.keys[key]?.desired;
   if (current == null) return queue;
-  return setDesired(queue, key, Math.min(MAX_COUNT, Math.max(0, current + delta)));
+  const { game, rating } = parseKey(key);
+  const next = rating
+    ? stepRating(game, current, delta)
+    : Math.min(MAX_COUNT, Math.max(0, current + delta));
+  return setDesired(queue, key, next);
 }
 
 /** The write to send for `key` now, or null when it is in flight, settled, or waiting for Retry. */
