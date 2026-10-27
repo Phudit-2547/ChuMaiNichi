@@ -8,6 +8,8 @@ export const EDIT_WINDOW_DAYS = 366;
 
 export interface GameDay {
   plays: number | null;
+  /** Rating at the end of the day; a day without a row shows the previous day's. */
+  rating: number | null;
   tickets: Record<string, number>;
   /** extra_credits stored with each logged ticket; a later catalog edit never reprices a past day. */
   ticketCredits?: Record<string, number>;
@@ -30,7 +32,14 @@ export interface TicketWrite extends PlayWrite {
   ticket: string;
 }
 
-export type DayWrite = PlayWrite | TicketWrite;
+export interface RatingWrite {
+  date: string;
+  game: Game;
+  rating: number;
+  expected: number | null;
+}
+
+export type DayWrite = PlayWrite | TicketWrite | RatingWrite;
 
 export type WriteErrorCode =
   | "CONFLICT"
@@ -40,6 +49,27 @@ export type WriteErrorCode =
 
 export function isTicketWrite(write: DayWrite): write is TicketWrite {
   return "ticket" in write;
+}
+
+export function isRatingWrite(write: DayWrite): write is RatingWrite {
+  return "rating" in write;
+}
+
+/** Bounds for a typed rating: maimai's is a whole number, CHUNITHM's has two decimals. */
+export const RATING_FORMAT: Record<Game, { max: number; decimals: number }> = {
+  maimai: { max: 20000, decimals: 0 },
+  chunithm: { max: 20, decimals: 2 },
+};
+
+export function isRating(game: Game, value: unknown): value is number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return false;
+  const { max, decimals } = RATING_FORMAT[game];
+  const scale = 10 ** decimals;
+  return value >= 0 && value <= max && Math.round(value * scale) / scale === value;
+}
+
+export function formatRating(game: Game, value: number): string {
+  return value.toFixed(RATING_FORMAT[game].decimals);
 }
 
 export function bangkokToday(now: Date = new Date()): string {
@@ -84,12 +114,15 @@ export function findTicket(game: Game, id: string): TicketDef | undefined {
   return ticketCatalog(game).find((ticket) => ticket.id === id);
 }
 
-export function ticketTotal(day: GameDay): number {
+export function ticketTotal(day: Pick<GameDay, "tickets">): number {
   return Object.values(day.tickets).reduce((sum, n) => sum + n, 0);
 }
 
 /** Credits paid for one game on one day: plays plus each ticket's extra credits. */
-export function dayCredits(game: Game, day: GameDay) {
+export function dayCredits(
+  game: Game,
+  day: Pick<GameDay, "plays" | "tickets" | "ticketCredits">,
+) {
   const plays = day.plays ?? 0;
   const tickets = ticketTotal(day);
   const extraCredits = Object.entries(day.tickets).reduce(

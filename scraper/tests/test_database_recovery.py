@@ -161,6 +161,37 @@ async def test_main_gap_saved_as_unknown_and_fails(monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('today_rating, saved', [(16.95, 16.95), (None, 16.80)])
+async def test_failed_game_keeps_todays_recorded_rating(monkeypatch, today_rating, saved):
+    import main as runner
+    from datetime import datetime, timezone, timedelta
+    from unittest.mock import Mock
+    class Clock:
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 10, 26, 22, tzinfo=timezone(timedelta(hours=7)))
+    monkeypatch.setattr(runner, 'datetime', Clock)
+    monkeypatch.setattr(runner.sys, 'argv', ['main.py'])
+    monkeypatch.setattr(runner, 'CONFIG', {'chunithm': True})
+    monkeypatch.setattr(runner, 'test_db_connection', AsyncMock(return_value=True))
+    monkeypatch.setattr(runner, 'init_schema', AsyncMock())
+    monkeypatch.setattr(runner, 'fetch_player_data', AsyncMock(return_value={
+        'cumulative': 0, 'rating': 0.0, 'failed': True, 'failure_reason': 'timeout',
+    }))
+    monkeypatch.setattr(runner, 'get_previous_cumulative', AsyncMock(return_value=339))
+    monkeypatch.setattr(runner, 'get_rating_on', AsyncMock(return_value=today_rating))
+    monkeypatch.setattr(runner, 'get_previous_rating', AsyncMock(return_value=16.80))
+    save = AsyncMock()
+    monkeypatch.setattr(runner, 'upsert_daily_play', save)
+    monkeypatch.setattr(runner, 'send_notification', Mock())
+    with pytest.raises(SystemExit):
+        await runner.main()
+    args, kwargs = save.await_args
+    assert args[6] == saved
+    assert kwargs['scrape_failed'] is True
+
+
+@pytest.mark.asyncio
 async def test_repair_dry_run_and_stale_digest_never_write(monkeypatch):
     import repair_daily_play as repairer
     from unittest.mock import MagicMock

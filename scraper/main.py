@@ -5,7 +5,7 @@ from datetime import datetime, timezone, timedelta
 from play_counter.config import CONFIG
 from play_counter.attribution import daily_count
 from play_counter.daily_play_notifier import send_notification
-from play_counter.db import get_previous_cumulative, get_previous_observation, get_previous_rating, init_schema, test_db_connection, upsert_daily_play
+from play_counter.db import get_previous_cumulative, get_previous_observation, get_previous_rating, get_rating_on, init_schema, test_db_connection, upsert_daily_play
 from play_counter.reports.monthly import generate_monthly_report
 from play_counter.reports.weekly import generate_weekly_report
 from play_counter.scraper import fetch_player_data
@@ -102,7 +102,9 @@ async def main():
         if data.get("failed", False):
             cumulative[game] = await get_previous_cumulative(game, today_str)
             if ratings[game] is None or ratings[game] == 0:
-                ratings[game] = await get_previous_rating(game, today_str)
+                # Keep a rating already recorded today (e.g. typed in the day editor).
+                kept = await get_rating_on(game, today_str)
+                ratings[game] = kept if kept is not None else await get_previous_rating(game, today_str)
 
     # Preserve the observation date: a recovery delta can cover several days.
     new_plays = {}

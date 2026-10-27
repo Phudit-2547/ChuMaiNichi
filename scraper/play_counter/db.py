@@ -2,7 +2,7 @@ import asyncio
 from pathlib import Path
 
 import asyncpg
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_UP
 
 from play_counter.config import DATABASE_URL
@@ -118,6 +118,20 @@ async def get_previous_rating(game: str, exclude_date: str) -> float | None:
         await conn.close()
 
 
+async def get_rating_on(game: str, date_str: str) -> float | None:
+    """That day's stored rating, such as one typed in the day editor."""
+    _validate_game(game)
+    conn = await connect_db()
+    try:
+        col = f"{game}_rating"
+        return await conn.fetchval(
+            f"SELECT {col} FROM public.daily_play WHERE play_date = $1",
+            datetime.strptime(date_str, "%Y-%m-%d"),
+        )
+    finally:
+        await conn.close()
+
+
 async def upsert_daily_play(
     date_str: str,
     maimai_new: int | None,
@@ -173,6 +187,25 @@ async def upsert_daily_play(
         )
     finally:
         await conn.close()
+
+
+async def verify_editor_day(conn, day: date, reasons: list[str], table: str = "public.daily_play") -> bool:
+    """Clear the unverified flag the day editor copied onto a day Refresh has now observed.
+
+    Call only after every configured game's totals for that day came from SEGA.
+    The upsert keeps an existing failure_reason, so this one also records the
+    importer's own attribution reasons.
+    """
+    result = await conn.execute(
+        f"""
+        UPDATE {table} SET scrape_failed = FALSE, failure_reason = $2
+        WHERE play_date = $1 AND scrape_failed
+          AND failure_reason LIKE 'Logged in the day editor;%'
+        """,
+        day,
+        " | ".join(reasons) or None,
+    )
+    return result == "UPDATE 1"
 
 
 async def upsert_daily_play_single_game(

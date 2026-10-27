@@ -12,10 +12,13 @@ import {
   isCount,
   isEditableDate,
   isIsoDate,
+  isRating,
+  isRatingWrite,
   isTicketWrite,
   type DayState,
   type DayWrite,
   type PlayWrite,
+  type RatingWrite,
   type TicketWrite,
 } from "../global/lib/play-log.js";
 
@@ -43,6 +46,17 @@ const CUMULATIVE_COLUMN: Record<Game, string> = {
   maimai: "maimai_cumulative",
   chunithm: "chunithm_cumulative",
 };
+const RATING_COLUMN: Record<Game, string> = {
+  maimai: "maimai_rating",
+  chunithm: "chunithm_rating",
+};
+
+// A day the editor creates continues the previous row's totals, so it stays
+// flagged when that row is unverified: like the nightly fill, it must never
+// become a scraper baseline.
+const CREATED_FLAG = `COALESCE(p.scrape_failed, FALSE),
+              CASE WHEN p.scrape_failed THEN 'Logged in the day editor; totals continue from '
+                   || p.play_date || ', which is unverified.' END`;
 
 export function neonSql(url: string): Sql {
   const db = neon(url);
@@ -57,11 +71,15 @@ export async function readDay(
 ): Promise<DayState> {
   const [row] = await sql(
     `SELECT (d.play_date IS NOT NULL) AS exists, d.maimai_play_count, d.chunithm_play_count,
+            CASE WHEN d.play_date IS NULL THEN p.maimai_rating ELSE d.maimai_rating END AS maimai_rating,
+            CASE WHEN d.play_date IS NULL THEN p.chunithm_rating ELSE d.chunithm_rating END AS chunithm_rating,
             COALESCE((SELECT json_object_agg(t.game || ':' || t.ticket,
                                              json_build_array(t.count, t.extra_credits))
                       FROM ${tables.ticket} t WHERE t.play_date = $1::date), '{}'::json) AS tickets
      FROM (SELECT $1::date AS day) x
-     LEFT JOIN ${tables.day} d ON d.play_date = x.day`,
+     LEFT JOIN ${tables.day} d ON d.play_date = x.day
+     LEFT JOIN LATERAL (SELECT maimai_rating, chunithm_rating FROM ${tables.day}
+                        WHERE play_date < x.day ORDER BY play_date DESC LIMIT 1) p ON TRUE`,
     [date],
   );
   const exists = Boolean(row?.exists);
@@ -71,6 +89,7 @@ export async function readDay(
   const games: DayState["games"] = {};
   for (const game of APP_CONFIG.games) {
     const stored = row?.[PLAY_COLUMN[game]];
+    const rating = row?.[RATING_COLUMN[game]];
     const gameTickets: Record<string, number> = {};
     const ticketCredits: Record<string, number> = {};
     for (const [key, [count, extra]] of Object.entries(tickets)) {
@@ -81,6 +100,7 @@ export async function readDay(
     }
     games[game] = {
       plays: exists ? (stored == null ? null : Number(stored)) : 0,
+      rating: rating == null ? null : Number(rating),
       tickets: gameTickets,
       ticketCredits,
     };
@@ -107,7 +127,8 @@ export async function writePlays(
   const chunithm = write.game === "chunithm" ? "$2::int" : "0";
   const rows = await sql(
     `WITH prev AS (
-       SELECT maimai_cumulative, chunithm_cumulative, maimai_rating, chunithm_rating
+       SELECT play_date, maimai_cumulative, chunithm_cumulative, maimai_rating, chunithm_rating,
+              scrape_failed
        FROM ${tables.day} WHERE play_date < $1::date ORDER BY play_date DESC LIMIT 1
      ), ticket_total AS (
        SELECT COALESCE(SUM(count), 0)::int AS n FROM ${tables.ticket}
@@ -115,10 +136,11 @@ export async function writePlays(
      ), written AS (
        INSERT INTO ${tables.day} AS d (play_date, maimai_play_count, chunithm_play_count,
                                        maimai_cumulative, chunithm_cumulative,
-                                       maimai_rating, chunithm_rating, scrape_failed)
+                                       maimai_rating, chunithm_rating,
+                                       scrape_failed, failure_reason)
        SELECT $1::date, ${maimai}, ${chunithm},
               p.maimai_cumulative + ${maimai}, p.chunithm_cumulative + ${chunithm},
-              p.maimai_rating, p.chunithm_rating, FALSE
+              p.maimai_rating, p.chunithm_rating, ${CREATED_FLAG}
        FROM (SELECT 1) one LEFT JOIN prev p ON TRUE
        WHERE $2::int >= (SELECT n FROM ticket_total)
          AND (EXISTS (SELECT 1 FROM ${tables.day} WHERE play_date = $1::date)
@@ -173,8 +195,71 @@ export async function writeTicket(
   return rows.length === 1;
 }
 
+/**
+ * Compare-and-set one game's rating. A rating can only change on a day with
+ * plays, so the new value also replaces the old one in the following days
+ * without plays for this game that still hold it, stopping at the first day
+ * with plays (or an unknown count) or a different rating. A missing day is
+ * created like a play write would: previous totals and ratings, 0 plays.
+ *
+ * Ratings compare as float8, the value the client saw: rows written before
+ * the scraper rounded ratings hold a float's full binary expansion.
+ */
+export async function writeRating(
+  sql: Sql,
+  write: RatingWrite,
+  tables: Tables = TABLES,
+): Promise<boolean> {
+  const col = RATING_COLUMN[write.game];
+  const plays = PLAY_COLUMN[write.game];
+  const maimai = write.game === "maimai" ? "$2::numeric" : "p.maimai_rating";
+  const chunithm = write.game === "chunithm" ? "$2::numeric" : "p.chunithm_rating";
+  const rows = await sql(
+    `WITH prev AS (
+       SELECT play_date, maimai_cumulative, chunithm_cumulative, maimai_rating, chunithm_rating,
+              scrape_failed
+       FROM ${tables.day} WHERE play_date < $1::date ORDER BY play_date DESC LIMIT 1
+     ), old AS (
+       SELECT CASE WHEN EXISTS (SELECT 1 FROM ${tables.day} WHERE play_date = $1::date)
+                   THEN (SELECT ${col} FROM ${tables.day} WHERE play_date = $1::date)
+                   ELSE (SELECT ${col} FROM prev) END::float8 AS r
+     ), written AS (
+       INSERT INTO ${tables.day} AS d (play_date, maimai_play_count, chunithm_play_count,
+                                       maimai_cumulative, chunithm_cumulative,
+                                       maimai_rating, chunithm_rating,
+                                       scrape_failed, failure_reason)
+       SELECT $1::date, 0, 0, p.maimai_cumulative, p.chunithm_cumulative,
+              ${maimai}, ${chunithm}, ${CREATED_FLAG}
+       FROM (SELECT 1) one LEFT JOIN prev p ON TRUE
+       WHERE (SELECT r FROM old) IS NOT DISTINCT FROM $3::float8
+       ON CONFLICT (play_date) DO UPDATE SET ${col} = EXCLUDED.${col}
+       WHERE d.${col}::float8 IS NOT DISTINCT FROM $3::float8
+       RETURNING d.play_date
+     ), stop AS (
+       SELECT MIN(play_date) AS at FROM ${tables.day}
+       WHERE play_date > $1::date
+         AND (${plays} IS DISTINCT FROM 0
+              OR ${col}::float8 IS DISTINCT FROM (SELECT r FROM old))
+     ), carried AS (
+       -- The per-row checks repeat the stop rule so that a row another writer
+       -- changed after this statement's snapshot keeps its new value.
+       UPDATE ${tables.day} AS later SET ${col} = $2::numeric
+       WHERE later.play_date > $1::date
+         AND later.play_date < COALESCE((SELECT at FROM stop), 'infinity'::date)
+         AND later.${plays} = 0
+         AND later.${col}::float8 IS NOT DISTINCT FROM (SELECT r FROM old)
+         AND EXISTS (SELECT 1 FROM written)
+       RETURNING 1
+     )
+     SELECT (SELECT count(*) FROM written)::int AS written`,
+    [write.date, write.rating, write.expected],
+  );
+  return Number(rows[0]?.written) === 1;
+}
+
 const PLAY_KEYS = "count,date,expected,game";
 const TICKET_KEYS = "count,date,expected,game,ticket";
+const RATING_KEYS = "date,expected,game,rating";
 
 export function parseWrite(
   body: unknown,
@@ -184,18 +269,34 @@ export function parseWrite(
     return { error: "Send a JSON object." };
   const b = body as Record<string, unknown>;
   const keys = Object.keys(b).sort().join(",");
-  if (keys !== PLAY_KEYS && keys !== TICKET_KEYS)
-    return { error: `Send exactly ${PLAY_KEYS} (plus ticket for a ticket).` };
+  if (keys !== PLAY_KEYS && keys !== TICKET_KEYS && keys !== RATING_KEYS)
+    return {
+      error: `Send exactly ${PLAY_KEYS} (plus ticket for a ticket), or ${RATING_KEYS}.`,
+    };
   if (typeof b.date !== "string" || !isEditableDate(b.date, today))
     return { error: "date must be a real date within the last year, not after today." };
   if (typeof b.game !== "string" || !(APP_CONFIG.games as string[]).includes(b.game))
     return { error: "game must be one of the configured games." };
+  const game = b.game as Game;
+  if (keys === RATING_KEYS) {
+    if (!isRating(game, b.rating))
+      return {
+        error:
+          game === "maimai"
+            ? "rating must be a whole number from 0 to 20000."
+            : "rating must be a number from 0 to 20 with at most two decimals.",
+      };
+    // expected echoes the stored value, which may predate these bounds.
+    if (b.expected !== null && (typeof b.expected !== "number" || !Number.isFinite(b.expected)))
+      return { error: "expected must be null or a number." };
+    return { write: { date: b.date, game, rating: b.rating, expected: b.expected } };
+  }
   if (!isCount(b.count)) return { error: "count must be a whole number from 0 to 99." };
   if (b.expected !== null && !isCount(b.expected))
     return { error: "expected must be null or a whole number from 0 to 99." };
   const write: PlayWrite = {
     date: b.date,
-    game: b.game as Game,
+    game,
     count: b.count,
     expected: b.expected as number | null,
   };
@@ -279,16 +380,21 @@ export function createDailyPlayHandler(
           .json({ code: "INVALID_REQUEST", error: parsed.error });
       const write = parsed.write;
 
-      const saved = isTicketWrite(write)
-        ? await writeTicket(sql, write, findTicket(write.game, write.ticket)?.extra_credits ?? 0)
-        : await writePlays(sql, write);
+      const saved = isRatingWrite(write)
+        ? await writeRating(sql, write)
+        : isTicketWrite(write)
+          ? await writeTicket(sql, write, findTicket(write.game, write.ticket)?.extra_credits ?? 0)
+          : await writePlays(sql, write);
       const day = await readDay(sql, write.date);
       if (saved) return res.status(200).json({ day });
 
       const gameDay = day.games[write.game];
-      const changedElsewhere = isTicketWrite(write)
-        ? (gameDay?.tickets[write.ticket] ?? 0) !== (write.expected ?? 0)
-        : gameDay?.plays !== write.expected;
+      // A rating write fails only when the stored rating moved.
+      const changedElsewhere = isRatingWrite(write)
+        ? true
+        : isTicketWrite(write)
+          ? (gameDay?.tickets[write.ticket] ?? 0) !== (write.expected ?? 0)
+          : gameDay?.plays !== write.expected;
       if (changedElsewhere)
         return res
           .status(409)

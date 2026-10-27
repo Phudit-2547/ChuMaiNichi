@@ -4045,6 +4045,7 @@ rect.heatmap-today {
 }
 
 .play-log__count:focus-visible,
+.play-log__rating-input:focus-visible,
 .play-log__nav:focus-visible,
 .play-log__date:focus-visible,
 .play-log__step:focus-visible,
@@ -4062,6 +4063,42 @@ rect.heatmap-today {
   font-size: 0.78rem;
   color: var(--muted-foreground);
   text-align: center;
+}
+
+.play-log__rating {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--muted-foreground);
+}
+
+.play-log__rating-input {
+  width: 6.5rem;
+  height: 36px;
+  border: 1px solid var(--glass-control-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.play-log__rating-input::placeholder {
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+
+.play-log__rating-input[aria-invalid="true"] {
+  border-color: var(--destructive);
+}
+
+.play-log__hint--error {
+  color: var(--color-destructive);
 }
 
 .play-log__tickets {

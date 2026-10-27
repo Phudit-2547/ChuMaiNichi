@@ -133,11 +133,13 @@ RULES:
 - daily_play has ONE row per date with columns for BOTH games. Dates use Asia/Bangkok timezone.
 - user_scores stores JSONB snapshots from chuumai-tools (latest ~5 kept per game).
 - Play counts are logged by the owner. A missing past day is filled nightly as 0 plays with the previous day's totals and ratings: a 0-play day is a day without play, not missing data.
+- Ratings (maimai_rating, chunithm_rating) are typed by the owner in the day editor or read from SEGA by Refresh. A day's rating repeats on later days until a newer one is recorded, so an unchanged rating across days means no newer rating was recorded, not a confirmed plateau.
+- For the player's current or latest overall rating, use the most recent daily_play row with a non-null maimai_rating / chunithm_rating. Later rows can be nightly copies, so if you give a date, use the first date of the latest run of rows holding that value. user_scores profile.rating is only as recent as that snapshot's scraped_at, which can be older than a rating typed in the day editor.
 - daily_ticket holds paid tickets bought on plays (one ticket per credit, never more tickets than plays). Spending for a game on a day = (plays + SUM(count * extra_credits) of that game's tickets) × currency per play. Without tickets that is plays × currency per play.
 
 WHICH TABLE TO QUERY:
-- daily_play → aggregate / timeline questions: play counts per day, rating over time, currency spent, streaks, scrape failures. Join daily_ticket (on play_date and game) for spending that includes tickets.
-- user_scores → ANY per-song, per-chart, or profile question: best scores, a specific song's achievement, top 30/35 best or top 15/20 current, player name, OVERPOWER, last-played date, play history.
+- daily_play → aggregate / timeline questions: play counts per day, current rating and rating over time, currency spent, streaks, scrape failures. Join daily_ticket (on play_date and game) for spending that includes tickets.
+- user_scores → ANY per-song, per-chart, or profile question (except the current overall rating, above): best scores, a specific song's achievement, top 30/35 best or top 15/20 current, player name, OVERPOWER, last-played date, play history.
 - When the user asks about THEIR scores / profile / specific songs, ALWAYS go to user_scores. Do NOT try to answer per-song questions from daily_play (it does not contain them).
 - user_scores.game literals are EXACTLY 'maimai' or 'chunithm' (always lowercase). SQL is case-sensitive — 'Maimai' or 'CHUNITHM' return zero rows.
 - Latest snapshot pattern:
@@ -169,7 +171,7 @@ Use query_database to answer questions about play data. Write efficient SELECT q
 Use maimai_suggest_songs when the player asks for maimai song recommendations to improve their rating.
 
 MAIMAI TARGET-RATING STAGING (MANDATORY when the user names a target rating):
-- Before calling maimai_suggest_songs with target_rating, you MUST know the user's current rating. If it isn't already in the conversation, query it first: SELECT (data->'profile'->>'rating')::int AS rating FROM user_scores WHERE game = 'maimai' ORDER BY scraped_at DESC LIMIT 1.
+- Before calling maimai_suggest_songs with target_rating, you MUST know current_rating as the tool sees it: the latest user_scores snapshot rating. Query it every time, even if a daily_play rating is already in the conversation: SELECT (data->'profile'->>'rating')::int AS rating, scraped_at FROM user_scores WHERE game = 'maimai' ORDER BY scraped_at DESC LIMIT 1. If the latest daily_play maimai_rating is newer and differs, say the plan is based on the snapshot from that scraped_at date.
 - If (target_rating − current_rating) > 1000, do NOT pass the user's full target to the tool. The per-slot threshold algorithm produces unrealistic SSS+-on-everything plans for large gaps and many slots come back unfilled.
 - Instead, call the tool with target_rating = current_rating + 500 (rounded to nearest 100). Present the result as "Step 1 toward your full target of X — let's reach Y first, then re-plan."
 - If (target_rating − current_rating) ≤ 1000, pass the user's target through unchanged.` : ""}

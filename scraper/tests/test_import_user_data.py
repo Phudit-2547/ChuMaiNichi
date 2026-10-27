@@ -369,3 +369,32 @@ async def test_refresh_records_missing_days_before_attributing_today(monkeypatch
     today = real_date.fromisoformat(calls[1][1])
     assert calls[0] == ("fill", today - timedelta(days=1))
     assert calls[1][0] == "upsert"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("configured, verified", [({"maimai": True, "chunithm": False}, True),
+                                                  ({"maimai": True, "chunithm": True}, False)])
+async def test_refresh_verifies_an_editor_day_only_after_every_configured_game(
+    monkeypatch, tmp_path, configured, verified,
+):
+    import import_user_data as importer
+
+    verify = AsyncMock(return_value=True)
+    monkeypatch.setattr(importer, "CONFIG", configured)
+    monkeypatch.setattr(importer, "scan_outputs_directory", lambda _d: [tmp_path / "full.json"])
+    monkeypatch.setattr(importer, "read_json_file", lambda _f: MAIMAI_FULL_DATA)
+    monkeypatch.setattr(importer, "init_schema", AsyncMock())
+    monkeypatch.setattr(importer, "import_user_data", AsyncMock())
+    monkeypatch.setattr(importer, "find_image_for_game", lambda *_a: None)
+    monkeypatch.setattr(importer, "extract_daily_stats", lambda *_a: (735, 14561))
+    monkeypatch.setattr(importer, "prune_old_snapshots", AsyncMock())
+    monkeypatch.setattr(importer, "connect_db", AsyncMock(return_value=AsyncMock()))
+    monkeypatch.setattr(importer, "fill_missing_days", AsyncMock(return_value=[]))
+    monkeypatch.setattr(importer, "upsert_daily_play_single_game", AsyncMock(return_value=None))
+    monkeypatch.setattr(importer, "verify_editor_day", verify)
+
+    await importer.main(tmp_path)
+
+    assert verify.await_count == (1 if verified else 0)
+    if verified:
+        assert verify.await_args.args[2] == []

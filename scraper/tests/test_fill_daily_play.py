@@ -114,3 +114,21 @@ async def test_unverified_totals_stay_flagged_after_a_failed_day(conn):
     m, c, mc, cc, mr, cr, failed, reason = (await rows(conn))["2026-10-23"]
     assert (m, c, mc, cc, mr, cr, failed) == (0, 0, 733, 339, 14561, Decimal("15.26"), True)
     assert "2026-10-22" in reason
+
+
+@needs_db
+@pytest.mark.asyncio
+async def test_refresh_clears_only_the_editors_unverified_flag(conn):
+    from play_counter.db import verify_editor_day
+    await conn.execute(f"""
+        INSERT INTO {TABLE} VALUES
+          ('2026-10-24', 0, 0, 735, 339, 14561, 15.26, TRUE, 'Scrape failed'),
+          ('2026-10-25', 2, 0, 737, 339, 14600, 15.26, TRUE,
+           'Logged in the day editor; totals continue from 2026-10-24, which is unverified.')""")
+    assert await verify_editor_day(conn, date(2026, 10, 25), ["maimai: gap"], TABLE)
+    assert not await verify_editor_day(conn, date(2026, 10, 24), [], TABLE)
+    rows = await conn.fetch(f"SELECT play_date, scrape_failed, failure_reason FROM {TABLE} ORDER BY play_date")
+    assert [(r["scrape_failed"], r["failure_reason"]) for r in rows] == [
+        (True, "Scrape failed"),
+        (False, "maimai: gap"),
+    ]

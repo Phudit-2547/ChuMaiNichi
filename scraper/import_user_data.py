@@ -24,7 +24,8 @@ import asyncpg
 from pydantic import BaseModel, ValidationError
 
 from fill_daily_play import fill_missing_days
-from play_counter.db import connect_db, init_schema, upsert_daily_play_single_game
+from play_counter.config import CONFIG
+from play_counter.db import connect_db, init_schema, upsert_daily_play_single_game, verify_editor_day
 
 BKK = timezone(timedelta(hours=7))
 
@@ -443,6 +444,8 @@ async def main(outputs_dir: Path | None = None):
 
     imported_count = 0
     failures = []
+    refreshed: set[str] = set()
+    today_reasons: list[str] = []
     for json_file in json_files:
         try:
             print(f"Processing {json_file.name}...")
@@ -475,8 +478,10 @@ async def main(outputs_dir: Path | None = None):
                 cumulative, rating = stats
                 try:
                     reason = await upsert_daily_play_single_game(game, today_str, cumulative, rating)
+                    refreshed.add(game)
                     if reason:
                         failures.append(reason)
+                        today_reasons.append(reason)
                 except Exception as e:
                     print(f"[ERROR] daily_play upsert failed for {game}: {type(e).__name__}")
                     failures.append(f"{game}: daily_play write failed")
@@ -487,6 +492,16 @@ async def main(outputs_dir: Path | None = None):
             failures.append("Import failed")
             print(f"[ERROR] Failed to import {json_file.name}: {e}")
     
+    # A day the editor created after an unverified row is flagged; once SEGA has
+    # supplied every configured game's totals for it, it is an observation.
+    configured = {game for game, enabled in CONFIG.items() if enabled}
+    if configured and configured <= refreshed:
+        conn = await connect_db()
+        try:
+            await verify_editor_day(conn, datetime.strptime(today_str, "%Y-%m-%d").date(), today_reasons)
+        finally:
+            await conn.close()
+
     # Prune old snapshots after all imports
     if imported_count > 0:
         print("Pruning old snapshots...")

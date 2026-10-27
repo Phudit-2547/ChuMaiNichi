@@ -9,7 +9,14 @@ import { createDailyPlayHandler, type Sql } from "./daily-play";
 
 const ORIGIN = "https://dashboard.example.com";
 const NOW = new Date("2026-10-26T05:00:00Z");
-const DAY_ROW = { exists: true, maimai_play_count: 2, chunithm_play_count: 0, tickets: { "maimai:area_x2": [1, 1] } };
+const DAY_ROW = {
+  exists: true,
+  maimai_play_count: 2,
+  chunithm_play_count: 0,
+  maimai_rating: "14561",
+  chunithm_rating: "15.26",
+  tickets: { "maimai:area_x2": [1, 1] },
+};
 
 let results: Record<string, unknown>[][];
 let sql: ReturnType<typeof vi.fn<Sql>>;
@@ -32,6 +39,7 @@ async function send(req: VercelRequest) {
   return { status: res.status.mock.calls[0]?.[0], body: res.json.mock.calls[0]?.[0], res };
 }
 const play = (extra = {}) => ({ date: "2026-10-26", game: "maimai", count: 3, expected: 2, ...extra });
+const rate = (extra = {}) => ({ date: "2026-10-26", game: "maimai", rating: 14600, expected: 14561, ...extra });
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -91,6 +99,14 @@ describe("daily-play handler order", () => {
     ["an unknown ticket", play({ ticket: "area_x9" })],
     ["a retired ticket being raised", play({ ticket: "old_pass", count: 3, expected: 2 })],
     ["a ticket from the other game", play({ ticket: "map_x2" })],
+    ["a rating with a count", rate({ count: 1 })],
+    ["a fractional maimai rating", rate({ rating: 14600.5 })],
+    ["a maimai rating above 20000", rate({ rating: 20001 })],
+    ["a CHUNITHM rating with three decimals", rate({ game: "chunithm", rating: 15.265, expected: 15.26 })],
+    ["a CHUNITHM rating above 20", rate({ game: "chunithm", rating: 152.6, expected: 15.26 })],
+    ["a rating sent as text", rate({ rating: "14600" })],
+    ["a negative rating", rate({ rating: -1 })],
+    ["a non-numeric expected rating", rate({ expected: "14561" })],
     ["no body", undefined],
   ])("rejects %s", async (_label, body) => {
     const { status, body: json } = await send(request("PUT", body));
@@ -107,9 +123,36 @@ describe("daily-play writes", () => {
     expect(sql.mock.calls[0][1]).toEqual(["2026-10-26", 3, 2, "maimai"]);
     expect(body.day.games.maimai).toEqual({
       plays: 2,
+      rating: 14561,
       tickets: { area_x2: 1 },
       ticketCredits: { area_x2: 1 },
     });
+    expect(body.day.games.chunithm.rating).toBe(15.26);
+  });
+
+  it("saves a rating", async () => {
+    results = [[{ written: 1 }], [DAY_ROW]];
+    const { status } = await send(request("PUT", rate()));
+    expect(status).toBe(200);
+    expect(sql.mock.calls[0][1]).toEqual(["2026-10-26", 14600, 14561]);
+    expect(sql.mock.calls[0][0]).toContain("SET maimai_rating = EXCLUDED.maimai_rating");
+    expect(sql.mock.calls[0][0]).not.toContain("SET chunithm_rating");
+  });
+
+  it("saves a first CHUNITHM rating against an unset one", async () => {
+    results = [[{ written: 1 }], [DAY_ROW]];
+    const { status } = await send(request("PUT", rate({ game: "chunithm", rating: 15.3, expected: null })));
+    expect(status).toBe(200);
+    expect(sql.mock.calls[0][1]).toEqual(["2026-10-26", 15.3, null]);
+    expect(sql.mock.calls[0][0]).toContain("SET chunithm_rating = EXCLUDED.chunithm_rating");
+    expect(sql.mock.calls[0][0]).not.toContain("SET maimai_rating");
+  });
+
+  it("answers 409 when the stored rating moved", async () => {
+    results = [[{ written: 0 }], [DAY_ROW]];
+    const { status, body } = await send(request("PUT", rate({ expected: 14500 })));
+    expect([status, body.code]).toEqual([409, "CONFLICT"]);
+    expect(body.day.games.maimai.rating).toBe(14561);
   });
 
   it("answers 409 when the stored value moved", async () => {
@@ -167,15 +210,22 @@ describe("daily-play reads", () => {
   });
 
   it("returns a missing day as zero plays", async () => {
-    results = [[{ exists: false, maimai_play_count: null, chunithm_play_count: null, tickets: {} }]];
+    results = [[{
+      exists: false,
+      maimai_play_count: null,
+      chunithm_play_count: null,
+      maimai_rating: "14561",
+      chunithm_rating: null,
+      tickets: {},
+    }]];
     const { status, body } = await send(request("GET", undefined, { origin: undefined }, { date: "2026-10-26" }));
     expect(status).toBe(200);
     expect(body.day).toEqual({
       date: "2026-10-26",
       exists: false,
       games: {
-        maimai: { plays: 0, tickets: {}, ticketCredits: {} },
-        chunithm: { plays: 0, tickets: {}, ticketCredits: {} },
+        maimai: { plays: 0, rating: 14561, tickets: {}, ticketCredits: {} },
+        chunithm: { plays: 0, rating: null, tickets: {}, ticketCredits: {} },
       },
     });
   });

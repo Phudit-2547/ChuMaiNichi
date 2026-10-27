@@ -16,6 +16,9 @@ describe("buildSystemPrompt region context", () => {
     expect(prompt).toContain("CREATE TABLE daily_ticket");
     expect(prompt).toContain("(plays + SUM(count * extra_credits)");
     expect(prompt).toContain("a 0-play day is a day without play");
+    expect(prompt).toContain("A day's rating repeats on later days until a newer one is recorded");
+    expect(prompt).toContain("For the player's current or latest overall rating, use the most recent daily_play row");
+    expect(prompt).toContain("Query it every time, even if a daily_play rating is already in the conversation");
     expect(buildSystemPrompt(config, "japan")).not.toContain("daily_ticket");
   });
 
