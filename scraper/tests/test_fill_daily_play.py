@@ -132,3 +132,43 @@ async def test_refresh_clears_only_the_editors_unverified_flag(conn):
         (True, "Scrape failed"),
         (False, "maimai: gap"),
     ]
+
+
+@needs_db
+@pytest.mark.asyncio
+async def test_single_game_refresh_carries_the_other_games_totals(conn):
+    from play_counter.db import write_single_game_day
+    await insert(conn, "2026-10-28", 0, 0, 1503, 339, 14561, Decimal("15.26"))
+
+    await write_single_game_day(conn, "chunithm", date(2026, 10, 29), 2, 341, Decimal("15.30"), None, TABLE)
+
+    assert (await rows(conn))["2026-10-29"] == (0, 2, 1503, 341, 14561, Decimal("15.30"), False, None)
+
+
+@needs_db
+@pytest.mark.asyncio
+async def test_single_game_refresh_keeps_unverified_carried_totals_flagged_until_both_games_refresh(conn):
+    from play_counter.db import verify_editor_day, write_single_game_day
+    await insert(conn, "2026-10-28", 0, 0, 1503, 339, 14561, Decimal("15.26"),
+                 failed=True, reason="Scrape failed")
+
+    await write_single_game_day(conn, "maimai", date(2026, 10, 29), 1, 1504, 14570, "maimai: gap", TABLE)
+
+    m, c, mc, cc, mr, cr, failed, reason = (await rows(conn))["2026-10-29"]
+    assert (m, c, mc, cc, mr, cr, failed) == (1, 0, 1504, 339, 14570, Decimal("15.26"), True)
+    assert reason.startswith("Refreshed maimai only; chunithm totals carried from 2026-10-28")
+    assert reason.endswith(" | maimai: gap")
+    assert await verify_editor_day(conn, date(2026, 10, 29), [], TABLE)
+    assert (await rows(conn))["2026-10-29"][6:] == (False, None)
+
+
+@needs_db
+@pytest.mark.asyncio
+async def test_single_game_refresh_leaves_the_other_game_on_an_existing_row(conn):
+    from play_counter.db import write_single_game_day
+    await insert(conn, "2026-10-28", 0, 0, 1503, 339, 14561, Decimal("15.26"))
+    await insert(conn, "2026-10-29", 3, 0, 1506, 339, 14590, Decimal("15.26"), reason="maimai: gap")
+
+    await write_single_game_day(conn, "chunithm", date(2026, 10, 29), 2, 341, Decimal("15.30"), None, TABLE)
+
+    assert (await rows(conn))["2026-10-29"] == (3, 2, 1506, 341, 14590, Decimal("15.30"), False, "maimai: gap")

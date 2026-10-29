@@ -423,7 +423,7 @@ Protected routes use `checkAuth` and HttpOnly session cookies when `PASSKEY_ORIG
   1. Run `ghcr.io/leomotors/chunithm-scraper:v6` and/or `ghcr.io/leomotors/maimai-scraper:v1`
   2. Capture JSON output from `outputs/` directory
   3. Run `import_user_data.py` to write JSONB into `user_scores` table
-  4. `Result: maimai` / `Result: chunithm` fail the run for a game whose scrape and image retry both failed
+  4. `Result: maimai` / `Result: chunithm` fail the run for a game whose scrape and image retry both failed, or that the import did not save
 - A game's scrape and its image retry are `continue-on-error`, so one game's failure never skips the other game or the import
 - Data goes directly to Neon — NEVER committed to git (privacy)
 - Secrets needed: `DATABASE_URL`, `SEGA_USERNAME`, `SEGA_PASSWORD`
