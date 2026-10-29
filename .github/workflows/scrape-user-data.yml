@@ -86,7 +86,9 @@ jobs:
             ghcr.io/leomotors/maimai-scraper:v1
 
       - name: Retry maimai image generation (120-second timeout)
+        id: retry_maimai
         if: steps.games.outputs.maimai == 'true' && steps.scrape_maimai.outcome == 'failure'
+        continue-on-error: true
         timeout-minutes: 10
         env:
           MAIMAI_SERVICE_URL: ${{ secrets.MAIMAI_SERVICE_URL || 'https://maimai.wonderhoy.me' }}
@@ -122,7 +124,9 @@ jobs:
             ghcr.io/leomotors/chunithm-scraper:v6
 
       - name: Retry chunithm image generation (120-second timeout)
+        id: retry_chunithm
         if: steps.games.outputs.chunithm == 'true' && steps.scrape_chunithm.outcome == 'failure'
+        continue-on-error: true
         timeout-minutes: 10
         env:
           CHUNI_SERVICE_URL: ${{ secrets.CHUNI_SERVICE_URL || 'https://chuni.wonderhoy.me' }}
@@ -150,11 +154,47 @@ jobs:
         run: uv sync
 
       - name: Import user data into database
+        id: import
         working-directory: scraper
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           uv run python import_user_data.py "${{ github.workspace }}/outputs"
+
+      # One game's failure must not block the other game or the import. A game
+      # succeeds only when it was scraped and the import saved it; /api/refresh
+      # reads these steps by name.
+      - name: "Result: maimai"
+        if: ${{ !cancelled() && steps.games.outputs.maimai == 'true' }}
+        env:
+          SCRAPE: ${{ steps.scrape_maimai.outcome }}
+          RETRY: ${{ steps.retry_maimai.outcome }}
+          IMPORT: ${{ steps.import.outcome }}
+        run: |
+          if [ "$SCRAPE" != "success" ] && [ "$RETRY" != "success" ]; then
+            echo "::error::maimai refresh failed"
+            exit 1
+          fi
+          if [ "$IMPORT" != "success" ]; then
+            echo "::error::maimai was not saved: the import did not succeed"
+            exit 1
+          fi
+
+      - name: "Result: chunithm"
+        if: ${{ !cancelled() && steps.games.outputs.chunithm == 'true' }}
+        env:
+          SCRAPE: ${{ steps.scrape_chunithm.outcome }}
+          RETRY: ${{ steps.retry_chunithm.outcome }}
+          IMPORT: ${{ steps.import.outcome }}
+        run: |
+          if [ "$SCRAPE" != "success" ] && [ "$RETRY" != "success" ]; then
+            echo "::error::CHUNITHM refresh failed"
+            exit 1
+          fi
+          if [ "$IMPORT" != "success" ]; then
+            echo "::error::CHUNITHM was not saved: the import did not succeed"
+            exit 1
+          fi
 
       - name: Notify workflow failure
         if: failure()

@@ -181,7 +181,7 @@ Single-page app. No `react-router-dom`. No client-side routing.
 - **Log button + day editor**: International only, left of Refresh. Opens `PlayLogDialog` on today's Asia/Bangkok date (bottom sheet ≤480px). Per game: −/count/+, paid-ticket chips and a rating field with −/+ (maimai steps 1, CHUNITHM 0.01); every change saves on its own; ‹ › and a date picker move within the last 366 days. The heatmap's cell details offer **Edit day**
 - **Settings modal**: Overlay triggered by gear icon. Theme toggle and display preferences. Stored in `localStorage`
 - **Game selection and currency**: `config.json` controls International only; the Japan view always uses its Journal schema
-- **Refresh button**: In header or settings. Calls `/api/refresh` to trigger `scrape-user-data.yml`
+- **Refresh button**: In the header. Opens a picker with one checkbox per configured game (all ticked by default) and calls `/api/refresh` with the chosen games to trigger `scrape-user-data.yml`; a game that failed in the last run is marked there
 - No separate pages, no route transitions
 
 ## Config (`config.json`)
@@ -390,12 +390,13 @@ Protected routes use `checkAuth` and HttpOnly session cookies when `PASSKEY_ORIG
 
 ### POST /api/refresh
 - Uses `GITHUB_PAT` + `GITHUB_REPO` env vars
-- Triggers `workflow_dispatch` on `scrape-user-data.yml` (passes configured `games`)
+- Body: `{ games?: string[] }`. Omitted → every configured game; otherwise a non-empty list of configured games, or `400`
+- Triggers `workflow_dispatch` on `scrape-user-data.yml` (passes the chosen `games`)
 - Returns: `{ run_id: string, run_url: string }`
 
 ### GET /api/refresh?run_id=<id>
-- Polls the dispatched run's status. Returns `{ status, conclusion?, run_url? }`.
-- The frontend (`pollRefreshStatus`) polls this until `status === "completed"`, then reloads score data.
+- Polls the dispatched run's status. Returns `{ status, conclusion?, run_url?, games? }`; once completed, `games` maps each game to the conclusion of the workflow's `Result: <game>` step (`success` | `failure`).
+- The frontend (`pollRefreshStatus`) polls this until `status === "completed"`, then reloads score data even when the run failed, because games that succeeded were still imported. One failed game out of several shows as "Partial".
 
 ## GitHub Actions workflows
 
@@ -422,6 +423,8 @@ Protected routes use `checkAuth` and HttpOnly session cookies when `PASSKEY_ORIG
   1. Run `ghcr.io/leomotors/chunithm-scraper:v6` and/or `ghcr.io/leomotors/maimai-scraper:v1`
   2. Capture JSON output from `outputs/` directory
   3. Run `import_user_data.py` to write JSONB into `user_scores` table
+  4. `Result: maimai` / `Result: chunithm` fail the run for a game whose scrape and image retry both failed, or that the import did not save
+- A game's scrape and its image retry are `continue-on-error`, so one game's failure never skips the other game or the import
 - Data goes directly to Neon — NEVER committed to git (privacy)
 - Secrets needed: `DATABASE_URL`, `SEGA_USERNAME`, `SEGA_PASSWORD`
 

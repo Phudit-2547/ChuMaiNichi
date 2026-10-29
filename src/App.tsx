@@ -14,8 +14,10 @@ import { authenticate } from "./global/lib/auth";
 import {
   triggerRefresh,
   pollRefreshStatus,
+  type RefreshGameResults,
   type WorkflowStatus,
 } from "./global/lib/api";
+import type { Game } from "./global/lib/games";
 import { TooltipProvider } from "./global/components/ui/tooltip";
 import ChatPanel from "./features/chat/components/ChatPanel";
 import SettingsModal from "./features/settings/components/SettingsModal";
@@ -33,7 +35,7 @@ const RatingImage = lazy(
   () => import("./features/rating-image/components/RatingImage"),
 );
 
-type RefreshUiStatus = WorkflowStatus | "syncing" | "failed" | "";
+type RefreshUiStatus = WorkflowStatus | "syncing" | "partial" | "failed" | "";
 type EffectiveTheme = Exclude<ThemeMode, "auto">;
 const LIQUID_INTERACTIVE_SELECTOR =
   ".glass-control, .chat-composer__box, .slash-menu__item";
@@ -235,6 +237,8 @@ function App() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshStatus, setRefreshStatus] = useState<RefreshUiStatus>("");
   const [refreshNonce, setRefreshNonce] = useState(0);
+  const [lastRefreshResults, setLastRefreshResults] =
+    useState<RefreshGameResults>({});
   const [settingsOpen, setSettingsOpen] = useState(false);
   const {
     chatOpen,
@@ -280,22 +284,31 @@ function App() {
       usePlayLogStore.getState().close(false);
   }, [dataRegion]);
 
-  async function handleRefresh() {
+  async function handleRefresh(games: Game[]) {
     if (dataRegion !== "international") return;
     setRefreshing(true);
     setRefreshStatus("queued");
     try {
-      const { run_id } = await triggerRefresh();
+      const { run_id } = await triggerRefresh(games);
       if (!run_id) throw new Error("No run_id returned");
       const result = await pollRefreshStatus(run_id, (status) => {
         setRefreshStatus(status);
       });
-      if (result.conclusion && result.conclusion !== "success") {
-        throw new Error(`Workflow finished with conclusion: ${result.conclusion}`);
-      }
+      // A failed run still imports the games that succeeded, so reload either way.
       setRefreshStatus("syncing");
       setRefreshNonce((n) => n + 1);
-      setRefreshStatus("completed");
+      const results = result.games ?? {};
+      setLastRefreshResults((previous) => ({ ...previous, ...results }));
+      if (!result.conclusion || result.conclusion === "success") {
+        setRefreshStatus("completed");
+      } else if (
+        games.some((game) => results[game] === "success") &&
+        games.some((game) => results[game] === "failure")
+      ) {
+        setRefreshStatus("partial");
+      } else {
+        throw new Error(`Workflow finished with conclusion: ${result.conclusion}`);
+      }
     } catch (e) {
       console.error("[Refresh] error:", e);
       setRefreshStatus("failed");
@@ -318,6 +331,8 @@ function App() {
       >
         <Header
           onRefresh={handleRefresh}
+          refreshGames={APP_CONFIG.games}
+          lastRefreshResults={lastRefreshResults}
           onOpenSettings={() => setSettingsOpen(true)}
           refreshing={refreshing}
           refreshStatus={refreshStatus}

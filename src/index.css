@@ -121,24 +121,25 @@
   --accent-soft: oklch(0.64 0.245 296 / 0.12);
   --accent-border: oklch(0.64 0.245 296 / 0.22);
   --success: oklch(0.57 0.16 150);
-  --maimai: oklch(0.72 0.19 350);
-  --chunithm: oklch(0.62 0.19 268);
+  /* maimai CiRCLE PLUS hot pink; CHUNITHM Mate lemon → orange → coral. */
+  --maimai: oklch(0.66 0.235 350);
+  --chunithm: oklch(0.66 0.185 40);
   --ongeki: oklch(0.62 0.135 82);
-  --maimai-soft: oklch(0.72 0.19 350 / 0.1);
-  --chunithm-soft: oklch(0.62 0.19 268 / 0.1);
-  --maimai-border: oklch(0.72 0.19 350 / 0.24);
-  --chunithm-border: oklch(0.62 0.19 268 / 0.24);
+  --maimai-soft: oklch(0.66 0.235 350 / 0.1);
+  --chunithm-soft: oklch(0.66 0.185 40 / 0.1);
+  --maimai-border: oklch(0.66 0.235 350 / 0.24);
+  --chunithm-border: oklch(0.66 0.185 40 / 0.24);
   --heatmap-cell-stroke: oklch(0.985 0.004 280);
   --heatmap-maimai-0: #eef0f4;
-  --heatmap-maimai-1: #ffd7e8;
-  --heatmap-maimai-2: #ffafd4;
-  --heatmap-maimai-3: #e45caa;
-  --heatmap-maimai-4: #b92779;
+  --heatmap-maimai-1: #ffd6ea;
+  --heatmap-maimai-2: #ffa3d3;
+  --heatmap-maimai-3: #f944ac;
+  --heatmap-maimai-4: #bb167c;
   --heatmap-chunithm-0: #eef0f4;
-  --heatmap-chunithm-1: #dbe7ff;
-  --heatmap-chunithm-2: #abc4ff;
-  --heatmap-chunithm-3: #6389ef;
-  --heatmap-chunithm-4: #2f5ed0;
+  --heatmap-chunithm-1: #f9f1af;
+  --heatmap-chunithm-2: #fcd44b;
+  --heatmap-chunithm-3: #ff9c2e;
+  --heatmap-chunithm-4: #ed5e37;
   --heatmap-ongeki-0: var(--heatmap-maimai-0);
   --heatmap-ongeki-1: oklch(0.9 0.055 82);
   --heatmap-ongeki-2: oklch(0.81 0.095 82);
@@ -276,24 +277,24 @@
   --accent-soft: oklch(0.67 0.2 296 / 0.11);
   --accent-border: oklch(0.67 0.2 296 / 0.18);
   --success: oklch(0.62 0.16 150);
-  --maimai: oklch(0.75 0.19 350);
-  --chunithm: oklch(0.68 0.19 268);
+  --maimai: oklch(0.74 0.2 350);
+  --chunithm: oklch(0.79 0.15 62);
   --ongeki: oklch(0.72 0.14 82);
-  --maimai-soft: oklch(0.75 0.19 350 / 0.1);
-  --chunithm-soft: oklch(0.68 0.19 268 / 0.1);
-  --maimai-border: oklch(0.75 0.19 350 / 0.24);
-  --chunithm-border: oklch(0.68 0.19 268 / 0.24);
+  --maimai-soft: oklch(0.74 0.2 350 / 0.1);
+  --chunithm-soft: oklch(0.79 0.15 62 / 0.1);
+  --maimai-border: oklch(0.74 0.2 350 / 0.24);
+  --chunithm-border: oklch(0.79 0.15 62 / 0.24);
   --heatmap-cell-stroke: oklch(0.255 0.018 265);
   --heatmap-maimai-0: #1b2230;
-  --heatmap-maimai-1: #642648;
-  --heatmap-maimai-2: #8f3864;
-  --heatmap-maimai-3: #b84a80;
-  --heatmap-maimai-4: #ff69aa;
+  --heatmap-maimai-1: #5c1d3f;
+  --heatmap-maimai-2: #912061;
+  --heatmap-maimai-3: #c92a88;
+  --heatmap-maimai-4: #ff44b0;
   --heatmap-chunithm-0: #1b2230;
-  --heatmap-chunithm-1: #203973;
-  --heatmap-chunithm-2: #2c55a5;
-  --heatmap-chunithm-3: #2d59a3;
-  --heatmap-chunithm-4: #3d67e3;
+  --heatmap-chunithm-1: #5d2919;
+  --heatmap-chunithm-2: #95401b;
+  --heatmap-chunithm-3: #d36614;
+  --heatmap-chunithm-4: #ffa136;
   --heatmap-ongeki-0: var(--heatmap-maimai-0);
   --heatmap-ongeki-1: oklch(0.32 0.055 82);
   --heatmap-ongeki-2: oklch(0.43 0.085 82);
@@ -1185,6 +1186,74 @@ h1 {
   outline: none;
   border-color: var(--accent-border);
   box-shadow: var(--glass-focus-ring), var(--shadow-card);
+}
+
+.refresh-menu {
+  z-index: 90;
+  width: min(15rem, calc(100vw - 24px));
+  padding: 0.5rem;
+  border-radius: 12px;
+  border: 1px solid var(--color-border-subtle);
+  background: var(--surface-elevated);
+  color: var(--foreground);
+  box-shadow:
+    0 14px 34px oklch(0.18 0.012 265 / 0.14),
+    inset 0 1px 0 oklch(1 0 0 / 0.28);
+}
+
+.refresh-menu__title {
+  margin: 0.25rem 0.5rem 0.35rem;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.refresh-menu__game {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 40px;
+  padding: 0 0.5rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  transition: background 120ms ease;
+}
+
+.refresh-menu__game:hover {
+  background: var(--surface-muted);
+}
+
+.refresh-menu__game input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--game-accent);
+  cursor: pointer;
+}
+
+.refresh-menu__note {
+  margin-left: auto;
+  color: var(--destructive);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.refresh-menu__submit {
+  width: 100%;
+  justify-content: center;
+  margin-top: 0.4rem;
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.refresh-menu__submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .year-dropdown__menu {

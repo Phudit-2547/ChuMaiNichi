@@ -1,8 +1,13 @@
 import { MessageCircle, NotebookPen, RotateCw, Settings } from "lucide-react";
+import type { RefreshGameResults } from "@/global/lib/api";
+import { GAME_LABELS, type Game } from "@/global/lib/games";
 import useShellStore from "../stores/shell-store";
+import RefreshMenu from "./RefreshMenu";
 
 interface HeaderProps {
-  onRefresh: () => void;
+  onRefresh: (games: Game[]) => void;
+  refreshGames: Game[];
+  lastRefreshResults: RefreshGameResults;
   onOpenSettings: () => void;
   refreshing?: boolean;
   refreshStatus?: string;
@@ -13,6 +18,8 @@ interface HeaderProps {
 
 export default function Header({
   onRefresh,
+  refreshGames,
+  lastRefreshResults,
   onOpenSettings,
   refreshing = false,
   refreshStatus = "",
@@ -27,6 +34,7 @@ export default function Header({
     refreshStatus === "in_progress" ||
     refreshStatus === "syncing" ||
     refreshStatus === "completed" ||
+    refreshStatus === "partial" ||
     refreshStatus === "failed"
       ? refreshStatus
       : refreshing
@@ -54,20 +62,28 @@ export default function Header({
                 label: "Done",
                 title: "Refresh complete. Scores are up to date.",
               }
-            : refreshStatus === "failed"
+            : refreshStatus === "partial"
               ? {
-                  label: "Retry",
-                  title: "Refresh failed. Try again.",
+                  label: "Partial",
+                  title: `Refresh failed for ${refreshGames
+                    .filter((game) => lastRefreshResults[game] === "failure")
+                    .map((game) => GAME_LABELS[game])
+                    .join(", ")}. The other games were updated.`,
                 }
-              : refreshing
+              : refreshStatus === "failed"
                 ? {
-                    label: "Working",
-                    title: "Refresh in progress. Please wait.",
+                    label: "Retry",
+                    title: "Refresh failed. Try again.",
                   }
-                : {
-                    label: "Refresh",
-                    title: "Refresh scores",
-                  };
+                : refreshing
+                  ? {
+                      label: "Working",
+                      title: "Refresh in progress. Please wait.",
+                    }
+                  : {
+                      label: "Refresh",
+                      title: "Refresh scores",
+                    };
   const assistantTitle = chatOpen
     ? "Close Assistant (Ctrl/Cmd+K)"
     : "Open Assistant (Ctrl/Cmd+K)";
@@ -149,23 +165,28 @@ export default function Header({
           </button>
         )}
         {refreshAvailable && (
-          <button
-            type="button"
-            className={`app-header__action app-header__action--primary app-header__action--refresh text-btn text-btn--refresh glass-control glass-control--primary ${refreshing ? "glass-control--active" : ""}`}
-            onClick={onRefresh}
-            disabled={refreshing}
-            title={refreshCopy.title}
-            aria-label={refreshCopy.title}
-            aria-busy={refreshing}
-            data-header-action="refresh"
-            data-priority="primary"
-            data-state={refreshState}
+          <RefreshMenu
+            games={refreshGames}
+            lastResults={lastRefreshResults}
+            onRefresh={onRefresh}
           >
-            <RotateCw size={16} className={refreshing ? "icon-spin" : ""} />
-            <span className="text-btn__label text-btn__label--primary" aria-live="polite">
-              {refreshCopy.label}
-            </span>
-          </button>
+            <button
+              type="button"
+              className={`app-header__action app-header__action--primary app-header__action--refresh text-btn text-btn--refresh glass-control glass-control--primary ${refreshing ? "glass-control--active" : ""}`}
+              disabled={refreshing}
+              title={refreshCopy.title}
+              aria-label={refreshCopy.title}
+              aria-busy={refreshing}
+              data-header-action="refresh"
+              data-priority="primary"
+              data-state={refreshState}
+            >
+              <RotateCw size={16} className={refreshing ? "icon-spin" : ""} />
+              <span className="text-btn__label text-btn__label--primary" aria-live="polite">
+                {refreshCopy.label}
+              </span>
+            </button>
+          </RefreshMenu>
         )}
         <button
           type="button"

@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 100 100" role="img" aria-label="ChuMaiNichi">
   <defs>
     <linearGradient id="mark-gradient" x1="12" y1="12" x2="88" y2="88" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#ff69aa"/>
+      <stop offset="0%" stop-color="#f93eac"/>
       <stop offset="52%" stop-color="#863bff"/>
-      <stop offset="100%" stop-color="#3d67e3"/>
+      <stop offset="100%" stop-color="#ff9c2e"/>
     </linearGradient>
     <radialGradient id="mark-core" cx="42" cy="34" r="44" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#fbfbff" stop-opacity="0.92"/>
@@ -30,7 +30,7 @@
       stroke-linecap="round"
       stroke-width="9.5"
     />
-    <circle cx="73" cy="30" r="5.5" fill="#ff69aa" stroke="#f8f7ff" stroke-opacity="0.82" stroke-width="1.4"/>
-    <circle cx="27" cy="70" r="4.5" fill="#3d67e3" stroke="#f8f7ff" stroke-opacity="0.82" stroke-width="1.4"/>
+    <circle cx="73" cy="30" r="5.5" fill="#f93eac" stroke="#f8f7ff" stroke-opacity="0.82" stroke-width="1.4"/>
+    <circle cx="27" cy="70" r="4.5" fill="#ff9c2e" stroke="#f8f7ff" stroke-opacity="0.82" stroke-width="1.4"/>
   </g>
 </svg>

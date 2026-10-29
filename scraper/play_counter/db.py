@@ -190,7 +190,8 @@ async def upsert_daily_play(
 
 
 async def verify_editor_day(conn, day: date, reasons: list[str], table: str = "public.daily_play") -> bool:
-    """Clear the unverified flag the day editor copied onto a day Refresh has now observed.
+    """Clear the unverified flag that the day editor or a one-game Refresh copied
+    onto a day that Refresh has now observed.
 
     Call only after every configured game's totals for that day came from SEGA.
     The upsert keeps an existing failure_reason, so this one also records the
@@ -200,12 +201,60 @@ async def verify_editor_day(conn, day: date, reasons: list[str], table: str = "p
         f"""
         UPDATE {table} SET scrape_failed = FALSE, failure_reason = $2
         WHERE play_date = $1 AND scrape_failed
-          AND failure_reason LIKE 'Logged in the day editor;%'
+          AND (failure_reason LIKE 'Logged in the day editor;%'
+               OR failure_reason LIKE 'Refreshed % only;%')
         """,
         day,
         " | ".join(reasons) or None,
     )
     return result == "UPDATE 1"
+
+
+async def write_single_game_day(
+    conn,
+    game: str,
+    day: date,
+    new_plays: int | None,
+    cumulative: int,
+    rating: float | int | Decimal | None,
+    reason: str | None,
+    table: str = "public.daily_play",
+) -> None:
+    """Write one game's columns for a day.
+
+    A new row gives the other game no plays and the previous row's totals and
+    rating, like the nightly fill. Totals carried from an unverified row keep
+    the new row flagged until a Refresh of every game verifies it.
+    """
+    _validate_game(game)
+    other = "chunithm" if game == "maimai" else "maimai"
+    await conn.execute(
+        f"""
+        INSERT INTO {table}
+            (play_date, {game}_play_count, {game}_cumulative, {game}_rating,
+             {other}_play_count, {other}_cumulative, {other}_rating,
+             scrape_failed, failure_reason)
+        SELECT $1, $2, $3, $4, 0, prev.{other}_cumulative, prev.{other}_rating,
+               COALESCE(prev.scrape_failed, FALSE),
+               CASE WHEN prev.scrape_failed THEN concat_ws(' | ',
+                   'Refreshed {game} only; {other} totals carried from '
+                   || prev.play_date || ', which is unverified.',
+                   $5::text)
+               ELSE $5::text END
+        FROM (SELECT 1) AS seed
+        LEFT JOIN LATERAL (
+            SELECT * FROM {table} d
+            WHERE d.play_date < $1
+            ORDER BY d.play_date DESC LIMIT 1
+        ) prev ON TRUE
+        ON CONFLICT (play_date) DO UPDATE SET
+            {game}_play_count = COALESCE(EXCLUDED.{game}_play_count, daily_play.{game}_play_count),
+            {game}_cumulative = EXCLUDED.{game}_cumulative,
+            {game}_rating = EXCLUDED.{game}_rating,
+            failure_reason = COALESCE(daily_play.failure_reason, EXCLUDED.failure_reason)
+        """,
+        day, new_plays, cumulative, rating, reason,
+    )
 
 
 async def upsert_daily_play_single_game(
@@ -237,25 +286,12 @@ async def upsert_daily_play_single_game(
         reason = f"{game}: {reason}"
         print(f"[WARN] {reason}")
 
-    play_count_col = f"{game}_play_count"
-    cumulative_col = f"{game}_cumulative"
-    rating_col = f"{game}_rating"
-
-    query = f"""
-        INSERT INTO public.daily_play
-            (play_date, {play_count_col}, {cumulative_col}, {rating_col}, failure_reason)
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (play_date) DO UPDATE SET
-            {play_count_col} = COALESCE(EXCLUDED.{play_count_col}, daily_play.{play_count_col}),
-            {cumulative_col} = EXCLUDED.{cumulative_col},
-            {rating_col} = EXCLUDED.{rating_col},
-            failure_reason = COALESCE(daily_play.failure_reason, EXCLUDED.failure_reason)
-    """
-    date_obj = datetime.strptime(date_str, "%Y-%m-%d")
-
     conn = await connect_db()
     try:
-        await conn.execute(query, date_obj, new_plays, cumulative, rating, reason)
+        await write_single_game_day(
+            conn, game, datetime.strptime(date_str, "%Y-%m-%d").date(),
+            new_plays, cumulative, rating, reason,
+        )
         print(
             f"[OK] daily_play upsert: {date_str} {game} "
             f"cumulative={cumulative}, rating={rating}, new_plays={new_plays}"
