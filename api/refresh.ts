@@ -22,6 +22,7 @@ const GITHUB_API = "https://api.github.com";
 const WORKFLOW_FILE = "scrape-user-data.yml";
 const DEFAULT_WORKFLOW_REF = "main";
 const VALID_WORKFLOW_GAMES = new Set(["maimai", "chunithm"]);
+const RESULT_STEP_PREFIX = "Result: ";
 
 type WorkflowGame = "maimai" | "chunithm";
 
@@ -97,6 +98,20 @@ function getConfiguredWorkflowGames() {
   }
 
   return Array.from(normalizedGames);
+}
+
+// Without a `games` field every configured game is refreshed.
+function parseRequestedGames(body: unknown, configured: WorkflowGame[]) {
+  const requested =
+    body && typeof body === "object" ? (body as { games?: unknown }).games : undefined;
+  if (requested === undefined) return configured;
+  if (!Array.isArray(requested) || requested.length === 0) return null;
+  const games = new Set<WorkflowGame>();
+  for (const game of requested) {
+    if (!configured.includes(game as WorkflowGame)) return null;
+    games.add(game as WorkflowGame);
+  }
+  return configured.filter((game) => games.has(game));
 }
 
 function formatGithubError(status: number, body: string, action: string) {
@@ -217,6 +232,38 @@ async function getRunStatus(pat: string, owner: string, repo: string, runId: str
   };
 }
 
+type GameResults = Partial<Record<WorkflowGame, "success" | "failure">>;
+
+// Reads the workflow's "Result: <game>" steps. Best effort: the run status
+// stands on its own if the jobs listing is unavailable.
+async function getGameResults(
+  pat: string,
+  owner: string,
+  repo: string,
+  runId: string,
+): Promise<GameResults | undefined> {
+  try {
+    const response = await githubFetch(`/repos/${owner}/${repo}/actions/runs/${runId}/jobs`, pat);
+    await assertOk(response, "listing workflow jobs");
+    const data = (await response.json()) as {
+      jobs?: { steps?: { name: string; conclusion: string | null }[] }[];
+    };
+    const results: GameResults = {};
+    for (const step of (data.jobs ?? []).flatMap((job) => job.steps ?? [])) {
+      const game = step.name.startsWith(RESULT_STEP_PREFIX)
+        ? step.name.slice(RESULT_STEP_PREFIX.length)
+        : "";
+      if (isWorkflowGame(game) && (step.conclusion === "success" || step.conclusion === "failure")) {
+        results[game] = step.conclusion;
+      }
+    }
+    return Object.keys(results).length > 0 ? results : undefined;
+  } catch (err) {
+    console.error("[refresh] per-game results unavailable:", err);
+    return undefined;
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const githubPat = process.env.GITHUB_PAT ?? "";
   const githubRepo = process.env.GITHUB_REPO ?? "";
@@ -263,7 +310,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
       const statusData = await getRunStatus(githubPat, owner, repo, runId);
-      return res.status(200).json(statusData);
+      const games =
+        statusData.status === "completed"
+          ? await getGameResults(githubPat, owner, repo, runId)
+          : undefined;
+      return res.status(200).json(games ? { ...statusData, games } : statusData);
     } catch (err) {
       console.error("[refresh] status poll error:", err);
       const message = err instanceof Error ? err.message : "Failed to get workflow status";
@@ -274,7 +325,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // POST /api/refresh — trigger workflow
   if (req.method === "POST") {
     try {
-      const games = getConfiguredWorkflowGames();
+      const games = parseRequestedGames(req.body, getConfiguredWorkflowGames());
+      if (!games) {
+        return res
+          .status(400)
+          .json({ error: "games must be a non-empty list of configured games" });
+      }
       const result = await triggerWorkflow(githubPat, owner, repo, workflowRef, games);
       return res.status(200).json(result);
     } catch (err) {

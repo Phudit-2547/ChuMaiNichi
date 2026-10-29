@@ -1,6 +1,7 @@
 import axios from "axios";
 import useAuthStore from "../../features/auth/stores/auth-store";
 import { SharedErrorHandler } from "./error-handling";
+import type { Game } from "./games";
 
 export async function verifyAuth(signal?: AbortSignal): Promise<void> {
   const { getAuthHeaders } = useAuthStore.getState();
@@ -120,13 +121,17 @@ export type WorkflowConclusion =
   | "action_required"
   | "neutral";
 
-export async function triggerRefresh(): Promise<{ run_id: string; run_url: string }> {
+export type RefreshGameResults = Partial<Record<Game, "success" | "failure">>;
+
+export async function triggerRefresh(
+  games: Game[],
+): Promise<{ run_id: string; run_url: string }> {
   const { getAuthHeaders } = useAuthStore.getState();
 
   try {
     const res = await axios.post(
       "/api/refresh",
-      {},
+      { games },
       {
         headers: {
           "Content-Type": "application/json",
@@ -144,7 +149,12 @@ export async function pollRefreshStatus(
   runId: string,
   onProgress?: (status: WorkflowStatus) => void,
   options: { timeoutMs?: number; intervalMs?: number } = {},
-): Promise<{ status: WorkflowStatus; conclusion?: WorkflowConclusion; run_url?: string }> {
+): Promise<{
+  status: WorkflowStatus;
+  conclusion?: WorkflowConclusion;
+  run_url?: string;
+  games?: RefreshGameResults;
+}> {
   const { timeoutMs = 10 * 60 * 1000, intervalMs = 8000 } = options;
   const { getAuthHeaders } = useAuthStore.getState();
   const startTime = Date.now();
@@ -163,6 +173,7 @@ export async function pollRefreshStatus(
       status: WorkflowStatus;
       conclusion?: WorkflowConclusion;
       run_url?: string;
+      games?: RefreshGameResults;
     };
     onProgress?.(data.status);
 

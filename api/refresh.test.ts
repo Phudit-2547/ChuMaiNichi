@@ -365,6 +365,192 @@ describe("api/refresh.ts", () => {
     });
   });
 
+  describe("Game selection", () => {
+    function mockDispatch() {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ workflow_runs: [] }),
+        })
+        .mockResolvedValueOnce({ ok: true, status: 204 })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: () =>
+            Promise.resolve({
+              workflow_runs: [
+                {
+                  id: 123,
+                  html_url: "https://github.com/owner/repo/actions/runs/123",
+                  status: "queued",
+                  conclusion: null,
+                  event: "workflow_dispatch",
+                  head_branch: "main",
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                },
+              ],
+            }),
+        });
+    }
+
+    function dispatchedGames() {
+      const call = mockFetch.mock.calls.find(([url]) =>
+        String(url).endsWith("/dispatches"),
+      );
+      return JSON.parse(call?.[1].body).inputs.games;
+    }
+
+    beforeEach(() => {
+      process.env.GITHUB_PAT = "test-pat";
+      process.env.GITHUB_REPO = "owner/repo";
+    });
+
+    it("dispatches only the requested game", async () => {
+      mockDispatch();
+      const handler = await getHandler();
+      const res = createMockResponse();
+
+      await handler(createMockRequest({ body: { games: ["chunithm"] } }), res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(dispatchedGames()).toBe("chunithm");
+    });
+
+    it("dispatches every configured game when none are requested", async () => {
+      mockDispatch();
+      const handler = await getHandler();
+      const res = createMockResponse();
+
+      await handler(createMockRequest({ body: {} }), res);
+
+      expect(dispatchedGames()).toBe("maimai,chunithm");
+    });
+
+    it("dedupes requested games in configured order", async () => {
+      mockDispatch();
+      const handler = await getHandler();
+      const res = createMockResponse();
+
+      await handler(
+        createMockRequest({ body: { games: ["chunithm", "maimai", "chunithm"] } }),
+        res,
+      );
+
+      expect(dispatchedGames()).toBe("maimai,chunithm");
+    });
+
+    it.each([
+      ["an empty list", { games: [] }],
+      ["an unconfigured game", { games: ["ongeki"] }],
+      ["a non-list", { games: "maimai" }],
+    ])("returns 400 for %s without dispatching", async (_label, body) => {
+      const handler = await getHandler();
+      const res = createMockResponse();
+
+      await handler(createMockRequest({ body }), res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("rejects a game the config does not enable", async () => {
+      mockConfig.games = ["maimai"];
+      const handler = await getHandler();
+      const res = createMockResponse();
+
+      await handler(createMockRequest({ body: { games: ["chunithm"] } }), res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("reports each game's result once the run completes", async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: () =>
+            Promise.resolve({
+              id: 123,
+              html_url: "https://github.com/owner/repo/actions/runs/123",
+              status: "completed",
+              conclusion: "failure",
+              event: "workflow_dispatch",
+              head_branch: "main",
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: () =>
+            Promise.resolve({
+              jobs: [
+                {
+                  steps: [
+                    { name: "Scrape maimai", conclusion: "success" },
+                    { name: "Result: maimai", conclusion: "failure" },
+                    { name: "Result: chunithm", conclusion: "success" },
+                  ],
+                },
+              ],
+            }),
+        });
+      const handler = await getHandler();
+      const res = createMockResponse();
+
+      await handler(
+        createMockRequest({ method: "GET", query: { run_id: "123" } }),
+        res,
+      );
+
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        "https://api.github.com/repos/owner/repo/actions/runs/123/jobs",
+        expect.anything(),
+      );
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "completed",
+          conclusion: "failure",
+          games: { maimai: "failure", chunithm: "success" },
+        }),
+      );
+    });
+
+    it("omits game results while the run is still going", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            id: 123,
+            html_url: "https://github.com/owner/repo/actions/runs/123",
+            status: "in_progress",
+            conclusion: null,
+            event: "workflow_dispatch",
+            head_branch: "main",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }),
+      });
+      const handler = await getHandler();
+      const res = createMockResponse();
+
+      await handler(
+        createMockRequest({ method: "GET", query: { run_id: "123" } }),
+        res,
+      );
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.not.objectContaining({ games: expect.anything() }),
+      );
+    });
+  });
+
   describe("Error handling", () => {
     it("returns 500 when fetch throws an error", async () => {
       process.env.GITHUB_PAT = "test-pat";
