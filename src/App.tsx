@@ -29,6 +29,7 @@ import useShellStore from "./features/shell/stores/shell-store";
 import { RegionSwitch } from "./features/heatmap/components/RegionSwitch";
 import PlayLogDialog from "./features/play-log/components/PlayLogDialog";
 import usePlayLogStore from "./features/play-log/stores/play-log-store";
+import { regionToday } from "./global/lib/play-log";
 
 const Heatmap = lazy(() => import("./features/heatmap/components/Heatmap"));
 const RatingImage = lazy(
@@ -280,8 +281,7 @@ function App() {
   }, [setChatOpen]);
 
   useEffect(() => {
-    if (dataRegion !== "international" && usePlayLogStore.getState().open)
-      usePlayLogStore.getState().close(false);
+    if (usePlayLogStore.getState().open) usePlayLogStore.getState().close(false);
   }, [dataRegion]);
 
   async function handleRefresh(games: Game[]) {
@@ -337,8 +337,7 @@ function App() {
           refreshing={refreshing}
           refreshStatus={refreshStatus}
           refreshAvailable={dataRegion === "international"}
-          onLog={() => openPlayLog()}
-          logAvailable={dataRegion === "international"}
+          onLog={() => openPlayLog(regionToday(dataRegion))}
         />
         <main className="app-main">
           <div className="app-main__inner">
@@ -349,7 +348,7 @@ function App() {
               />
               <span className="page-context-toolbar__source">
                 {dataRegion === "japan"
-                  ? "Obsidian Journal archive"
+                  ? "Obsidian Journal archive and logged days"
                   : "Live International data"}
               </span>
             </div>
@@ -375,7 +374,7 @@ function App() {
           <ChatPanel key={dataRegion} region={dataRegion} />
         </div>
       </div>
-      {dataRegion === "international" && <PlayLogDialog />}
+      <PlayLogDialog key={dataRegion} region={dataRegion} />
       <SettingsModal
         open={settingsOpen}
         onOpenChange={setSettingsOpen}

@@ -13,6 +13,8 @@ export interface DailyRow {
   chunithm_play_count: number | null;
   ongeki_track_count?: number;
   inferred_games?: HeatmapGame[];
+  /** Japan: "obsidian_journal" for imported days, "manual" for days logged in the day editor. */
+  source?: string;
   maimai_rating?: number | null;
   chunithm_rating?: number | null;
   tickets?: Partial<Record<Game, number>>;

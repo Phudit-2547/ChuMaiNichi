@@ -18,6 +18,7 @@ import { GameHeatmap } from "./GameHeatmap";
 import { YearDropdown } from "./YearDropdown";
 import HeatmapSkeletonBlock from "./heatmap-skeleton/HeatmapSkeletonBlock";
 import usePlayLogStore from "../../play-log/stores/play-log-store";
+import { isEditableDate, regionToday } from "../../../global/lib/play-log";
 
 export default function Heatmap({
   games,
@@ -157,6 +158,12 @@ export default function Heatmap({
   const hasSelectedYearData = data.some((row) =>
     row.play_date.startsWith(String(selectedYear)),
   );
+  // Japan days through the last Journal day are not logged in the day editor.
+  const journalThrough =
+    data.filter((row) => row.source != null && row.source !== "manual").at(-1)?.play_date ?? null;
+  const canEditDay = (date: string) =>
+    isEditableDate(date, regionToday(region)) &&
+    (journalThrough == null || date > journalThrough);
 
   return (
     <div data-region={region}>
@@ -239,7 +246,8 @@ export default function Heatmap({
                 game={game}
                 data={data}
                 year={selectedYear}
-                onEditDay={region === "international" ? openPlayLog : undefined}
+                onEditDay={openPlayLog}
+                canEditDay={canEditDay}
               />
             ) : (
               <div className="heatmap-empty content-panel p-8 text-center text-muted-foreground border border-border rounded-lg">
@@ -250,7 +258,7 @@ export default function Heatmap({
                 </p>
                 <p className="mt-2 text-xs m-0">
                   {region === "japan"
-                    ? "Choose another year. Japan data comes from your Journal."
+                    ? "Choose another year, or log a day with Log."
                     : "Choose another year, or refresh after the first scrape finishes."}
                 </p>
               </div>

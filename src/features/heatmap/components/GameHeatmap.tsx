@@ -18,7 +18,6 @@ import {
   timestampToDateKey,
 } from "../lib/inference";
 import { StatsBar } from "./StatsBar";
-import { isEditableDate } from "../../../global/lib/play-log";
 import { Legend } from "./Legend";
 
 const CELL_SIZE = 15;
@@ -75,11 +74,13 @@ export function GameHeatmap({
   data,
   year,
   onEditDay,
+  canEditDay,
 }: {
   game: HeatmapGame;
   data: DailyRow[];
   year: number;
   onEditDay?: (date: string) => void;
+  canEditDay?: (date: string) => boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const calRef = useRef<CalHeatmap | null>(null);
@@ -356,7 +357,7 @@ export function GameHeatmap({
           >
             {tapInfo || "Click a cell for details"}
           </p>
-          {onEditDay && tapDate && isEditableDate(tapDate) && (
+          {onEditDay && tapDate && canEditDay?.(tapDate) && (
             <button
               type="button"
               className="quiet-btn glass-control shrink-0 rounded-md border border-border px-2.5 py-1 text-xs"

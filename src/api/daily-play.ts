@@ -5,18 +5,22 @@ import { PasskeyConfigurationError } from "./passkey-errors.js";
 import { passkeyStore } from "./passkey-store.js";
 import { authConfig, passkeysEnabled } from "./session.js";
 import { APP_CONFIG } from "../global/lib/config.js";
-import type { Game } from "../global/lib/games.js";
+import { JAPAN_GAMES, type Game, type JapanGame } from "../global/lib/games.js";
 import {
-  bangkokToday,
   findTicket,
   isCount,
+  isCountFor,
   isEditableDate,
   isIsoDate,
+  isJapanWrite,
   isRating,
   isRatingWrite,
   isTicketWrite,
+  maxCount,
+  regionToday,
   type DayState,
   type DayWrite,
+  type JapanPlayWrite,
   type PlayWrite,
   type RatingWrite,
   type TicketWrite,
@@ -30,11 +34,13 @@ export type Sql = (
 export interface Tables {
   day: string;
   ticket: string;
+  japan: string;
 }
 
 export const TABLES: Tables = {
   day: "public.daily_play",
   ticket: "public.daily_ticket",
+  japan: "public.japan_daily_play",
 };
 
 // Column names come from these fixed maps, never from request input.
@@ -49,6 +55,16 @@ const CUMULATIVE_COLUMN: Record<Game, string> = {
 const RATING_COLUMN: Record<Game, string> = {
   maimai: "maimai_rating",
   chunithm: "chunithm_rating",
+};
+const JAPAN_COUNT_COLUMN: Record<JapanGame, string> = {
+  maimai: "maimai_play_count",
+  chunithm: "chunithm_play_count",
+  ongeki: "ongeki_track_count",
+};
+const JAPAN_CUMULATIVE_COLUMN: Record<JapanGame, string> = {
+  maimai: "maimai_cumulative",
+  chunithm: "chunithm_cumulative",
+  ongeki: "ongeki_cumulative_tracks",
 };
 
 // A day the editor creates continues the previous row's totals, so it stays
@@ -105,7 +121,84 @@ export async function readDay(
       ticketCredits,
     };
   }
-  return { date, exists, games };
+  return { date, region: "international", exists, games };
+}
+
+export async function readJapanDay(
+  sql: Sql,
+  date: string,
+  tables: Tables = TABLES,
+): Promise<DayState> {
+  const [row] = await sql(
+    `SELECT (d.play_date IS NOT NULL) AS exists, d.maimai_play_count, d.chunithm_play_count,
+            d.ongeki_track_count,
+            (SELECT MAX(play_date)::text FROM ${tables.japan} WHERE source <> 'manual')
+              AS journal_through
+     FROM (SELECT $1::date AS day) x
+     LEFT JOIN ${tables.japan} d ON d.play_date = x.day`,
+    [date],
+  );
+  const games: DayState["games"] = {};
+  for (const game of JAPAN_GAMES)
+    games[game] = { plays: Number(row?.[JAPAN_COUNT_COLUMN[game]] ?? 0), rating: null, tickets: {} };
+  return {
+    date,
+    region: "japan",
+    exists: Boolean(row?.exists),
+    games,
+    journalThrough: (row?.journal_through as string | null | undefined) ?? null,
+  };
+}
+
+/**
+ * Compare-and-set one game's Japan count. Days through the last Journal day
+ * belong to the Journal import and are never written here, so every row this
+ * creates or shifts was logged in the editor. A new row continues the
+ * previous row's totals with the other games at 0; the change is added to
+ * this day's and every later day's total.
+ */
+export async function writeJapanPlays(
+  sql: Sql,
+  write: JapanPlayWrite,
+  tables: Tables = TABLES,
+): Promise<boolean> {
+  const col = JAPAN_COUNT_COLUMN[write.game];
+  const cum = JAPAN_CUMULATIVE_COLUMN[write.game];
+  const count = (game: JapanGame) => (game === write.game ? "$2::int" : "0");
+  const rows = await sql(
+    `WITH prev AS (
+       SELECT maimai_cumulative, chunithm_cumulative, ongeki_cumulative_tracks
+       FROM ${tables.japan} WHERE play_date < $1::date ORDER BY play_date DESC LIMIT 1
+     ), written AS (
+       INSERT INTO ${tables.japan} AS d (play_date, maimai_play_count, chunithm_play_count,
+                                         ongeki_track_count, maimai_cumulative,
+                                         chunithm_cumulative, ongeki_cumulative_tracks,
+                                         source, source_paths, source_hashes)
+       SELECT $1::date, ${count("maimai")}, ${count("chunithm")}, ${count("ongeki")},
+              COALESCE(p.maimai_cumulative, 0) + ${count("maimai")},
+              COALESCE(p.chunithm_cumulative, 0) + ${count("chunithm")},
+              COALESCE(p.ongeki_cumulative_tracks, 0) + ${count("ongeki")},
+              'manual', '{}', '{}'
+       FROM (SELECT 1) one LEFT JOIN prev p ON TRUE
+       WHERE NOT EXISTS (SELECT 1 FROM ${tables.japan}
+                         WHERE play_date >= $1::date AND source <> 'manual')
+         AND (EXISTS (SELECT 1 FROM ${tables.japan} WHERE play_date = $1::date)
+              OR $3::int = 0)
+       ON CONFLICT (play_date) DO UPDATE SET
+         ${col} = EXCLUDED.${col},
+         ${cum} = d.${cum} + ($2::int - d.${col})
+       WHERE d.${col} = $3::int
+       RETURNING d.play_date
+     ), shifted AS (
+       UPDATE ${tables.japan} AS later
+       SET ${cum} = later.${cum} + ($2::int - $3::int)
+       WHERE later.play_date > $1::date AND EXISTS (SELECT 1 FROM written)
+       RETURNING 1
+     )
+     SELECT (SELECT count(*) FROM written)::int AS written`,
+    [write.date, write.count, write.expected],
+  );
+  return Number(rows[0]?.written) === 1;
 }
 
 /**
@@ -260,21 +353,40 @@ export async function writeRating(
 const PLAY_KEYS = "count,date,expected,game";
 const TICKET_KEYS = "count,date,expected,game,ticket";
 const RATING_KEYS = "date,expected,game,rating";
+const JAPAN_KEYS = "count,date,expected,game,region";
+
+const DATE_ERROR = "date must be a real date within the last year, not after today.";
+
+function parseJapanWrite(
+  b: Record<string, unknown>,
+  now: Date,
+): { write: JapanPlayWrite } | { error: string } {
+  if (b.region !== "japan") return { error: 'region must be "japan".' };
+  if (typeof b.date !== "string" || !isEditableDate(b.date, regionToday("japan", now)))
+    return { error: DATE_ERROR };
+  if (typeof b.game !== "string" || !(JAPAN_GAMES as string[]).includes(b.game))
+    return { error: "game must be maimai, chunithm or ongeki." };
+  const game = b.game as JapanGame;
+  if (!isCountFor(game, b.count) || !isCountFor(game, b.expected))
+    return { error: `count and expected must be whole numbers from 0 to ${maxCount(game)}.` };
+  return { write: { region: "japan", date: b.date, game, count: b.count, expected: b.expected } };
+}
 
 export function parseWrite(
   body: unknown,
-  today: string,
+  now: Date,
 ): { write: DayWrite } | { error: string } {
   if (!body || typeof body !== "object" || Array.isArray(body))
     return { error: "Send a JSON object." };
   const b = body as Record<string, unknown>;
   const keys = Object.keys(b).sort().join(",");
+  if (keys === JAPAN_KEYS) return parseJapanWrite(b, now);
   if (keys !== PLAY_KEYS && keys !== TICKET_KEYS && keys !== RATING_KEYS)
     return {
-      error: `Send exactly ${PLAY_KEYS} (plus ticket for a ticket), or ${RATING_KEYS}.`,
+      error: `Send exactly ${PLAY_KEYS} (plus ticket for a ticket, or region for Japan), or ${RATING_KEYS}.`,
     };
-  if (typeof b.date !== "string" || !isEditableDate(b.date, today))
-    return { error: "date must be a real date within the last year, not after today." };
+  if (typeof b.date !== "string" || !isEditableDate(b.date, regionToday("international", now)))
+    return { error: DATE_ERROR };
   if (typeof b.game !== "string" || !(APP_CONFIG.games as string[]).includes(b.game))
     return { error: "game must be one of the configured games." };
   const game = b.game as Game;
@@ -361,11 +473,17 @@ export function createDailyPlayHandler(
       const sql = makeSql(dbUrl);
       if (req.method === "GET") {
         const date = req.query?.date;
+        const region = req.query?.region ?? "international";
         if (!isIsoDate(date))
           return res
             .status(400)
             .json({ code: "INVALID_REQUEST", error: "date must be YYYY-MM-DD." });
-        return res.status(200).json({ day: await readDay(sql, date) });
+        if (region !== "international" && region !== "japan")
+          return res
+            .status(400)
+            .json({ code: "INVALID_REQUEST", error: 'region must be "international" or "japan".' });
+        const day = region === "japan" ? await readJapanDay(sql, date) : await readDay(sql, date);
+        return res.status(200).json({ day });
       }
 
       if (passkeys && !(await passkeyStore().rateLimit("daily-play", 60)))
@@ -373,12 +491,27 @@ export function createDailyPlayHandler(
           .status(429)
           .json({ error: "Too many saves. Retry in a minute." });
 
-      const parsed = parseWrite(req.body, bangkokToday(now()));
+      const parsed = parseWrite(req.body, now());
       if ("error" in parsed)
         return res
           .status(400)
           .json({ code: "INVALID_REQUEST", error: parsed.error });
       const write = parsed.write;
+
+      if (isJapanWrite(write)) {
+        const saved = await writeJapanPlays(sql, write);
+        const day = await readJapanDay(sql, write.date);
+        if (saved) return res.status(200).json({ day });
+        if (day.journalThrough != null && write.date <= day.journalThrough)
+          return res.status(400).json({
+            code: "JOURNAL_DAY",
+            error: "This day comes from your Obsidian Journal. Change it there.",
+            day,
+          });
+        return res
+          .status(409)
+          .json({ code: "CONFLICT", error: "Changed on another device.", day });
+      }
 
       const saved = isRatingWrite(write)
         ? await writeRating(sql, write)
