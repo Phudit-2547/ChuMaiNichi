@@ -1,7 +1,8 @@
-import type { Game } from "../../../global/lib/games";
+import type { Game, JapanGame } from "../../../global/lib/games";
+import type { DataRegion } from "../../../global/lib/regions";
 import {
   isRatingWrite,
-  MAX_COUNT,
+  maxCount,
   stepRating,
   ticketCatalog,
   type DayState,
@@ -11,9 +12,10 @@ import type { SaveResult } from "./api";
 
 // Per-key compare-and-set saving for one day. A key is a game's plays
 // ("maimai"), one of its tickets ("maimai:area_x2") or its rating
-// ("maimai/rating"). Each game sends one request at a time, in an order the
-// server's ticket rule accepts; taps meanwhile only move `desired`, and the
-// next request carries the last confirmed `server` value as `expected`.
+// ("maimai/rating"); a Japan day has only plays (ONGEKI: tracks). Each game
+// sends one request at a time, in an order the server's ticket rule accepts;
+// taps meanwhile only move `desired`, and the next request carries the last
+// confirmed `server` value as `expected`.
 
 export type KeyStatus =
   | "idle"
@@ -36,12 +38,13 @@ export interface KeyState {
 
 export interface Queue {
   date: string;
+  region: DataRegion;
   keys: Record<string, KeyState>;
   /** extra_credits stored with logged tickets, per game and ticket id. */
   credits: Partial<Record<Game, Record<string, number>>>;
 }
 
-export function keyFor(game: Game, ticket?: string): string {
+export function keyFor(game: JapanGame, ticket?: string): string {
   return ticket ? `${game}:${ticket}` : game;
 }
 
@@ -49,10 +52,10 @@ export function ratingKey(game: Game): string {
   return `${game}/rating`;
 }
 
-export function parseKey(key: string): { game: Game; ticket?: string; rating?: true } {
+export function parseKey(key: string): { game: JapanGame; ticket?: string; rating?: true } {
   if (key.endsWith("/rating")) return { game: key.slice(0, -"/rating".length) as Game, rating: true };
   const [game, ticket] = key.split(":");
-  return { game: game as Game, ticket };
+  return { game: game as JapanGame, ticket };
 }
 
 function valueIn(day: DayState, key: string): number | null {
@@ -65,6 +68,7 @@ function valueIn(day: DayState, key: string): number | null {
 
 /** Catalog tickets, plus logged tickets that have since left the catalog. */
 function dayKeys(day: DayState): string[] {
+  if (day.region === "japan") return (Object.keys(day.games) as JapanGame[]).map((game) => keyFor(game));
   const keys: string[] = [];
   for (const game of Object.keys(day.games) as Game[]) {
     const ids = new Set(ticketCatalog(game).map((t) => t.id));
@@ -97,7 +101,7 @@ export function hasPending(queue: Queue): boolean {
 export function queueFromDay(day: DayState): Queue {
   const keys: Record<string, KeyState> = {};
   for (const key of dayKeys(day)) keys[key] = settled(valueIn(day, key));
-  return { date: day.date, keys, credits: creditsIn(day) };
+  return { date: day.date, region: day.region, keys, credits: creditsIn(day) };
 }
 
 /**
@@ -140,8 +144,8 @@ export function stepDesired(queue: Queue, key: string, delta: number): Queue {
   if (current == null) return queue;
   const { game, rating } = parseKey(key);
   const next = rating
-    ? stepRating(game, current, delta)
-    : Math.min(MAX_COUNT, Math.max(0, current + delta));
+    ? stepRating(game as Game, current, delta)
+    : Math.min(maxCount(game), Math.max(0, current + delta));
   return setDesired(queue, key, next);
 }
 
@@ -158,8 +162,12 @@ export function pendingWrite(queue: Queue, key: string): DayWrite | null {
   )
     return null;
   const { game, ticket, rating } = parseKey(key);
-  if (rating) return { date: queue.date, game, rating: state.desired, expected: state.server };
-  const write = { date: queue.date, game, count: state.desired, expected: state.server };
+  if (queue.region === "japan")
+    return { region: "japan", date: queue.date, game, count: state.desired, expected: state.server ?? 0 };
+  // International keys hold only maimai and CHUNITHM.
+  const intl = game as Game;
+  if (rating) return { date: queue.date, game: intl, rating: state.desired, expected: state.server };
+  const write = { date: queue.date, game: intl, count: state.desired, expected: state.server };
   return ticket ? { ...write, ticket } : write;
 }
 
@@ -169,7 +177,7 @@ export function pendingWrite(queue: Queue, key: string): DayWrite | null {
  * ticket never lands before the play it rides on and plays never drop below
  * tickets still being removed. The rating goes last.
  */
-export function nextWrite(queue: Queue, game: Game): { key: string; write: DayWrite } | null {
+export function nextWrite(queue: Queue, game: JapanGame): { key: string; write: DayWrite } | null {
   const keys = Object.keys(queue.keys).filter((key) => parseKey(key).game === game);
   if (keys.some((key) => queue.keys[key].inFlight)) return null;
   const ranked = keys

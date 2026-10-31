@@ -1,9 +1,12 @@
 import { APP_CONFIG, type TicketDef } from "./config.js";
-import type { Game } from "./games.js";
+import type { Game, JapanGame } from "./games.js";
+import type { DataRegion } from "./regions.js";
 
 // Shared by the day editor and /api/daily-play.
 
 export const MAX_COUNT = 99;
+/** ONGEKI is counted in tracks, several per credit. */
+export const MAX_TRACKS = 999;
 export const EDIT_WINDOW_DAYS = 366;
 
 export interface GameDay {
@@ -17,8 +20,12 @@ export interface GameDay {
 
 export interface DayState {
   date: string;
+  region: DataRegion;
   exists: boolean;
-  games: Partial<Record<Game, GameDay>>;
+  /** Japan days hold plays only (ONGEKI: tracks), never null, with no tickets or rating. */
+  games: Partial<Record<JapanGame, GameDay>>;
+  /** Japan only: the last day the Journal import covers. Days through it are read-only here. */
+  journalThrough?: string | null;
 }
 
 export interface PlayWrite {
@@ -39,13 +46,26 @@ export interface RatingWrite {
   expected: number | null;
 }
 
-export type DayWrite = PlayWrite | TicketWrite | RatingWrite;
+export interface JapanPlayWrite {
+  region: "japan";
+  date: string;
+  game: JapanGame;
+  count: number;
+  expected: number;
+}
+
+export type DayWrite = PlayWrite | TicketWrite | RatingWrite | JapanPlayWrite;
 
 export type WriteErrorCode =
   | "CONFLICT"
   | "TICKETS_EXCEED_PLAYS"
+  | "JOURNAL_DAY"
   | "INVALID_REQUEST"
   | "WRITES_DISABLED";
+
+export function isJapanWrite(write: DayWrite): write is JapanPlayWrite {
+  return "region" in write;
+}
 
 export function isTicketWrite(write: DayWrite): write is TicketWrite {
   return "ticket" in write;
@@ -79,13 +99,23 @@ export function stepRating(game: Game, value: number, delta: number): number {
   return Math.min(max, Math.max(0, Math.round(value * scale + delta) / scale));
 }
 
-export function bangkokToday(now: Date = new Date()): string {
+// Japan dates are Journal dates: the calendar day in Japan.
+const TIME_ZONE: Record<DataRegion, string> = {
+  international: "Asia/Bangkok",
+  japan: "Asia/Tokyo",
+};
+
+export function regionToday(region: DataRegion, now: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Bangkok",
+    timeZone: TIME_ZONE[region],
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   }).format(now);
+}
+
+export function bangkokToday(now: Date = new Date()): string {
+  return regionToday("international", now);
 }
 
 export function isIsoDate(value: unknown): value is string {
@@ -109,8 +139,16 @@ export function isEditableDate(date: string, today: string = bangkokToday()): bo
   return isIsoDate(date) && date <= today && date >= earliestEditableDate(today);
 }
 
+export function maxCount(game: JapanGame): number {
+  return game === "ongeki" ? MAX_TRACKS : MAX_COUNT;
+}
+
 export function isCount(value: unknown): value is number {
   return Number.isInteger(value) && (value as number) >= 0 && (value as number) <= MAX_COUNT;
+}
+
+export function isCountFor(game: JapanGame, value: unknown): value is number {
+  return Number.isInteger(value) && (value as number) >= 0 && (value as number) <= maxCount(game);
 }
 
 export function ticketCatalog(game: Game): TicketDef[] {

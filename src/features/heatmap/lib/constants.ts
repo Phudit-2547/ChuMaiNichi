@@ -1,26 +1,11 @@
-import {
-  GAME_ACCENT as CORE_GAME_ACCENT,
-  GAME_LABELS as CORE_GAME_LABELS,
-} from "../../../global/lib/games";
 import type { DailyRow, HeatmapGame } from "../types/types";
 
-export const JAPAN_GAMES: HeatmapGame[] = ["maimai", "chunithm", "ongeki"];
-
-export const GAME_ACCENT: Record<HeatmapGame, string> = {
-  ...CORE_GAME_ACCENT,
-  ongeki: "var(--ongeki)",
-};
-
-export const GAME_LABELS: Record<HeatmapGame, string> = {
-  ...CORE_GAME_LABELS,
-  ongeki: "ONGEKI",
-};
-
-export const ACTIVITY_UNIT: Record<HeatmapGame, "play" | "track"> = {
-  maimai: "play",
-  chunithm: "play",
-  ongeki: "track",
-};
+export {
+  ACTIVITY_UNIT,
+  GAME_ACCENT,
+  GAME_LABELS,
+  JAPAN_GAMES,
+} from "../../../global/lib/games";
 
 export const HEATMAP_COLORS: Record<HeatmapGame, string[]> = {
   maimai: [

@@ -159,8 +159,8 @@ export default function SettingsModal({
                 </span>
               </Row>
             ) : (
-              <Row label="Source" sub="Historical activity imported locally">
-                <span className="row-value">Obsidian Journal</span>
+              <Row label="Source" sub="Journal days are read-only. Log later days with Log.">
+                <span className="row-value">Obsidian Journal + Log</span>
               </Row>
             )}
             <Row

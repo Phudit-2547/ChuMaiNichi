@@ -5,9 +5,11 @@ import {
   earliestEditableDate,
   formatRating,
   isCount,
+  isCountFor,
   isEditableDate,
   isIsoDate,
   isRating,
+  regionToday,
   stepRating,
 } from "./play-log";
 
@@ -29,6 +31,19 @@ describe("play log dates", () => {
   it("bounds counts to 0..99 integers", () => {
     expect([0, 99].every(isCount)).toBe(true);
     expect([-1, 100, 1.5, "3", null].some(isCount)).toBe(false);
+  });
+
+  it("bounds ONGEKI tracks to 999 and Japan plays to 99", () => {
+    expect([isCountFor("ongeki", 999), isCountFor("ongeki", 1000)]).toEqual([true, false]);
+    expect([isCountFor("maimai", 99), isCountFor("chunithm", 100)]).toEqual([true, false]);
+  });
+
+  it("dates each region by its own calendar day", () => {
+    const late = new Date("2026-10-26T16:00:00Z");
+    expect([regionToday("international", late), regionToday("japan", late)]).toEqual([
+      "2026-10-26",
+      "2026-10-27",
+    ]);
   });
 });
 

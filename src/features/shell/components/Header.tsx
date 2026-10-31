@@ -13,7 +13,6 @@ interface HeaderProps {
   refreshStatus?: string;
   refreshAvailable?: boolean;
   onLog?: () => void;
-  logAvailable?: boolean;
 }
 
 export default function Header({
@@ -25,7 +24,6 @@ export default function Header({
   refreshStatus = "",
   refreshAvailable = true,
   onLog,
-  logAvailable = false,
 }: HeaderProps) {
   const { chatOpen, toggleChat } = useShellStore();
 
@@ -149,7 +147,7 @@ export default function Header({
       </div>
       <div className="app-header__spacer" />
       <div className="app-header__actions" data-header-actions="score-controls">
-        {logAvailable && onLog && (
+        {onLog && (
           <button
             type="button"
             className="app-header__action app-header__action--primary app-header__action--log text-btn text-btn--log glass-control glass-control--primary"

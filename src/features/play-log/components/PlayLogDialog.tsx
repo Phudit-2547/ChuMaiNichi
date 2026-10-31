@@ -15,20 +15,28 @@ import {
   DialogTitle,
 } from "@/global/components/ui/dialog";
 import { APP_CONFIG } from "@/global/lib/config";
-import { GAME_ACCENT, GAME_LABELS, type Game } from "@/global/lib/games";
+import {
+  ACTIVITY_UNIT,
+  GAME_ACCENT,
+  GAME_LABELS,
+  JAPAN_GAMES,
+  type Game,
+  type JapanGame,
+} from "@/global/lib/games";
 import {
   addDays,
-  bangkokToday,
   dayCredits,
   earliestEditableDate,
   formatRating,
   isEditableDate,
   isRating,
-  MAX_COUNT,
+  maxCount,
   RATING_FORMAT,
+  regionToday,
   ticketCatalog,
   type DayState,
 } from "@/global/lib/play-log";
+import type { DataRegion } from "@/global/lib/regions";
 import usePlayLogStore from "../stores/play-log-store";
 import { fetchDay, saveWrite, type SaveResult } from "../lib/api";
 import {
@@ -52,6 +60,8 @@ interface State {
   queues: Record<string, Queue>;
   /** The open/day session whose load has finished; taps are accepted only then. */
   loadedKey: string | null;
+  /** Japan: the last Journal day. Days through it are not logged here. */
+  journalThrough: string | null;
 }
 
 type Action =
@@ -72,6 +82,7 @@ function reducer(state: State, action: Action): State {
         [action.day.date]: existing ? mergeDay(existing, action.day) : queueFromDay(action.day),
       },
       loadedKey: action.loadKey,
+      journalThrough: action.day.journalThrough ?? null,
     };
   }
   if (action.type === "refresh") {
@@ -108,27 +119,35 @@ function plural(n: number, word: string) {
   return `${n} ${word}${n === 1 ? "" : "s"}`;
 }
 
-export default function PlayLogDialog() {
+export default function PlayLogDialog({ region }: { region: DataRegion }) {
   const { open, date, session, openDay, close } = usePlayLogStore();
-  const [state, dispatch] = useReducer(reducer, { queues: {}, loadedKey: null });
+  const [state, dispatch] = useReducer(reducer, {
+    queues: {},
+    loadedKey: null,
+    journalThrough: null,
+  });
   const [errorDate, setErrorDate] = useState<string | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
   const [picking, setPicking] = useState(false);
   const savedRef = useRef(false);
-  const today = bangkokToday();
-  const earliest = earliestEditableDate(today);
+  const today = regionToday(region);
+  const { journalThrough } = state;
+  const windowStart = earliestEditableDate(today);
+  const earliest =
+    journalThrough && journalThrough >= windowStart ? addDays(journalThrough, 1) : windowStart;
+  const games: JapanGame[] = region === "japan" ? JAPAN_GAMES : APP_CONFIG.games;
 
   const loadKey = `${session}:${reloadNonce}`;
   useEffect(() => {
     if (!open) return;
     const controller = new AbortController();
-    fetchDay(date, controller.signal)
+    fetchDay(date, region, controller.signal)
       .then((day) => dispatch({ type: "load", day, loadKey }))
       .catch(() => {
         if (!controller.signal.aborted) setErrorDate(loadKey);
       });
     return () => controller.abort();
-  }, [open, date, loadKey]);
+  }, [open, date, region, loadKey]);
 
   useEffect(() => {
     for (const queue of Object.values(state.queues)) {
@@ -149,7 +168,7 @@ export default function PlayLogDialog() {
               shown.close(true);
             } else if (parseKey(key).rating && shown.date > sentDate) {
               // The rating may have carried into the day on screen.
-              void fetchDay(shown.date)
+              void fetchDay(shown.date, region)
                 .then((day) => dispatch({ type: "refresh", day }))
                 .catch(() => {});
             }
@@ -158,7 +177,7 @@ export default function PlayLogDialog() {
         });
       }
     }
-  }, [state.queues]);
+  }, [state.queues, region]);
 
   const handleClose = () => {
     setPicking(false);
@@ -169,6 +188,7 @@ export default function PlayLogDialog() {
   const queue = state.queues[date] ?? null;
   const ready = queue != null && state.loadedKey === loadKey;
   const failedToLoad = !ready && errorDate === loadKey;
+  const fromJournal = ready && journalThrough != null && date <= journalThrough;
   const label = DAY_LABEL.format(new Date(`${date}T00:00:00Z`));
   const set = (key: string, value: number) => dispatch({ type: "set", date, key, value });
   const step = (key: string, delta: number) => dispatch({ type: "step", date, key, delta });
@@ -185,7 +205,9 @@ export default function PlayLogDialog() {
       >
         <DialogTitle className="sr-only">Play log, {label}</DialogTitle>
         <DialogDescription className="sr-only">
-          Log plays, paid tickets and rating for one day. Each change saves on its own.
+          {region === "japan"
+            ? "Log Japan plays and ONGEKI tracks for one day. Each change saves on its own."
+            : "Log plays, paid tickets and rating for one day. Each change saves on its own."}
         </DialogDescription>
         <div className="modal-head play-log__head">
           <button
@@ -208,7 +230,8 @@ export default function PlayLogDialog() {
                 value={date}
                 autoFocus
                 onChange={(e) => {
-                  if (isEditableDate(e.target.value, today)) openDay(e.target.value);
+                  if (isEditableDate(e.target.value, today) && e.target.value >= earliest)
+                    openDay(e.target.value);
                 }}
                 onBlur={() => setPicking(false)}
               />
@@ -251,8 +274,15 @@ export default function PlayLogDialog() {
           aria-busy={!ready && !failedToLoad}
           inert={!ready && !failedToLoad}
         >
-          {queue && !failedToLoad ? (
-            APP_CONFIG.games.map((game) => (
+          {fromJournal ? (
+            <div className="play-log__message">
+              <p>
+                Days through {DAY_LABEL.format(new Date(`${journalThrough}T00:00:00Z`))} come
+                from your Obsidian Journal. Change them there.
+              </p>
+            </div>
+          ) : queue && !failedToLoad ? (
+            games.map((game) => (
               <GameBlock
                 key={game}
                 game={game}
@@ -306,30 +336,38 @@ function GameBlock({
   onStep,
   onRetry,
 }: {
-  game: Game;
+  game: JapanGame;
   queue: Queue;
   onSet: (key: string, value: number) => void;
   onStep: (key: string, delta: number) => void;
   onRetry: () => void;
 }) {
   const name = GAME_LABELS[game];
+  const unit = ACTIVITY_UNIT[game];
+  const max = maxCount(game);
+  // A Japan day logs plays only: no tickets, rating or spending.
+  const intl = queue.region === "japan" ? null : (game as Game);
   const playKey = keyFor(game);
-  const catalogIds = new Set(ticketCatalog(game).map((t) => t.id));
-  const chips = [
-    ...ticketCatalog(game),
-    ...Object.keys(queue.keys)
-      .map((key) => parseKey(key))
-      .filter((k) => k.game === game && k.ticket && !catalogIds.has(k.ticket))
-      .map((k) => ({ id: k.ticket!, label: k.ticket!, extra_credits: queue.credits[game]?.[k.ticket!] ?? 0, retired: true })),
-  ];
+  const catalog = intl ? ticketCatalog(intl) : [];
+  const catalogIds = new Set(catalog.map((t) => t.id));
+  const chips = intl
+    ? [
+        ...catalog,
+        ...Object.keys(queue.keys)
+          .map((key) => parseKey(key))
+          .filter((k) => k.game === game && k.ticket && !catalogIds.has(k.ticket))
+          .map((k) => ({ id: k.ticket!, label: k.ticket!, extra_credits: queue.credits[intl]?.[k.ticket!] ?? 0, retired: true })),
+      ]
+    : [];
   const plays = queue.keys[playKey]?.desired ?? null;
   const tickets = Object.fromEntries(
     chips.map((t) => [t.id, queue.keys[keyFor(game, t.id)]?.desired ?? 0]),
   );
-  const totals = dayCredits(game, { plays, tickets, ticketCredits: queue.credits[game] });
-  const rateKey = ratingKey(game);
-  const rating = queue.keys[rateKey]?.desired ?? null;
-  const states = [playKey, ...chips.map((t) => keyFor(game, t.id)), rateKey]
+  const totals = intl && dayCredits(intl, { plays, tickets, ticketCredits: queue.credits[intl] });
+  const ticketCount = totals ? totals.tickets : 0;
+  const rateKey = intl && ratingKey(intl);
+  const rating = rateKey ? (queue.keys[rateKey]?.desired ?? null) : null;
+  const states = [playKey, ...chips.map((t) => keyFor(game, t.id)), ...(rateKey ? [rateKey] : [])]
     .map((key) => queue.keys[key])
     .filter((state): state is KeyState => Boolean(state));
   const saving = states.some(
@@ -357,22 +395,23 @@ function GameBlock({
         <button
           type="button"
           className="play-log__step glass-control"
-          aria-label={`Remove one ${name} play`}
-          disabled={unknown || plays <= 0 || plays <= totals.tickets}
+          aria-label={`Remove one ${name} ${unit}`}
+          disabled={unknown || plays <= 0 || plays <= ticketCount}
           onClick={() => onStep(playKey, -1)}
         >
           <Minus size={20} />
         </button>
         <CountInput
           value={plays}
-          label={`${name} plays`}
+          max={max}
+          label={`${name} ${unit}s`}
           onCommit={(n) => onSet(playKey, n)}
         />
         <button
           type="button"
           className="play-log__step play-log__step--add glass-control"
-          aria-label={`Add one ${name} play`}
-          disabled={unknown || plays >= MAX_COUNT}
+          aria-label={`Add one ${name} ${unit}`}
+          disabled={unknown || plays >= max}
           onClick={() => onStep(playKey, 1)}
         >
           <Plus size={24} />
@@ -382,14 +421,14 @@ function GameBlock({
         <p className="play-log__hint">Unknown. Type the total to log it.</p>
       )}
 
-      {chips.length > 0 && !unknown && (
+      {intl && totals && chips.length > 0 && !unknown && (
         <div className="play-log__tickets" role="group" aria-label={`${name} paid tickets`}>
           {chips.map((ticket) => {
             const key = keyFor(game, ticket.id);
             const count = tickets[ticket.id];
             const retired = "retired" in ticket;
             if (retired && count === 0) return null;
-            const extra = queue.credits[game]?.[ticket.id] ?? ticket.extra_credits;
+            const extra = queue.credits[intl]?.[ticket.id] ?? ticket.extra_credits;
             return (
               <div key={ticket.id} className="play-log__ticket">
                 <button
@@ -427,21 +466,29 @@ function GameBlock({
         </div>
       )}
 
-      <RatingInput
-        key={queue.date}
-        game={game}
-        value={rating}
-        label={`${name} rating`}
-        onCommit={(n) => onSet(rateKey, n)}
-        onStep={(delta) => onStep(rateKey, delta)}
-      />
+      {intl && rateKey && (
+        <RatingInput
+          key={queue.date}
+          game={intl}
+          value={rating}
+          label={`${name} rating`}
+          onCommit={(n) => onSet(rateKey, n)}
+          onStep={(delta) => onStep(rateKey, delta)}
+        />
+      )}
 
       <div className="play-log__status" role="status" aria-live="polite">
         <span>
-          {plural(totals.plays, "play")}
-          {totals.tickets > 0 &&
-            ` · ${plural(totals.tickets, "ticket")} · ${plural(totals.credits, "credit")}`}
-          {` · ฿${totals.baht}`}
+          {totals ? (
+            <>
+              {plural(totals.plays, "play")}
+              {totals.tickets > 0 &&
+                ` · ${plural(totals.tickets, "ticket")} · ${plural(totals.credits, "credit")}`}
+              {` · ฿${totals.baht}`}
+            </>
+          ) : (
+            plural(plays ?? 0, unit)
+          )}
         </span>
         {problem ? (
           <span className="play-log__problem">
@@ -470,10 +517,12 @@ function GameBlock({
 
 function CountInput({
   value,
+  max,
   label,
   onCommit,
 }: {
   value: number | null;
+  max: number;
   label: string;
   onCommit: (n: number) => void;
 }) {
@@ -481,7 +530,7 @@ function CountInput({
   const commit = () => {
     if (draft == null) return;
     const n = Number(draft);
-    if (draft !== "" && Number.isInteger(n) && n <= MAX_COUNT && n !== value) onCommit(n);
+    if (draft !== "" && Number.isInteger(n) && n <= max && n !== value) onCommit(n);
     setDraft(null);
   };
   return (
@@ -495,7 +544,7 @@ function CountInput({
       placeholder="?"
       value={draft ?? (value == null ? "" : String(value))}
       onFocus={(e) => e.currentTarget.select()}
-      onChange={(e) => setDraft(e.target.value.replace(/\D/g, "").slice(0, 2))}
+      onChange={(e) => setDraft(e.target.value.replace(/\D/g, "").slice(0, String(max).length))}
       onBlur={commit}
       onKeyDown={(e) => {
         if (e.key === "Enter") e.currentTarget.blur();

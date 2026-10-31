@@ -22,6 +22,7 @@ function day(
 ): DayState {
   return {
     date: DATE,
+    region: "international",
     exists: true,
     games: {
       maimai: { plays: maimai, rating, tickets },
@@ -214,5 +215,38 @@ describe("rating saves", () => {
       day: { ...day(2), games: { ...day(2).games, chunithm: { plays: 0, rating: 15.3, tickets: {} } } },
     });
     expect(q.keys["chunithm/rating"]).toMatchObject({ server: 15.3, status: "saved" });
+  });
+});
+
+describe("Japan save queue", () => {
+  const japanDay = (ongeki = 0, maimai = 0): DayState => ({
+    date: DATE,
+    region: "japan",
+    exists: true,
+    journalThrough: "2026-07-22",
+    games: {
+      maimai: { plays: maimai, rating: null, tickets: {} },
+      chunithm: { plays: 0, rating: null, tickets: {} },
+      ongeki: { plays: ongeki, rating: null, tickets: {} },
+    },
+  });
+
+  it("keeps one key per game, with no tickets or rating", () => {
+    expect(Object.keys(queueFromDay(japanDay()).keys)).toEqual(["maimai", "chunithm", "ongeki"]);
+  });
+
+  it("sends Japan writes with the region and the confirmed count", () => {
+    const q = setDesired(queueFromDay(japanDay(10)), "ongeki", 13);
+    expect(nextWrite(q, "ongeki")).toEqual({
+      key: "ongeki",
+      write: { region: "japan", date: DATE, game: "ongeki", count: 13, expected: 10 },
+    });
+  });
+
+  it("steps ONGEKI tracks up to 999 and plays up to 99", () => {
+    let q = queueFromDay(japanDay(998, 98));
+    q = stepDesired(stepDesired(q, "ongeki", 1), "ongeki", 1);
+    q = stepDesired(stepDesired(q, "maimai", 1), "maimai", 1);
+    expect([q.keys.ongeki.desired, q.keys.maimai.desired]).toEqual([999, 99]);
   });
 });

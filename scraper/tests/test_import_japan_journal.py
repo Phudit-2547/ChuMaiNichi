@@ -214,6 +214,7 @@ async def test_upsert_is_ordered_and_uses_on_conflict():
         source_hashes=("b" * 64, "a" * 64),
     )
 
+    connection.fetch.return_value = []
     await upsert_daily_rows(connection, [later, earlier])
 
     connection.execute.assert_awaited_once_with(CREATE_TABLE_SQL)
@@ -226,3 +227,26 @@ async def test_upsert_is_ordered_and_uses_on_conflict():
         date(2026, 5, 25),
     ]
     assert all(params[7] == SOURCE for params in parameters)
+
+
+@pytest.mark.asyncio
+async def test_upsert_refuses_to_overwrite_days_logged_in_the_day_editor():
+    connection = AsyncMock()
+    connection.fetch.return_value = [{"play_date": date(2026, 7, 23)}]
+    row = JapanDailyPlay(
+        play_date=date(2026, 7, 24),
+        maimai_play_count=0,
+        chunithm_play_count=0,
+        ongeki_track_count=0,
+        maimai_cumulative=72,
+        chunithm_cumulative=19,
+        ongeki_cumulative_tracks=543,
+        source_paths=("2026-07-24.md",),
+        source_hashes=("a" * 64,),
+    )
+
+    with pytest.raises(ValueError, match="2026-07-23"):
+        await upsert_daily_rows(connection, [row])
+
+    assert connection.fetch.await_args.args[1] == date(2026, 7, 24)
+    connection.executemany.assert_not_awaited()

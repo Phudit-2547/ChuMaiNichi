@@ -18,7 +18,7 @@ Browser (React SPA on Vercel)
     │
     ├── GET  /api/auth    → signed session check (no DB) — the login gate
     ├── POST /api/query   → Neon PostgreSQL (read-only SQL; client retries cold starts)
-    ├── GET/PUT /api/daily-play → day editor: plays + paid tickets (compare-and-set writes)
+    ├── GET/PUT /api/daily-play → day editor: plays, paid tickets, Japan tracks (compare-and-set writes)
     ├── POST /api/chat    → Codex subscription or OpenAI-compatible API (tool-use, streaming)
     ├── GET/POST /api/codex-auth → ChatGPT device login/status/disconnect
     ├── POST /api/refresh → GitHub API (trigger workflow_dispatch) + GET poll
@@ -31,7 +31,7 @@ GitHub Actions (cron + manual trigger)
 
 Neon PostgreSQL (free tier, serverless — scales to zero, so first query pays a warmup cost)
     ├── daily_play         — International: one row per date, both games combined
-    ├── japan_daily_play   — Journal-derived Japan activity, including ONGEKI tracks
+    ├── japan_daily_play   — Japan activity: Journal import, then day-editor logs; ONGEKI in tracks
     ├── user_scores        — International JSONB snapshots from chuumai-tools scraper
     ├── user_rating_images — rendered rating-frame images (served by /api/rating-image)
     ├── daily_ticket       — paid tickets logged in the day editor
@@ -176,9 +176,9 @@ Single-page app. No `react-router-dom`. No client-side routing.
 
 - **Main view**: Page-level International/Japan switch plus heatmaps
 - **International**: configured maimai/CHUNITHM heatmaps, rating images, Refresh, and score-aware chat
-- **Japan**: Journal-derived maimai/CHUNITHM heatmaps plus ONGEKI tracks; no Refresh, rating image, or spending calculation
+- **Japan**: Journal-derived maimai/CHUNITHM heatmaps plus ONGEKI tracks, then days logged with Log; no Refresh, rating image, or spending calculation
 - **Chat panel**: Right sidebar with isolated history per region. Japan uses a static structured activity tool and cannot issue free-form SQL. International retains the generic read-only SQL tool; its direct Japan-table guard prevents accidental mixing but is not a database security boundary because both contexts share `DATABASE_URL`.
-- **Log button + day editor**: International only, left of Refresh. Opens `PlayLogDialog` on today's Asia/Bangkok date (bottom sheet ≤480px). Per game: −/count/+, paid-ticket chips and a rating field with −/+ (maimai steps 1, CHUNITHM 0.01); every change saves on its own; ‹ › and a date picker move within the last 366 days. The heatmap's cell details offer **Edit day**
+- **Log button + day editor**: Both regions, left of Refresh. Opens `PlayLogDialog` on today's date in the region (Asia/Bangkok; Japan uses Asia/Tokyo) (bottom sheet ≤480px). International, per game: −/count/+, paid-ticket chips and a rating field with −/+ (maimai steps 1, CHUNITHM 0.01). Japan: −/count/+ only, for maimai and CHUNITHM plays and ONGEKI tracks (up to 999). Every change saves on its own; ‹ › and a date picker move within the last 366 days, and on Japan never back to or before the last Journal day. The heatmap's cell details offer **Edit day**
 - **Settings modal**: Overlay triggered by gear icon. Theme toggle and display preferences. Stored in `localStorage`
 - **Game selection and currency**: `config.json` controls International only; the Japan view always uses its Journal schema
 - **Refresh button**: In the header. Opens a picker with one checkbox per configured game (all ticked by default) and calls `/api/refresh` with the chosen games to trigger `scrape-user-data.yml`; a game that failed in the last run is marked there
@@ -285,11 +285,13 @@ CREATE TABLE IF NOT EXISTS public.daily_ticket (
 
 The tables above are created idempotently by `scraper/init.sql`, which runs during a scraper invocation (not on Vercel). The OAuth route also lazily creates/migrates its own table so subscription login does not depend on a later scraper run. Before the first scrape, `/api/rating-image` treats a missing `user_rating_images` table as a 404 so the UI hides cleanly.
 
-**Critical schema rules:** `daily_play` remains International-only and has ONE row per date with columns for BOTH games; any upsert logic that loops per game and inserts twice is a bug. `japan_daily_play` also has ONE row per date, adds ONGEKI tracks, and is written only by the dry-run-first Journal importer. Never merge cumulative values across these tables.
+**Critical schema rules:** `daily_play` remains International-only and has ONE row per date with columns for BOTH games; any upsert logic that loops per game and inserts twice is a bug. `japan_daily_play` also has ONE row per date, adds ONGEKI tracks, and is written by the dry-run-first Journal importer and, after its last day, by the day editor. Never merge cumulative values across these tables.
 
 **Day editor rule:** A missing `daily_play` date means no play. A write that creates a row copies the previous row's totals and ratings with the other game at 0; a count change is added to that day's and every later day's `{game}_cumulative` (NULL totals stay NULL); typing a total for an unknown (NULL) count leaves every total alone, because those came from SEGA's counter. Tickets never exceed that day's plays for the game, and spending = (plays + Σ `count × extra_credits`) × `currency_per_play`. `extra_credits` is copied from the catalog when a ticket is first logged. A rating write sets that day's `{game}_rating` and carries it into the following days without plays for that game that still hold the old value, stopping at the first day with plays, an unknown count or a different rating: a rating only changes on a day with plays. Ratings compare as float8, because rows written before 2026-04-19 hold a float's full binary expansion. A row the editor creates keeps the previous row's `scrape_failed` flag, like the nightly fill; Refresh clears that flag on today's row once every configured game's SEGA totals are in. Refresh still overwrites today's rating with SEGA's; a scrape-daily run that fails for a game keeps that game's rating already recorded today.
 
 **Japan attribution rule:** An explicit `-` means the cumulative value is unchanged from the previous day. A game omitted from a Journal total is not automatically a dash; `import_japan_journal.py` must find a non-negative audited daily count in `japan_daily_attribution.json` or block the import. The 2026-06-01 maimai count is a user-estimated 1 play; the 2026-06-06 snapshot therefore contributes the remaining 4 plays. Both cells are listed in `inferred_games` and must display an explanatory `*` in the Japan UI. Reserve `inferred_games` for judgment-based ambiguous splits; deterministic differences between audited totals do not receive a marker.
+
+**Japan day editor rule:** Days through the last `obsidian_journal` row belong to the Journal and are never written by the editor, including dates before the Journal series. A later day the editor creates gets `source = 'manual'`, empty source arrays, the previous row's totals (0 when there is none) and 0 for the other games; a count change is added to that day's and every later day's total. `import_japan_journal.py --apply` refuses to run when a `manual` row falls on or before its last date, because the upsert would overwrite it. The constraints that allow `manual` rows are migrated by `scraper/init.sql`, which runs with every scraper job, including the nightly fill.
 
 ## Rating system (maimai DX)
 
@@ -354,9 +356,9 @@ Protected routes use `checkAuth` and HttpOnly session cookies when `PASSKEY_ORIG
   retries 4xx (auth/bad-query) or caller-aborted requests.
 
 ### GET/PUT /api/daily-play
-- `GET ?date=YYYY-MM-DD` → `{ day: DayState }` (`src/global/lib/play-log.ts`): per configured game `{ plays, rating, tickets }`; a missing row reads as 0 plays and the previous row's rating.
-- `PUT` body is exactly `{ date, game, count, expected }`, `{ date, game, ticket, count, expected }` or `{ date, game, rating, expected }`; `expected` is the value the client last saw. Writes are single-statement compare-and-set: `200 { day }`, `409 { code: "CONFLICT", day }`, or `400 { code: "TICKETS_EXCEED_PLAYS", day }`.
-- Order: 405 → 503 when neither Passkeys nor `DASHBOARD_PASSWORD` is configured (writes are never open) → 403 unless `Origin` equals `PASSKEY_ORIGIN` (Passkey mode) → 401 → 429 (60 writes/minute, Passkey mode) → 400 validation (date within the last 366 Bangkok days and not in the future, configured game, catalog ticket, counts 0–99, maimai rating a whole number 0–20000, CHUNITHM rating 0–20 with at most two decimals) → write. `Cache-Control: private, no-store`. The server never retries a write; `extra_credits` always comes from the server catalog.
+- `GET ?date=YYYY-MM-DD` → `{ day: DayState }` (`src/global/lib/play-log.ts`): per configured game `{ plays, rating, tickets }`; a missing row reads as 0 plays and the previous row's rating. `&region=japan` reads `japan_daily_play` instead: maimai, CHUNITHM and ONGEKI counts (never null, no tickets or rating) plus `journalThrough`, the last Journal day.
+- `PUT` body is exactly `{ date, game, count, expected }`, `{ date, game, ticket, count, expected }`, `{ date, game, rating, expected }` or, for Japan, `{ region: "japan", date, game, count, expected }`; `expected` is the value the client last saw. Writes are single-statement compare-and-set: `200 { day }`, `409 { code: "CONFLICT", day }`, `400 { code: "TICKETS_EXCEED_PLAYS", day }`, or `400 { code: "JOURNAL_DAY", day }` for a Japan date on or before the last Journal day.
+- Order: 405 → 503 when neither Passkeys nor `DASHBOARD_PASSWORD` is configured (writes are never open) → 403 unless `Origin` equals `PASSKEY_ORIGIN` (Passkey mode) → 401 → 429 (60 writes/minute, Passkey mode) → 400 validation (date within the last 366 days and not in the future, by Bangkok date or for Japan by Tokyo date; configured game, or for Japan maimai/chunithm/ongeki; catalog ticket; counts 0–99, ONGEKI tracks 0–999; maimai rating a whole number 0–20000, CHUNITHM rating 0–20 with at most two decimals) → write. `Cache-Control: private, no-store`. The server never retries a write; `extra_credits` always comes from the server catalog.
 
 ### GET /api/model
 - Returns `{ model: string }` — the active provider's model name for the chat UI. A connected Codex credential takes precedence; returns `503` rather than advertising a display default when neither Codex nor a fallback provider is configured.

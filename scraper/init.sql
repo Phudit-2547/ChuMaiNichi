@@ -22,8 +22,10 @@ CREATE TABLE IF NOT EXISTS public.daily_ticket (
     PRIMARY KEY (play_date, game, ticket)
 );
 
--- Japan play history is journal-derived and intentionally isolated from the
--- International scraper table above.  ONGEKI is measured in tracks, not plays.
+-- Japan play history comes from the Obsidian Journal import and, after its last
+-- day, from the day editor ('manual' rows, which have no source notes).  It is
+-- intentionally isolated from the International scraper table above.  ONGEKI is
+-- measured in tracks, not plays.
 -- BEGIN JAPAN_DAILY_PLAY
 CREATE TABLE IF NOT EXISTS public.japan_daily_play (
     play_date                   DATE PRIMARY KEY,
@@ -34,8 +36,11 @@ CREATE TABLE IF NOT EXISTS public.japan_daily_play (
     chunithm_cumulative         INTEGER NOT NULL CHECK (chunithm_cumulative >= 0),
     ongeki_cumulative_tracks    INTEGER NOT NULL CHECK (ongeki_cumulative_tracks >= 0),
     source                      TEXT NOT NULL DEFAULT 'obsidian_journal'
-                                CHECK (source = 'obsidian_journal'),
-    source_paths                TEXT[] NOT NULL CHECK (cardinality(source_paths) > 0),
+                                CONSTRAINT japan_daily_play_source_check
+                                CHECK (source IN ('obsidian_journal', 'manual')),
+    source_paths                TEXT[] NOT NULL
+                                CONSTRAINT japan_daily_play_source_paths_check
+                                CHECK (source = 'manual' OR cardinality(source_paths) > 0),
     source_hashes               TEXT[] NOT NULL,
     inferred_games              TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
     CHECK (cardinality(source_paths) = cardinality(source_hashes)),
@@ -48,6 +53,15 @@ CREATE TABLE IF NOT EXISTS public.japan_daily_play (
 
 ALTER TABLE public.japan_daily_play
     ADD COLUMN IF NOT EXISTS inferred_games TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
+
+-- Tables created before the day editor allowed only Journal rows.
+ALTER TABLE public.japan_daily_play
+    DROP CONSTRAINT IF EXISTS japan_daily_play_source_check,
+    ADD CONSTRAINT japan_daily_play_source_check
+        CHECK (source IN ('obsidian_journal', 'manual')),
+    DROP CONSTRAINT IF EXISTS japan_daily_play_source_paths_check,
+    ADD CONSTRAINT japan_daily_play_source_paths_check
+        CHECK (source = 'manual' OR cardinality(source_paths) > 0);
 -- END JAPAN_DAILY_PLAY
 
 -- Per-song score snapshots (JSONB from chuumai-tools). scraped_at is naive

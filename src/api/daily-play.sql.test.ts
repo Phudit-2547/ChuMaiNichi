@@ -1,10 +1,31 @@
+import { readFileSync } from "node:fs";
 import { Client, neonConfig } from "@neondatabase/serverless";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { readDay, writePlays, writeRating, writeTicket, type Sql, type Tables } from "./daily-play";
+import type { JapanGame } from "../global/lib/games";
+import {
+  readDay,
+  readJapanDay,
+  writeJapanPlays,
+  writePlays,
+  writeRating,
+  writeTicket,
+  type Sql,
+  type Tables,
+} from "./daily-play";
 
 // Runs the route's SQL against session-only TEMP tables; set TEST_DATABASE_URL to run.
 const url = process.env.TEST_DATABASE_URL;
-const T: Tables = { day: "pg_temp.daily_play", ticket: "pg_temp.daily_ticket" };
+const T: Tables = {
+  day: "pg_temp.daily_play",
+  ticket: "pg_temp.daily_ticket",
+  japan: "pg_temp.japan_daily_play",
+};
+
+// The Japan table comes from scraper/init.sql so its CHECK constraints apply.
+const JAPAN_DDL = readFileSync(new URL("../../scraper/init.sql", import.meta.url), "utf8")
+  .split("-- BEGIN JAPAN_DAILY_PLAY")[1]
+  .split("-- END JAPAN_DAILY_PLAY")[0]
+  .replaceAll("public.japan_daily_play", T.japan);
 
 type Row = [string, number | null, number | null, number | null, number | null, number | null, string | null];
 
@@ -28,6 +49,7 @@ describe.skipIf(!url)("daily-play SQL", () => {
       play_date DATE NOT NULL, game TEXT NOT NULL, ticket TEXT NOT NULL,
       count INTEGER NOT NULL, extra_credits INTEGER NOT NULL,
       PRIMARY KEY (play_date, game, ticket))`);
+    await client.query(JAPAN_DDL);
   });
 
   afterAll(async () => {
@@ -35,7 +57,7 @@ describe.skipIf(!url)("daily-play SQL", () => {
   });
 
   beforeEach(async () => {
-    await client.query("TRUNCATE pg_temp.daily_play, pg_temp.daily_ticket");
+    await client.query("TRUNCATE pg_temp.daily_play, pg_temp.daily_ticket, pg_temp.japan_daily_play");
   });
 
   async function seed(...rows: Row[]) {
@@ -164,6 +186,7 @@ describe.skipIf(!url)("daily-play SQL", () => {
   it("reads a missing day as zero plays", async () => {
     expect(await readDay(sql, "2026-10-26", T)).toEqual({
       date: "2026-10-26",
+      region: "international",
       exists: false,
       games: {
         maimai: { plays: 0, rating: null, tickets: {}, ticketCredits: {} },
@@ -321,5 +344,93 @@ describe.skipIf(!url)("daily-play SQL", () => {
     expect(await rating("2026-10-26", 14600, 14561)).toBe(true);
     expect(await plays("2026-10-26", 2, 0)).toBe(true);
     expect(await day("2026-10-26")).toMatchObject({ m: 2, mc: 737, mr: "14600" });
+  });
+
+  describe("Japan", () => {
+    type JapanRow = [string, number, number, number, number, number, number];
+
+    async function seedJournal(...rows: JapanRow[]) {
+      for (const row of rows)
+        await client.query(
+          `INSERT INTO pg_temp.japan_daily_play
+             (play_date, maimai_play_count, chunithm_play_count, ongeki_track_count,
+              maimai_cumulative, chunithm_cumulative, ongeki_cumulative_tracks,
+              source, source_paths, source_hashes)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,'obsidian_journal','{note.md}','{hash}')`,
+          row,
+        );
+    }
+
+    async function japanDay(date: string) {
+      const { rows } = await client.query(
+        `SELECT maimai_play_count m, chunithm_play_count c, ongeki_track_count o,
+                maimai_cumulative mc, chunithm_cumulative cc, ongeki_cumulative_tracks oc,
+                source, cardinality(source_paths) notes
+         FROM pg_temp.japan_daily_play WHERE play_date = $1`,
+        [date],
+      );
+      return rows[0] ?? null;
+    }
+
+    const log = (date: string, game: JapanGame, count: number, expected: number) =>
+      writeJapanPlays(sql, { region: "japan", date, game, count, expected }, T);
+
+    it("logs a day after the Journal from the previous totals", async () => {
+      await seedJournal(["2026-07-22", 0, 0, 0, 72, 19, 543]);
+      expect(await log("2026-07-25", "ongeki", 12, 0)).toBe(true);
+      expect(await japanDay("2026-07-25")).toEqual({
+        m: 0, c: 0, o: 12, mc: 72, cc: 19, oc: 555, source: "manual", notes: 0,
+      });
+    });
+
+    it("never writes a Journal day or a day before it", async () => {
+      await seedJournal(["2026-07-21", 1, 0, 0, 72, 19, 543], ["2026-07-22", 0, 0, 0, 72, 19, 543]);
+      expect(await log("2026-07-22", "maimai", 1, 0)).toBe(false);
+      expect(await log("2026-07-21", "maimai", 2, 1)).toBe(false);
+      expect(await log("2026-07-01", "maimai", 1, 0)).toBe(false);
+      expect(await japanDay("2026-07-01")).toBeNull();
+      expect(await japanDay("2026-07-22")).toMatchObject({ m: 0, mc: 72, source: "obsidian_journal" });
+    });
+
+    it("shifts this day's and later logged days' totals by the change", async () => {
+      await seedJournal(["2026-07-22", 0, 0, 0, 72, 19, 543]);
+      expect(await log("2026-07-25", "maimai", 1, 0)).toBe(true);
+      expect(await log("2026-07-27", "maimai", 2, 0)).toBe(true);
+      expect(await japanDay("2026-07-27")).toMatchObject({ m: 2, mc: 75 });
+      expect(await log("2026-07-25", "maimai", 3, 1)).toBe(true);
+      expect(await japanDay("2026-07-25")).toMatchObject({ m: 3, mc: 75 });
+      expect(await japanDay("2026-07-27")).toMatchObject({ m: 2, mc: 77 });
+      expect(await log("2026-07-25", "maimai", 0, 3)).toBe(true);
+      expect(await japanDay("2026-07-27")).toMatchObject({ m: 2, mc: 74, cc: 19, oc: 543 });
+    });
+
+    it("rejects a stale count", async () => {
+      await seedJournal(["2026-07-22", 0, 0, 0, 72, 19, 543]);
+      expect(await log("2026-07-25", "ongeki", 12, 0)).toBe(true);
+      expect(await log("2026-07-25", "ongeki", 15, 0)).toBe(false);
+      expect(await log("2026-07-26", "ongeki", 5, 3)).toBe(false);
+      expect(await japanDay("2026-07-25")).toMatchObject({ o: 12, oc: 555 });
+      expect(await japanDay("2026-07-26")).toBeNull();
+    });
+
+    it("starts totals at zero when nothing came before", async () => {
+      expect(await log("2026-10-26", "chunithm", 2, 0)).toBe(true);
+      expect(await japanDay("2026-10-26")).toMatchObject({ m: 0, c: 2, o: 0, mc: 0, cc: 2, oc: 0 });
+    });
+
+    it("reads a missing day as zero with the Journal boundary", async () => {
+      await seedJournal(["2026-07-22", 0, 0, 0, 72, 19, 543]);
+      expect(await readJapanDay(sql, "2026-10-26", T)).toEqual({
+        date: "2026-10-26",
+        region: "japan",
+        exists: false,
+        journalThrough: "2026-07-22",
+        games: {
+          maimai: { plays: 0, rating: null, tickets: {} },
+          chunithm: { plays: 0, rating: null, tickets: {} },
+          ongeki: { plays: 0, rating: null, tickets: {} },
+        },
+      });
+    });
   });
 });

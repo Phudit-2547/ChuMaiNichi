@@ -10,7 +10,7 @@ const COLUMNS_BY_REGION: Record<DataRegion, string> = {
   international: `play_date::text, maimai_play_count, chunithm_play_count,
                   maimai_rating, chunithm_rating, scrape_failed, failure_reason`,
   japan: `play_date::text, maimai_play_count, chunithm_play_count,
-          ongeki_track_count, inferred_games`,
+          ongeki_track_count, inferred_games, source`,
 };
 
 export async function fetchYears(

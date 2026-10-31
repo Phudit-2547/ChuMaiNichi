@@ -40,6 +40,14 @@ async function send(req: VercelRequest) {
 }
 const play = (extra = {}) => ({ date: "2026-10-26", game: "maimai", count: 3, expected: 2, ...extra });
 const rate = (extra = {}) => ({ date: "2026-10-26", game: "maimai", rating: 14600, expected: 14561, ...extra });
+const japan = (extra = {}) => ({ region: "japan", date: "2026-10-26", game: "ongeki", count: 12, expected: 0, ...extra });
+const JAPAN_ROW = {
+  exists: true,
+  maimai_play_count: 0,
+  chunithm_play_count: 0,
+  ongeki_track_count: 12,
+  journal_through: "2026-07-22",
+};
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -107,6 +115,13 @@ describe("daily-play handler order", () => {
     ["a rating sent as text", rate({ rating: "14600" })],
     ["a negative rating", rate({ rating: -1 })],
     ["a non-numeric expected rating", rate({ expected: "14561" })],
+    ["another region", japan({ region: "international" })],
+    ["a Japan game outside the Japan list", japan({ game: "taiko" })],
+    ["a Japan maimai count above 99", japan({ game: "maimai", count: 100 })],
+    ["ONGEKI tracks above 999", japan({ count: 1000 })],
+    ["a Japan write without a known count", japan({ expected: null })],
+    ["a Japan ticket", japan({ ticket: "area_x2" })],
+    ["a future Japan date", japan({ date: "2026-10-27" })],
     ["no body", undefined],
   ])("rejects %s", async (_label, body) => {
     const { status, body: json } = await send(request("PUT", body));
@@ -222,11 +237,74 @@ describe("daily-play reads", () => {
     expect(status).toBe(200);
     expect(body.day).toEqual({
       date: "2026-10-26",
+      region: "international",
       exists: false,
       games: {
         maimai: { plays: 0, rating: 14561, tickets: {}, ticketCredits: {} },
         chunithm: { plays: 0, rating: null, tickets: {}, ticketCredits: {} },
       },
     });
+  });
+});
+
+describe("daily-play Japan", () => {
+  it("reads a Japan day with the Journal boundary", async () => {
+    results = [[JAPAN_ROW]];
+    const { status, body } = await send(
+      request("GET", undefined, { origin: undefined }, { date: "2026-10-26", region: "japan" }),
+    );
+    expect(status).toBe(200);
+    expect(sql.mock.calls[0][0]).toContain("japan_daily_play");
+    expect(body.day).toEqual({
+      date: "2026-10-26",
+      region: "japan",
+      exists: true,
+      journalThrough: "2026-07-22",
+      games: {
+        maimai: { plays: 0, rating: null, tickets: {} },
+        chunithm: { plays: 0, rating: null, tickets: {} },
+        ongeki: { plays: 12, rating: null, tickets: {} },
+      },
+    });
+  });
+
+  it("rejects an unknown region", async () => {
+    const { status } = await send(request("GET", undefined, {}, { date: "2026-10-26", region: "korea" }));
+    expect(status).toBe(400);
+    expect(sql).not.toHaveBeenCalled();
+  });
+
+  it("saves ONGEKI tracks above the play limit", async () => {
+    results = [[{ written: 1 }], [{ ...JAPAN_ROW, ongeki_track_count: 120 }]];
+    const { status, body } = await send(request("PUT", japan({ count: 120 })));
+    expect(status).toBe(200);
+    expect(sql.mock.calls[0][1]).toEqual(["2026-10-26", 120, 0]);
+    expect(sql.mock.calls[0][0]).toContain("SET\n         ongeki_track_count = EXCLUDED.ongeki_track_count");
+    expect(body.day.games.ongeki.plays).toBe(120);
+  });
+
+  it("answers JOURNAL_DAY for a day the Journal import covers", async () => {
+    results = [[{ written: 0 }], [JAPAN_ROW]];
+    const { status, body } = await send(request("PUT", japan({ date: "2026-07-22" })));
+    expect([status, body.code]).toEqual([400, "JOURNAL_DAY"]);
+  });
+
+  it("answers 409 when the stored Japan count moved", async () => {
+    results = [[{ written: 0 }], [JAPAN_ROW]];
+    const { status, body } = await send(request("PUT", japan({ count: 13, expected: 10 })));
+    expect([status, body.code]).toEqual([409, "CONFLICT"]);
+    expect(body.day.games.ongeki.plays).toBe(12);
+  });
+
+  it("dates Japan writes by the calendar day in Japan", async () => {
+    // 01:00 on 27 Oct in Tokyo is still 23:00 on 26 Oct in Bangkok.
+    const late = createDailyPlayHandler(() => sql, () => new Date("2026-10-26T16:00:00Z"));
+    const res = response();
+    results = [[{ written: 1 }], [JAPAN_ROW]];
+    await late(request("PUT", japan({ date: "2026-10-27" })), res);
+    expect(res.status.mock.calls[0][0]).toBe(200);
+    const intl = response();
+    await late(request("PUT", play({ date: "2026-10-27" })), intl);
+    expect(intl.status.mock.calls[0][0]).toBe(400);
   });
 });

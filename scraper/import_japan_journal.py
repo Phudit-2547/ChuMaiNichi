@@ -514,10 +514,25 @@ def build_daily_rows(
 async def upsert_daily_rows(
     connection: asyncpg.Connection, rows: Sequence[JapanDailyPlay]
 ) -> None:
-    """Create and idempotently populate ``japan_daily_play``."""
+    """Create and idempotently populate ``japan_daily_play``.
+
+    Days logged in the dashboard's day editor come after the last Journal day;
+    an import that reaches them would overwrite them, so it is blocked.
+    """
 
     ordered_rows = sorted(rows, key=lambda row: row.play_date)
     await connection.execute(CREATE_TABLE_SQL)
+    logged = await connection.fetch(
+        "SELECT play_date FROM public.japan_daily_play "
+        "WHERE source = 'manual' AND play_date <= $1 ORDER BY play_date",
+        ordered_rows[-1].play_date,
+    )
+    if logged:
+        rendered = ", ".join(row["play_date"].isoformat() for row in logged)
+        raise ValueError(
+            f"Import would overwrite days logged in the day editor: {rendered}. "
+            "Pass an earlier --through."
+        )
     await connection.executemany(UPSERT_SQL, [row.db_params() for row in ordered_rows])
 
 

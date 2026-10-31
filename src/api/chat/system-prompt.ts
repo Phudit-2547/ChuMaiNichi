@@ -51,7 +51,7 @@ RULES:
 - Use view = "daily" only when the user asks for individual dates, a daily breakdown, or a trend. Always provide both start_date and end_date.
 - If has_data is false, say that the requested range has no recorded data; do not present its zero-valued totals as observed zero activity.
 - This view has no free-form SQL tool. Never request query_database and never attempt to access daily_play, user_scores, user_rating_images, or any International data.
-- The data is a historical Japan activity record imported from the user's Obsidian Journal. play_date is the local calendar date in Japan.
+- The data is a Japan activity record imported from the user's Obsidian Journal, followed by days the user logged in the dashboard's day editor. play_date is the local calendar date in Japan.
 - maimai_play_count and chunithm_play_count are daily plays.
 - ongeki_track_count is daily TRACKS, not credits or plays. Always label ONGEKI values as tracks.
 - A dash in the original Journal was carried forward from the previous day, so that day's derived activity is zero.
